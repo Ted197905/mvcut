@@ -47,13 +47,14 @@
     cropAR: 'free',
     masks: [],                // {x,y,w,h,style}
     selectedMask: -1,
+    watermark: null,          // {text,font,size,color,opacity,x,y,anchor,style}
     speed: 1, keepAudio: true,
     output: { format: 'mp4', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
-  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed }); }
+  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark }); }
   function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
-  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
@@ -68,6 +69,7 @@
     state.crop = D.params.crop || null;
     state.masks = D.params.masks || [];
     state.speed = D.params.speed || 1;
+    state.watermark = D.params.watermark || null;
     state.keepAudio = D.params.keepAudio !== false;
     if (D.params.output) state.output = D.params.output;
   }
@@ -391,7 +393,7 @@
   function placeRect(el, r) { el.style.left = r.x * scale + 'px'; el.style.top = r.y * scale + 'px'; el.style.width = r.w * scale + 'px'; el.style.height = r.h * scale + 'px'; }
   function renderOverlay() {
     const screenTab = activeTab() === 'screen';
-    overlay.classList.toggle('active', screenTab);
+    overlay.classList.toggle('active', screenTab || activeTab() === 'watermark');
     cropRect.hidden = !state.crop; if (state.crop) placeRect(cropRect, state.crop);
     cropRect.style.pointerEvents = screenTab ? 'auto' : 'none';
     maskLayer.innerHTML = '';
@@ -400,8 +402,115 @@
       el.innerHTML = '<div class="rect-label">' + (m.style === 'blur' ? 'BLUR' : 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
       el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
     });
+    renderWatermark();
     syncCropFields(); renderMaskList();
   }
+
+  /* ---------- watermark ---------- */
+  const wmEl = $('wmPreview'), wmText = $('wmPreviewText');
+  const wmBox = () => state.crop || { x: 0, y: 0, w: D.width, h: D.height };
+  function defaultWatermark() {
+    const b = wmBox(), pad = Math.round(Math.min(b.w, b.h) * 0.04);
+    return { text: '', font: Object.keys(window.FONTS)[0] || 'pretendard', size: Math.max(12, Math.round(b.h * 0.05)),
+      color: '#ffffff', opacity: 0.85, x: b.w - pad, y: b.h - pad, anchor: 'se', style: 'shadow' };
+  }
+  const loadedFonts = new Set();
+  function ensureFont(key) {
+    if (loadedFonts.has(key)) return;
+    loadedFonts.add(key);
+    const st = document.createElement('style');
+    st.textContent = '@font-face{font-family:"wm-' + key + '";src:url("' + window.FONT_URL + key + '");font-display:swap}';
+    document.head.appendChild(st);
+  }
+  function renderWatermark() {
+    const w = state.watermark;
+    wmEl.hidden = !w || !w.text;
+    if (!w) return;
+    ensureFont(w.font);
+    const b = wmBox();
+    wmText.textContent = w.text;
+    wmEl.style.left = (b.x + w.x) * scale + 'px';
+    wmEl.style.top = (b.y + w.y) * scale + 'px';
+    const tx = w.anchor.includes('e') || ['n', 's', 'c'].includes(w.anchor) ? (w.anchor.includes('e') ? '-100%' : '-50%') : '0';
+    const ty = w.anchor.startsWith('s') ? '-100%' : (['w', 'e', 'c'].includes(w.anchor) ? '-50%' : '0');
+    wmEl.style.transform = 'translate(' + tx + ',' + ty + ')';
+    wmEl.style.fontFamily = '"wm-' + w.font + '", sans-serif';
+    wmEl.style.fontSize = (w.size * scale) + 'px';
+    wmEl.style.color = w.color;
+    wmEl.style.opacity = w.opacity;
+    wmEl.style.pointerEvents = activeTab() === 'watermark' ? 'auto' : 'none';
+    wmEl.classList.toggle('sel', activeTab() === 'watermark');
+    const sw = Math.max(1, w.size * scale * 0.05);
+    wmText.style.cssText = '';
+    if (w.style === 'shadow') wmText.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)';
+    else if (w.style === 'outline') { wmText.style.webkitTextStroke = Math.max(1, w.size * scale * 0.06) + 'px #000'; wmText.style.paintOrder = 'stroke fill'; }
+    else if (w.style === 'box') { wmText.style.background = 'rgba(0,0,0,.55)'; wmText.style.padding = Math.max(2, w.size * scale * 0.2) + 'px ' + Math.max(3, w.size * scale * 0.28) + 'px'; }
+    syncWmFields();
+  }
+  function syncWmFields() {
+    const w = state.watermark;
+    $('wmOn').checked = !!w;
+    ['wmText', 'wmFont', 'wmX', 'wmY', 'wmSize', 'wmColor', 'wmOpacity'].forEach(id => $(id).disabled = !w);
+    if (!w) return;
+    if (document.activeElement !== $('wmText')) $('wmText').value = w.text;
+    $('wmFont').value = w.font;
+    $('wmX').value = Math.round(w.x); $('wmY').value = Math.round(w.y);
+    $('wmSize').value = w.size; $('wmColor').value = w.color;
+    $('wmOpacity').value = Math.round(w.opacity * 100);
+    $('wmOpacityVal').textContent = Math.round(w.opacity * 100) + '%';
+    document.querySelectorAll('#wmPos button').forEach(b => b.classList.toggle('active', b.dataset.a === w.anchor));
+    document.querySelectorAll('#wmStyle button').forEach(b => b.classList.toggle('active', b.dataset.s === w.style));
+  }
+  function anchorPoint(a) {
+    const b = wmBox(), pad = Math.round(Math.min(b.w, b.h) * 0.04);
+    const x = a.includes('w') ? pad : (a.includes('e') ? b.w - pad : Math.round(b.w / 2));
+    const y = a.startsWith('n') ? pad : (a.startsWith('s') ? b.h - pad : Math.round(b.h / 2));
+    return { x, y };
+  }
+  $('wmOn').addEventListener('change', (e) => {
+    commit();
+    state.watermark = e.target.checked ? defaultWatermark() : null;
+    renderOverlay();
+    if (e.target.checked) $('wmText').focus();
+  });
+  $('wmText').addEventListener('input', (e) => { if (!state.watermark) return; state.watermark.text = e.target.value; renderWatermark(); });
+  $('wmText').addEventListener('change', () => commit());
+  $('wmFont').addEventListener('change', (e) => { if (!state.watermark) return; commit(); state.watermark.font = e.target.value; renderWatermark(); });
+  ['wmX', 'wmY', 'wmSize'].forEach(id => $(id).addEventListener('change', () => {
+    const w = state.watermark; if (!w) return; commit();
+    const b = wmBox();
+    w.x = clamp(+$('wmX').value || 0, 0, b.w); w.y = clamp(+$('wmY').value || 0, 0, b.h);
+    w.size = clamp(+$('wmSize').value || w.size, 8, 400);
+    renderWatermark();
+  }));
+  $('wmColor').addEventListener('input', (e) => { if (!state.watermark) return; state.watermark.color = e.target.value; renderWatermark(); });
+  $('wmColor').addEventListener('change', () => commit());
+  $('wmOpacity').addEventListener('input', (e) => { if (!state.watermark) return; state.watermark.opacity = (+e.target.value) / 100; renderWatermark(); });
+  $('wmOpacity').addEventListener('change', () => commit());
+  $('wmPos').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !state.watermark) return;
+    commit();
+    state.watermark.anchor = b.dataset.a;
+    Object.assign(state.watermark, anchorPoint(b.dataset.a));
+    renderOverlay();
+  });
+  $('wmStyle').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !state.watermark) return;
+    commit(); state.watermark.style = b.dataset.s; renderOverlay();
+  });
+  wmEl.addEventListener('pointerdown', (e) => {
+    const w = state.watermark; if (!w || e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    commit();
+    const sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y, b = wmBox();
+    const move = (ev) => {
+      w.x = clamp(Math.round(ox + (ev.clientX - sx) / scale), 0, b.w);
+      w.y = clamp(Math.round(oy + (ev.clientY - sy) / scale), 0, b.h);
+      renderWatermark();
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  });
   function syncCropFields() {
     $('cropOn').checked = !!state.crop;
     const c = state.crop || { x: 0, y: 0, w: D.width, h: D.height };
@@ -532,7 +641,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, speed: state.speed, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

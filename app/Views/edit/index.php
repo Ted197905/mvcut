@@ -50,6 +50,7 @@ $icons = [
             <i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>
           </div>
           <div id="maskLayer"></div>
+          <div class="wm" id="wmPreview" hidden><span id="wmPreviewText"></span></div>
         </div>
       </div>
     </div>
@@ -58,6 +59,7 @@ $icons = [
       <div class="tabs" id="tabs">
         <button class="tab active" data-tab="segments">구간</button>
         <button class="tab" data-tab="screen">화면</button>
+        <button class="tab" data-tab="watermark">워터마크</button>
         <button class="tab" data-tab="output">출력</button>
       </div>
 
@@ -134,6 +136,56 @@ $icons = [
         </div>
       </div>
 
+
+      <div class="panel" data-panel="watermark">
+        <div class="sec">
+          <label class="switch"><input type="checkbox" id="wmOn"> <span>워터마크 사용</span></label>
+          <div class="field-lite">
+            <label for="wmText">텍스트</label>
+            <input class="tc-off" id="wmText" maxlength="120" placeholder="예: @mychannel" autocomplete="off">
+          </div>
+          <div class="field-lite">
+            <label for="wmFont">폰트</label>
+            <select id="wmFont">
+              <?php foreach ($fonts as $key => $f): ?>
+                <option value="<?= esc($key, 'attr') ?>"><?= esc($f['label']) ?> · <?= esc($f['note']) ?></option>
+              <?php endforeach ?>
+            </select>
+          </div>
+          <div class="hint" style="margin-top:6px">모두 SIL Open Font License · 상업적 사용 가능</div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">위치 <span class="hint">미리보기에서 드래그</span></div>
+          <div class="pos-grid" id="wmPos">
+            <button data-a="nw" title="좌상"></button><button data-a="n" title="상단"></button><button data-a="ne" title="우상"></button>
+            <button data-a="w" title="좌"></button><button data-a="c" title="가운데"></button><button data-a="e" title="우"></button>
+            <button data-a="sw" title="좌하"></button><button data-a="s" title="하단"></button><button data-a="se" class="active" title="우하"></button>
+          </div>
+          <div class="row2">
+            <label>X<input type="number" id="wmX" step="1"></label>
+            <label>Y<input type="number" id="wmY" step="1"></label>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">모양</div>
+          <div class="row2">
+            <label>크기(px)<input type="number" id="wmSize" min="8" max="400" step="1"></label>
+            <label>색<input type="color" id="wmColor" value="#ffffff"></label>
+          </div>
+          <label class="slider">불투명도 <span id="wmOpacityVal">85%</span>
+            <input type="range" id="wmOpacity" min="5" max="100" step="5" value="85">
+          </label>
+          <div class="presets" id="wmStyle">
+            <button data-s="none">없음</button>
+            <button data-s="shadow" class="active">그림자</button>
+            <button data-s="outline">외곽선</button>
+            <button data-s="box">박스</button>
+          </div>
+        </div>
+      </div>
+
       <div class="panel" data-panel="output">
         <div class="sec">
           <div class="sec-title">속도</div>
@@ -204,6 +256,8 @@ $icons = [
 </div>
 
 <script>
+window.FONTS = <?= json_encode($fonts, JSON_UNESCAPED_UNICODE) ?>;
+window.FONT_URL = <?= json_encode(site_url('fonts/')) ?>;
 window.ICONS = { play: <?= json_encode($icons['play']) ?>, pause: <?= json_encode($icons['pause']) ?> };
 window.EDITOR_DATA = <?= json_encode([
     'id'       => (int) $item['id'],

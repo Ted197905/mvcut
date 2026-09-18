@@ -250,6 +250,7 @@ class JobRunner
         $log('ffmpeg ' . implode(' ', array_map('escapeshellarg', array_slice($cmd, 1))));
         $expected = max(0.1, EditParams::outputDuration($p));
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $pct]));
+        @unlink($dir . '/wm.txt');
         if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
             @unlink($out); $this->media->delete($resultId); @rmdir($dir);
             throw new \RuntimeException('ffmpeg failed (' . $r['code'] . '): ' . mb_substr(trim($r['stderr']), -1500));
@@ -321,6 +322,11 @@ class JobRunner
             }
             $label = "vm{$mi}"; $mi++;
         }
+        // watermark: drawn after masks, before speed/scale so the position stays in source pixels
+        if (! empty($p['watermark'])) {
+            $f[] = '[' . $label . ']' . $this->drawtext($p['watermark'], $p['crop'], dirname($out)) . '[vw]';
+            $label = 'vw';
+        }
         $post = [];
         if ($p['speed'] != 1.0) {
             $post[] = sprintf('setpts=PTS/%.4f', $p['speed']);
@@ -370,6 +376,58 @@ class JobRunner
         }
         $args[] = $out;
         return $args;
+    }
+
+    /**
+     * Builds a drawtext filter for the watermark. The text goes through a file
+     * (textfile=) so Korean, quotes, colons and % never hit filtergraph escaping.
+     * Coordinates are in cropped-frame pixels.
+     */
+    private function drawtext(array $w, ?array $crop, string $workDir): string
+    {
+        $font = \App\Libraries\Fonts::path($w['font']) ?? \App\Libraries\Fonts::path(\App\Libraries\Fonts::default());
+        if (! $font) return 'null';
+
+        $txt = rtrim($workDir, '/') . '/wm.txt';
+        if (@file_put_contents($txt, $w['text']) === false) return 'null';
+        @chmod($txt, 0664);
+
+        // filtergraph escaping for values: backslash, colon, quote
+        $esc = static fn (string $v): string => str_replace(['\\', ':', "'"], ['\\\\', '\\:', "\\'"], $v);
+
+        $x = (int) $w['x'];
+        $y = (int) $w['y'];
+        $a = (string) $w['anchor'];
+        $ax = str_contains($a, 'e') ? '-text_w' : (in_array($a, ['n', 's', 'c'], true) ? '-text_w/2' : '');
+        $ay = str_starts_with($a, 's') ? '-text_h' : (in_array($a, ['w', 'e', 'c'], true) ? '-text_h/2' : '');
+
+        $op   = round((float) $w['opacity'], 3);
+        $args = [
+            'fontfile=' . $esc($font),
+            'textfile=' . $esc($txt),
+            'expansion=none',   // the text is user input: no %{...} expansion, and a literal % is fine
+            'fontsize=' . (int) $w['size'],
+            'fontcolor=' . $w['color'] . '@' . $op,
+            'x=' . $x . $ax,
+            'y=' . $y . $ay,
+        ];
+        switch ($w['style']) {
+            case 'outline':
+                $args[] = 'borderw=' . max(1, (int) round($w['size'] * 0.06));
+                $args[] = 'bordercolor=black@' . $op;
+                break;
+            case 'box':
+                $args[] = 'box=1';
+                $args[] = 'boxcolor=black@' . round(min(1.0, $op * 0.55), 3);
+                $args[] = 'boxborderw=' . max(4, (int) round($w['size'] * 0.28));
+                break;
+            case 'shadow':
+                $args[] = 'shadowcolor=black@' . round(min(1.0, $op * 0.7), 3);
+                $args[] = 'shadowx=' . max(1, (int) round($w['size'] * 0.05));
+                $args[] = 'shadowy=' . max(1, (int) round($w['size'] * 0.05));
+                break;
+        }
+        return 'drawtext=' . implode(':', $args);
     }
 
     /** Runs ffmpeg, parsing -progress output to report percent. */

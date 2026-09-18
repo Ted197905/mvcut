@@ -45,6 +45,20 @@ class Media extends BaseController
         return $this->response->setJSON(['media' => $item]);
     }
 
+    /** GET /fonts/{key} - serves a watermark font for the editor preview. */
+    public function font(string $key)
+    {
+        $path = \App\Libraries\Fonts::path($key);
+        if (! $path) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        return $this->response
+            ->setHeader('Content-Type', $ext === 'otf' ? 'font/otf' : 'font/ttf')
+            ->setHeader('Cache-Control', 'private, max-age=604800, immutable')
+            ->setBody(file_get_contents($path));
+    }
+
     /** POST /api/media/{id}/rename {title} */
     public function rename(int $id)
     {

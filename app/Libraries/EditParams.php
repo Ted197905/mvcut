@@ -55,6 +55,29 @@ class EditParams
             $masks[] = $r;
         }
 
+        // watermark
+        $wm = null;
+        if (! empty($in['watermark']) && is_array($in['watermark']) && trim((string) ($in['watermark']['text'] ?? '')) !== '') {
+            $w = $in['watermark'];
+            $font = (string) ($w['font'] ?? '');
+            if (! \App\Libraries\Fonts::has($font)) $font = \App\Libraries\Fonts::default();
+            $box = $crop ?: ['x' => 0, 'y' => 0, 'w' => $W, 'h' => $H];
+            $size = (int) round((float) ($w['size'] ?? 0));
+            if ($size < 8) $size = max(16, (int) round($box['h'] * 0.06));
+            $size = max(8, min(400, $size));
+            $wm = [
+                'text'    => mb_substr(preg_replace('/[\r\n\t]+/u', ' ', (string) $w['text']), 0, 120),
+                'font'    => $font,
+                'size'    => $size,
+                'color'   => self::color($w['color'] ?? '#ffffff'),
+                'opacity' => max(0.05, min(1.0, (float) ($w['opacity'] ?? 0.85))),
+                'x'       => max(0, min($box['w'], (int) round((float) ($w['x'] ?? 0)))),
+                'y'       => max(0, min($box['h'], (int) round((float) ($w['y'] ?? 0)))),
+                'anchor'  => in_array($w['anchor'] ?? 'nw', ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'], true) ? $w['anchor'] : 'nw',
+                'style'   => in_array($w['style'] ?? 'shadow', ['none', 'shadow', 'outline', 'box'], true) ? $w['style'] : 'shadow',
+            ];
+        }
+
         $speed = (float) ($in['speed'] ?? 1);
         if ($speed < 0.25 || $speed > 4) throw new \InvalidArgumentException('속도는 0.25x~4x 사이여야 합니다.');
 
@@ -68,10 +91,16 @@ class EditParams
             'keep'      => $keep,
             'crop'      => $crop,
             'masks'     => $masks,
+            'watermark' => $wm,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
         ];
+    }
+
+    private static function color(string $c): string
+    {
+        return preg_match('/^#[0-9a-fA-F]{6}$/', $c) ? strtolower($c) : '#ffffff';
     }
 
     private static function rect(array $r, int $W, int $H): array

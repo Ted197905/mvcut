@@ -165,3 +165,29 @@
 /* the track is dragged, not scrolled, on touch */
 .track, .ruler, .segments { touch-action: pan-x; }
 .boundary, .rect { touch-action: none; }
+
+/* ---- watermark ---- */
+.wm { position: absolute; cursor: move; touch-action: none; white-space: pre; line-height: 1.2;
+  user-select: none; -webkit-user-select: none; pointer-events: auto; }
+.wm.sel { outline: 1px dashed rgba(255,255,255,.7); outline-offset: 3px; }
+.wm span { display: inline-block; }
+.field-lite { margin-bottom: 10px; }
+.field-lite label { display: block; font-size: 11px; color: var(--e-fg2); margin-bottom: 4px; }
+.ed .tc-off, .ed #wmFont { width: 100%; background: var(--e-panel2); border: 1px solid var(--e-line); color: var(--e-fg);
+  border-radius: 6px; padding: 7px 9px; font-size: 13px; }
+.ed .tc-off:focus, .ed #wmFont:focus { outline: none; border-color: var(--e-accent); }
+.ed input[type=color] { width: 100%; height: 32px; padding: 2px; background: var(--e-panel2); border: 1px solid var(--e-line); border-radius: 6px; cursor: pointer; }
+.slider { display: block; font-size: 11px; color: var(--e-fg2); margin: 12px 0 6px; }
+.slider input { width: 100%; accent-color: var(--e-accent); margin-top: 6px; }
+.slider span { color: var(--e-fg); float: right; font-variant-numeric: tabular-nums; }
+.pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 12px; }
+.pos-grid button { aspect-ratio: 16 / 10; background: var(--e-panel2); border: 1px solid var(--e-line); border-radius: 6px; cursor: pointer; position: relative; }
+.pos-grid button::after { content: ""; position: absolute; width: 7px; height: 3px; border-radius: 1px; background: var(--e-fg3); }
+.pos-grid button[data-a^=n]::after { top: 5px; } .pos-grid button[data-a^=s]::after { bottom: 5px; }
+.pos-grid button[data-a=w]::after, .pos-grid button[data-a=e]::after, .pos-grid button[data-a=c]::after { top: 50%; margin-top: -1.5px; }
+.pos-grid button[data-a$=w]::after, .pos-grid button[data-a=w]::after { left: 5px; }
+.pos-grid button[data-a$=e]::after, .pos-grid button[data-a=e]::after { right: 5px; }
+.pos-grid button[data-a=n]::after, .pos-grid button[data-a=s]::after, .pos-grid button[data-a=c]::after { left: 50%; margin-left: -3.5px; }
+.pos-grid button:hover { border-color: var(--e-fg3); }
+.pos-grid button.active { border-color: var(--e-accent); background: rgba(41,151,255,.15); }
+.pos-grid button.active::after { background: var(--e-accent); }

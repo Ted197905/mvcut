@@ -21,6 +21,7 @@ class Edit extends BaseController
             'title'  => '편집: ' . $item['title'],
             'item'   => $item,
             'params' => $params,
+            'fonts'  => \App\Libraries\Fonts::available(),
         ]);
     }
 
