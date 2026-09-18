@@ -33,6 +33,32 @@ class MediaSupport
         return false;
     }
 
+    /**
+     * What each platform can actually do right now.
+     *  full    - yt-dlp extractor works without credentials
+     *  images  - no video extractor, but og:image scraping works
+     *  login   - extractor exists but the site demands cookies
+     *  none    - no extractor and the page is JS-only
+     */
+    public const PLATFORM_SUPPORT = [
+        'youtube'   => ['label' => 'YouTube',   'level' => 'full'],
+        'x'         => ['label' => 'X',         'level' => 'full'],
+        'facebook'  => ['label' => 'Facebook',  'level' => 'full'],
+        'instagram' => ['label' => 'Instagram', 'level' => 'login'],
+        'threads'   => ['label' => 'Threads',   'level' => 'none'],
+    ];
+
+    /** User-facing explanation when a platform cannot be imported. */
+    public static function unsupportedReason(string $platform): ?string
+    {
+        $level = self::PLATFORM_SUPPORT[$platform]['level'] ?? 'full';
+        return match ($level) {
+            'none'  => 'Threads는 게시물 내용을 로그인 없이 내려주지 않아 자동 가져오기를 지원하지 않습니다. 영상을 직접 저장한 뒤 위 업로드 영역에 올려 주세요. 같은 게시물이 Instagram에도 올라와 있다면 Instagram 링크로 시도해 볼 수 있습니다.',
+            'login' => 'Instagram은 현재 로그인 없이는 게시물을 내려주지 않습니다. 영상을 직접 저장한 뒤 업로드하거나, 공개 링크가 있는 다른 플랫폼 주소를 사용해 주세요.',
+            default => null,
+        };
+    }
+
     /** Platform key from URL, or null when not allowed. */
     public static function platformOf(string $url): ?string
     {

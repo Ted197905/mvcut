@@ -15,6 +15,14 @@ class Import extends BaseController
         $url = trim((string) ($in['url'] ?? ''));
         $platform = MediaSupport::platformOf($url);
         if (! $platform) return $this->response->setStatusCode(422)->setJSON(['error' => 'Instagram, Facebook, X, Threads, YouTube 링크만 지원합니다.']);
+        if ($reason = MediaSupport::unsupportedReason($platform)) {
+            // the image scraper is still worth a try for platforms that expose og:image
+            $images = MediaSupport::scrapeImages($url);
+            if ($images !== []) {
+                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $this->imageEntries($images), 'notice' => $reason]);
+            }
+            return $this->response->setStatusCode(422)->setJSON(['error' => $reason]);
+        }
         $bin = MediaSupport::ytdlp();
         if (! $bin) return $this->response->setStatusCode(500)->setJSON(['error' => '서버에 yt-dlp가 없습니다.']);
 
@@ -27,7 +35,14 @@ class Import extends BaseController
                 return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $this->imageEntries($images)]);
             }
             $msg = trim(preg_replace('/^ERROR:\s*/m', '', $out['stderr'])) ?: '리소스를 찾을 수 없습니다.';
-            return $this->response->setStatusCode(422)->setJSON(['error' => '가져올 수 없습니다: ' . mb_substr($msg, 0, 300)]);
+            if (stripos($msg, 'empty media response') !== false || stripos($msg, 'login') !== false || stripos($msg, 'cookies') !== false) {
+                $msg = '이 게시물은 로그인해야 볼 수 있어 가져올 수 없습니다. 비공개 계정이거나 플랫폼이 비로그인 접근을 막은 경우입니다.';
+            } elseif (stripos($msg, 'Unsupported URL') !== false) {
+                $msg = '지원하지 않는 주소입니다. 게시물(영상) 링크가 맞는지 확인해 주세요.';
+            } else {
+                $msg = mb_substr($msg, 0, 240);
+            }
+            return $this->response->setStatusCode(422)->setJSON(['error' => '가져올 수 없습니다. ' . $msg]);
         }
 
         $entries = [];

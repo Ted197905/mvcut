@@ -17,9 +17,9 @@
   <div class="progress-list" id="progressList"></div>
 
   <details class="import-panel" id="importPanel">
-    <summary><b>SNS 링크로 가져오기</b> <span class="muted small">Instagram, Facebook, X, Threads, YouTube</span></summary>
+    <summary><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook</span></summary>
     <div class="import-row">
-      <input class="input" type="url" id="importUrl" placeholder="게시물 링크 붙여넣기" autocomplete="off">
+      <input class="input" type="url" id="importUrl" placeholder="YouTube · X · Facebook 게시물 링크" autocomplete="off">
       <button class="btn" type="button" id="btnInspect">리소스 확인</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
@@ -252,7 +252,7 @@
         il.appendChild(el);
       });
       il.hidden = ia.hidden = false;
-      istatus((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.');
+      istatus(j.notice ? j.notice : ((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.'), j.notice ? 'warn' : '');
       count();
     } catch (e) { istatus(e.message, 'error'); }
     $('btnInspect').disabled = false;
