@@ -143,3 +143,25 @@ p { margin: 0 0 12px; }
 .import-status { margin-top: 10px; font-size: 14px; }
 .import-status.error { color: var(--danger); }
 .card .badge.proc { background: var(--accent); }
+
+/* library toolbar / select mode */
+.lib-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 24px 0 16px; }
+.lib-toolbar .input { width: auto; min-height: 38px; padding: 7px 12px; font-size: 15px; }
+.lib-toolbar .search { min-width: 200px; flex: 1 1 200px; max-width: 320px; }
+.lib-toolbar .spacer { flex: 1; }
+.bulkbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--bg2); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; }
+.bulkbar .switch { margin: 0; }
+.bulkbar .spacer { flex: 1; }
+.card-wrap { position: relative; }
+.card-wrap .pick { display: none; position: absolute; left: 10px; top: 10px; z-index: 2; cursor: pointer; }
+.card-wrap .pick input { width: 22px; height: 22px; accent-color: var(--accent); }
+.grid.picking .card-wrap .pick { display: block; }
+.grid.picking .card { cursor: pointer; }
+.grid.picking .card-wrap:has(input:checked) .card { outline: 3px solid var(--accent); outline-offset: -1px; }
+.grid.picking .thumb .badge { left: 40px; }
+.import-panel summary { cursor: pointer; font-size: 17px; list-style: none; }
+.import-panel summary::-webkit-details-marker { display: none; }
+.import-panel summary::before { content: "+ "; color: var(--fg2); }
+.import-panel[open] summary::before { content: "- "; }
+.import-panel[open] summary { margin-bottom: 14px; }
+.import-panel .import-row { margin-top: 0; }

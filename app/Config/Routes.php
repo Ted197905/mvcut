@@ -19,6 +19,11 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
+    $routes->post('library/delete', 'Library::bulkDelete');
+    $routes->post('api/upload/init', 'Upload::init');
+    $routes->post('api/upload/chunk', 'Upload::chunk');
+    $routes->post('api/upload/finish', 'Upload::finish');
+    $routes->post('api/upload/abort', 'Upload::abort');
     $routes->get('library/(:num)', 'Library::show/$1');
     $routes->post('library/(:num)/delete', 'Library::delete/$1');
     $routes->get('media/(:num)/thumb', 'Media::thumb/$1');

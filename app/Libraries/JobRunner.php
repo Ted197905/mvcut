@@ -138,6 +138,9 @@ class JobRunner
         $this->jobs->update($job['id'], ['media_id' => $mediaId]);
         $row = $this->media->find($mediaId); $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
+        if (! empty($p['image_url'])) {
+            return $this->importImage($job, $mediaId, $dir, $p, $log);
+        }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
                  '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime',
                  '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title', $p['url']];
@@ -159,6 +162,29 @@ class JobRunner
         if (MediaSupport::needsProxy($m)) {
             $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
         }
+        return $mediaId;
+    }
+
+    /** Downloads a single image URL (already validated) into the media directory. */
+    private function importImage(array $job, int $mediaId, string $dir, array $p, callable $log): int
+    {
+        $url = (string) $p['image_url'];
+        $tmp = $dir . '/download.bin';
+        $log('curl image ' . $url);
+        $r = Ffmpeg::run(['curl', '-sL', '--max-redirs', '3', '--max-time', '120', '--max-filesize', '104857600',
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+            '-w', '%{url_effective}', '-o', $tmp, $url], 130);
+        $effective = trim($r['stdout']);
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0 || ($effective !== '' && ! MediaSupport::imageUrlAllowed($effective))) {
+            @unlink($tmp); $this->media->delete($mediaId); @rmdir($dir);
+            throw new \RuntimeException('이미지를 내려받지 못했습니다.');
+        }
+        $meta = Ffmpeg::probe($tmp);
+        $ext  = match ($meta['container'] ?? '') { 'png_pipe' => 'png', 'webp_pipe' => 'webp', 'gif' => 'gif', default => 'jpg' };
+        $file = $dir . '/original.' . $ext;
+        rename($tmp, $file);
+        $this->media->update($mediaId, ['filename' => 'original.' . $ext]);
+        $this->finishMedia($mediaId, $file, $dir, $log);
         return $mediaId;
     }
 

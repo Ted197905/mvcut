@@ -283,9 +283,26 @@
     else if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { tlScroll.scrollLeft += e.deltaY; }
   }, { passive: false });
   tlScroll.addEventListener('scroll', drawRuler);
+  // pinch to zoom (touch)
+  let pinch = null;
+  tlScroll.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 2) return;
+    const [a, b] = e.touches;
+    const cx = (a.clientX + b.clientX) / 2 - tlInner.getBoundingClientRect().left;
+    pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z: zoom, t: tOf(cx) };
+  }, { passive: true });
+  tlScroll.addEventListener('touchmove', (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    setZoom(pinch.z * (d / pinch.d), pinch.t);
+  }, { passive: false });
+  tlScroll.addEventListener('touchend', () => { pinch = null; });
   $('zoom').addEventListener('input', (e) => setZoom(+e.target.value, tOf(tlScroll.scrollLeft + tlScroll.clientWidth / 2)));
   $('btnFit').addEventListener('click', () => setZoom(1));
   window.addEventListener('resize', () => { layoutTimeline(); layoutStage(); });
+  window.addEventListener('orientationchange', () => setTimeout(() => { layoutTimeline(); layoutStage(); }, 250));
 
   /* ---------- transport / keyboard ---------- */
   $('btnPlay').addEventListener('click', () => playing ? pause() : play());
@@ -342,18 +359,27 @@
 
   /* ---------- tabs ---------- */
   const activeTab = () => document.querySelector('.tab.active').dataset.tab;
+  const inspector = document.querySelector('.ed-inspector');
+  const isSheet = () => matchMedia('(max-width: 900px)').matches;
   $('tabs').addEventListener('click', (e) => {
     const b = e.target.closest('.tab'); if (!b) return;
+    const wasActive = b.classList.contains('active');
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === b));
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === b.dataset.tab));
+    if (isSheet()) inspector.classList.toggle('open', !(wasActive && inspector.classList.contains('open')));
     renderOverlay();
   });
+  function openSheet() { if (isSheet()) inspector.classList.add('open'); }
 
   /* ---------- stage / crop / masks ---------- */
   const stage = $('stage'), overlay = $('overlay'), cropRect = $('cropRect'), maskLayer = $('maskLayer');
   let scale = 1; // stage px per source px
   function layoutStage() {
-    const wrap = $('previewWrap'); const aw = wrap.clientWidth - 32, ah = wrap.clientHeight - 32;
+    const wrap = $('previewWrap');
+    const cs = getComputedStyle(wrap);
+    const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ah = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (aw <= 0 || ah <= 0) return;
     const ar = D.width / D.height; let w = aw, h = w / ar; if (h > ah) { h = ah; w = h * ar; }
     stage.style.width = w + 'px'; stage.style.height = h + 'px'; video.style.width = w + 'px'; video.style.height = h + 'px';
     scale = w / D.width; renderOverlay();
@@ -508,7 +534,10 @@
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;
     $('jobStatus').textContent = '요청 중...'; $('jobPct').textContent = ''; $('jobBar').style.width = '0%';
     $('btnSave').disabled = $('btnSave2').disabled = true;
-    document.querySelector('.tab[data-tab=output]').click();
+    const outTab = document.querySelector('.tab[data-tab=output]');
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === outTab));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'output'));
+    openSheet(); renderOverlay();
     try {
       const res = await fetch(D.submitUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify(params()) });
       const j = await res.json();

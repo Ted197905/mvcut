@@ -3,21 +3,48 @@
 namespace App\Controllers;
 
 use App\Libraries\Ffmpeg;
+use App\Libraries\MediaIntake;
 use App\Libraries\MediaSupport;
 use App\Models\JobModel;
 use App\Models\MediaModel;
 
 class Library extends BaseController
 {
-    private const ALLOWED_EXT = ['mp4', 'mov', 'm4v', 'mkv', 'webm', 'avi', 'wmv', 'flv', 'ts', 'mts', 'm2ts', '3gp', 'gif', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'mp3', 'm4a', 'wav', 'aac'];
-
     public function index()
     {
-        $media = new MediaModel();
+        $userId = (int) session()->get('user_id');
+        $q      = trim((string) $this->request->getGet('q'));
+        $sort   = (string) $this->request->getGet('sort');
+        $kind   = (string) $this->request->getGet('kind');
+
+        $media   = new MediaModel();
+        $builder = $media->where('user_id', $userId);
+        if ($q !== '') {
+            $builder->groupStart()->like('title', $q)->orLike('source_url', $q)->groupEnd();
+        }
+        match ($kind) {
+            'original' => $builder->where('kind', 'original'),
+            'result'   => $builder->where('kind', 'result'),
+            'video'    => $builder->where('media_type', 'video'),
+            'image'    => $builder->where('media_type', 'image'),
+            default    => null,
+        };
+        match ($sort) {
+            'oldest'  => $builder->orderBy('id', 'ASC'),
+            'largest' => $builder->orderBy('size', 'DESC'),
+            'longest' => $builder->orderBy('duration', 'DESC'),
+            'title'   => $builder->orderBy('title', 'ASC'),
+            default   => $builder->orderBy('id', 'DESC'),
+        };
+
         return view('library/index', [
-            'title' => '라이브러리',
-            'items' => $media->forUser((int) session()->get('user_id')),
+            'title'  => '라이브러리',
+            'items'  => $builder->findAll(),
             'ffmpeg' => Ffmpeg::available(),
+            'q'      => $q,
+            'sort'   => $sort ?: 'newest',
+            'kind'   => $kind ?: 'all',
+            'total'  => $media->where('user_id', $userId)->countAllResults(),
         ]);
     }
 
@@ -27,54 +54,17 @@ class Library extends BaseController
         if (! $file || ! $file->isValid()) {
             return $this->response->setStatusCode(400)->setJSON(['error' => $file ? $file->getErrorString() : '파일이 없습니다.']);
         }
-        $ext = strtolower($file->getClientExtension() ?: $file->guessExtension());
-        if (! in_array($ext, self::ALLOWED_EXT, true)) {
+        $ext = MediaIntake::extOf($file->getClientName()) ?: strtolower((string) $file->guessExtension());
+        if (! MediaIntake::allowed($ext)) {
             return $this->response->setStatusCode(415)->setJSON(['error' => '지원하지 않는 파일 형식입니다: .' . $ext]);
         }
-
-        $userId = (int) session()->get('user_id');
-        $media  = new MediaModel();
-        $title  = pathinfo($file->getClientName(), PATHINFO_FILENAME) ?: 'untitled';
-        $id = $media->insert([
-            'user_id'    => $userId,
-            'kind'       => 'original',
-            'source'     => 'upload',
-            'title'      => mb_substr($title, 0, 255),
-            'filename'   => 'original.' . $ext,
-            'mime'       => $file->getClientMimeType(),
-            'size'       => $file->getSize(),
-            'status'     => 'processing',
-        ]);
-        $row = $media->find($id);
-        $dir = MediaModel::dir($row);
-        if (! is_dir($dir) && ! mkdir($dir, 0775, true)) {
-            $media->delete($id);
-            return $this->response->setStatusCode(500)->setJSON(['error' => '저장 디렉토리를 만들 수 없습니다.']);
+        try {
+            [$id, $dir] = MediaIntake::create((int) session()->get('user_id'), $file->getClientName(), $ext, $file->getSize(), $file->getClientMimeType());
+            $file->move($dir, 'original.' . $ext, true);
+            return $this->response->setJSON(['ok' => true, 'item' => MediaIntake::finish($id)]);
+        } catch (\RuntimeException $e) {
+            return $this->response->setStatusCode(500)->setJSON(['error' => $e->getMessage()]);
         }
-        $file->move($dir, 'original.' . $ext, true);
-        $path = $dir . '/original.' . $ext;
-
-        $update = ['status' => 'ready', 'mime' => mime_content_type($path) ?: $row['mime']];
-        $meta = Ffmpeg::probe($path);
-        if ($meta) {
-            $update += $meta;
-            if (in_array($meta['media_type'], ['video', 'image'], true) && Ffmpeg::thumbnail($path, $dir . '/thumb.jpg', $meta['duration'])) {
-                $update['has_thumb'] = 1;
-            }
-            if ($meta['media_type'] === 'video' && $meta['duration']) {
-                Ffmpeg::filmstrip($path, $dir . '/strip2.jpg', (float) $meta['duration']);
-            }
-        } else {
-            $update['media_type'] = str_starts_with($update['mime'], 'video/') ? 'video'
-                : (str_starts_with($update['mime'], 'image/') ? 'image'
-                : (str_starts_with($update['mime'], 'audio/') ? 'audio' : 'unknown'));
-        }
-        $media->update($id, $update);
-        $item = $media->find($id);
-        if (MediaSupport::needsProxy($item)) {
-            (new JobModel())->insert(['user_id' => $userId, 'media_id' => $id, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
-        }
-        return $this->response->setJSON(['ok' => true, 'item' => $item]);
     }
 
     public function show(int $id)
@@ -91,16 +81,29 @@ class Library extends BaseController
 
     public function delete(int $id)
     {
-        $media = new MediaModel();
-        $item  = $media->findOwned($id, (int) session()->get('user_id'));
-        if ($item) {
-            $dir = MediaModel::dir($item);
-            if (is_dir($dir)) {
-                foreach (glob($dir . '/*') ?: [] as $f) @unlink($f);
-                @rmdir($dir);
-            }
-            $media->delete($id);
-        }
+        $this->removeOwned([$id]);
         return redirect()->to('/library')->with('flash', '삭제했습니다.');
+    }
+
+    /** POST /library/delete  ids[]=1&ids[]=2 */
+    public function bulkDelete()
+    {
+        $ids = array_map('intval', (array) $this->request->getPost('ids'));
+        $n   = $this->removeOwned($ids);
+        return redirect()->to('/library')->with('flash', $n . '개를 삭제했습니다.');
+    }
+
+    private function removeOwned(array $ids): int
+    {
+        $ids = array_values(array_filter(array_unique($ids), static fn ($i) => $i > 0));
+        if ($ids === []) return 0;
+        $media  = new MediaModel();
+        $userId = (int) session()->get('user_id');
+        $rows   = $media->whereIn('id', $ids)->where('user_id', $userId)->findAll();
+        foreach ($rows as $row) {
+            MediaIntake::removeDir(MediaModel::dir($row));
+            $media->delete($row['id']);
+        }
+        return count($rows);
     }
 }

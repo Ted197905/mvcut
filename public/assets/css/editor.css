@@ -3,7 +3,8 @@
 .editor-body { background: #161618; color: #e8e8ea; overflow: hidden; }
 .editor-body { --e-bg: #161618; --e-panel: #1f1f22; --e-panel2: #26262a; --e-line: #333338; --e-fg: #e8e8ea; --e-fg2: #9a9aa2; --e-fg3: #66666e;
   --e-accent: #2997ff; --e-accent2: #0a84ff; --e-red: #ff453a; --e-green: #30d158; --e-yellow: #ffd60a; --e-mark: #ffd60a; }
-.ed { display: grid; grid-template-rows: 48px 1fr 240px; height: 100vh; height: 100dvh; }
+.ed { display: grid; grid-template-rows: 48px 1fr 240px; height: 100vh; height: 100dvh; max-width: 100vw; overflow: hidden; }
+.ed-main, .ed-preview, .ed-inspector, .ed-timeline, .tl-scroll, .transport { min-width: 0; }
 .ed-top { display: flex; align-items: center; gap: 12px; padding: 0 12px 0 8px; background: var(--e-panel); border-bottom: 1px solid var(--e-line); }
 .ed-back { color: var(--e-fg); font-size: 28px; line-height: 1; padding: 0 10px; text-decoration: none; opacity: .8; }
 .ed-back:hover { opacity: 1; text-decoration: none; }
@@ -113,4 +114,50 @@
 .markrange { position: absolute; top: 0; bottom: 0; background: rgba(255,214,10,.12); border-left: 1px solid rgba(255,214,10,.5); border-right: 1px solid rgba(255,214,10,.5); }
 .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--e-red); z-index: 5; pointer-events: none; }
 .playhead .head { position: absolute; top: 0; left: -6px; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 10px solid var(--e-red); }
-@media (max-width: 900px) { .ed-main { grid-template-columns: 1fr; grid-template-rows: 1fr 260px; } .ed-inspector { border-left: 0; border-top: 1px solid var(--e-line); } .ed { grid-template-rows: 48px 1fr 200px; } }
+
+/* ---- tablet / phone: inspector becomes a bottom sheet ---- */
+@media (max-width: 900px) {
+  .ed { grid-template-rows: 44px 1fr 176px; }
+  .ed-top { padding: 0 8px 0 4px; gap: 8px; }
+  .ed-title .meta { display: none; }
+  .ed-main { grid-template-columns: 1fr; }
+  .ed-preview { padding: 8px 8px 56px; }
+  .ed-inspector {
+    position: fixed; left: 0; right: 0; bottom: 176px; z-index: 40;
+    max-height: min(62vh, 440px); border-left: 0; border-top: 1px solid var(--e-line);
+    border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.45);
+    transform: translateY(calc(100% - 46px)); transition: transform .22s ease;
+  }
+  .ed-inspector.open { transform: translateY(0); }
+  .ed-timeline { position: relative; z-index: 45; }  /* covers the collapsed sheet */
+  .transport > * { flex: none; }
+  .ed-inspector::before { content: ""; position: absolute; left: 50%; top: 5px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--e-line); }
+  .tabs { height: 46px; padding-top: 6px; }
+  .tab { font-size: 14px; padding: 8px 0; }
+  .panel { max-height: min(calc(62vh - 46px), 394px); padding-bottom: 28px; }
+  .tb { width: 40px; height: 38px; font-size: 15px; }
+  .tb.play { width: 46px; }
+  .transport { gap: 2px; padding: 5px 8px; overflow-x: auto; scrollbar-width: none; }
+  .transport::-webkit-scrollbar { display: none; }
+  .transport .tc.big { width: 108px; }
+  .transport .zoom input { width: 84px; }
+  .rect i { width: 18px; height: 18px; }
+  .rect i[data-h=nw] { left: -9px; top: -9px; } .rect i[data-h=n] { left: calc(50% - 9px); top: -9px; }
+  .rect i[data-h=ne] { right: -9px; top: -9px; } .rect i[data-h=e] { right: -9px; top: calc(50% - 9px); }
+  .rect i[data-h=se] { right: -9px; bottom: -9px; } .rect i[data-h=s] { left: calc(50% - 9px); bottom: -9px; }
+  .rect i[data-h=sw] { left: -9px; bottom: -9px; } .rect i[data-h=w] { left: -9px; top: calc(50% - 9px); }
+  .boundary { width: 22px; margin-left: -11px; }
+  .boundary::before { left: 10px; }
+  .ed input[type=number], .ed input.tc, .ed select { min-height: 38px; font-size: 16px; }
+  .row4 { grid-template-columns: repeat(2, 1fr); }
+  .ed .btn.sm { min-height: 38px; }
+  #flash { bottom: 200px !important; }
+}
+@media (max-width: 560px) {
+  .ed { grid-template-rows: 44px 1fr 156px; }
+  .ed-inspector { bottom: 156px; }
+  .hero-none { display: none; }
+}
+/* the track is dragged, not scrolled, on touch */
+.track, .ruler, .segments { touch-action: pan-x; }
+.boundary, .rect { touch-action: none; }

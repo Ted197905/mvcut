@@ -47,6 +47,62 @@ class MediaSupport
         return null;
     }
 
+    /** Host suffixes the image fetcher may download from (social CDNs). */
+    public const IMAGE_HOSTS = [
+        'cdninstagram.com', 'fbcdn.net', 'instagram.com', 'facebook.com',
+        'twimg.com', 'twitter.com', 'x.com',
+        'threads.net', 'threads.com',
+        'ytimg.com', 'ggpht.com', 'youtube.com',
+    ];
+
+    /** True when the URL is https, on an allowed CDN host, and not pointing at a private address. */
+    public static function imageUrlAllowed(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (! $parts || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])) return false;
+        $host = strtolower($parts['host']);
+        $ok = false;
+        foreach (self::IMAGE_HOSTS as $suffix) {
+            if ($host === $suffix || str_ends_with($host, '.' . $suffix)) { $ok = true; break; }
+        }
+        if (! $ok) return false;
+        return self::hostIsPublic($host);
+    }
+
+    public static function hostIsPublic(string $host): bool
+    {
+        $ips = @gethostbynamel($host) ?: [];
+        if ($ips === []) return false;
+        foreach ($ips as $ip) {
+            if (! filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return false;
+        }
+        return true;
+    }
+
+    /** Fetches a page and extracts og:image / twitter:image candidates. */
+    public static function scrapeImages(string $url): array
+    {
+        $out = Ffmpeg::run(['curl', '-sL', '--max-redirs', '3', '--max-time', '25', '--compressed',
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+            '-H', 'Accept-Language: en-US,en;q=0.9', $url], 30);
+        if ($out['code'] !== 0 || $out['stdout'] === '') return [];
+        $html = $out['stdout'];
+        $found = [];
+        foreach (['og:image', 'og:image:secure_url', 'twitter:image', 'twitter:image:src'] as $prop) {
+            if (preg_match_all('/<meta[^>]+(?:property|name)=["\']' . preg_quote($prop, '/') . '["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
+                foreach ($m[1] as $u) $found[] = html_entity_decode($u, ENT_QUOTES | ENT_HTML5);
+            }
+            if (preg_match_all('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']' . preg_quote($prop, '/') . '["\']/i', $html, $m)) {
+                foreach ($m[1] as $u) $found[] = html_entity_decode($u, ENT_QUOTES | ENT_HTML5);
+            }
+        }
+        $urls = [];
+        foreach (array_unique($found) as $u) {
+            if (self::imageUrlAllowed($u)) $urls[] = $u;
+        }
+        return array_slice($urls, 0, 20);
+    }
+
     public static function ytdlp(): ?string
     {
         foreach ([ROOTPATH . 'bin/yt-dlp', '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp'] as $p) {

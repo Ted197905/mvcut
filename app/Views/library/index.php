@@ -12,14 +12,14 @@
     <strong>파일을 여기에 끌어다 놓으세요</strong><br>
     <span class="small">또는</span> <button class="btn sm" type="button" id="pickBtn">파일 선택</button>
     <input type="file" id="fileInput" multiple accept="video/*,image/*,audio/*,.mkv,.mov,.ts" hidden>
-    <div class="small" style="margin-top:8px">mp4, mov, mkv, webm, gif, jpg, png 등. 파일당 최대 2GB</div>
+    <div class="small" style="margin-top:8px">mp4, mov, mkv, webm, gif, jpg, png 등. 8MB씩 나눠 올리므로 대용량도 안정적입니다 (최대 4GB)</div>
   </div>
   <div class="progress-list" id="progressList"></div>
 
-  <div class="import-panel">
-    <h3>SNS 링크로 가져오기</h3>
+  <details class="import-panel" id="importPanel">
+    <summary><b>SNS 링크로 가져오기</b> <span class="muted small">Instagram, Facebook, X, Threads, YouTube</span></summary>
     <div class="import-row">
-      <input class="input" type="url" id="importUrl" placeholder="Instagram, Facebook, X, Threads 게시물 링크 붙여넣기" autocomplete="off">
+      <input class="input" type="url" id="importUrl" placeholder="게시물 링크 붙여넣기" autocomplete="off">
       <button class="btn" type="button" id="btnInspect">리소스 확인</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
@@ -30,15 +30,50 @@
       <button class="btn secondary sm" type="button" id="btnSelectAll">전체 선택</button>
       <button class="btn sm" type="button" id="btnImport">선택한 리소스 가져오기</button>
     </div>
-  </div>
+  </details>
 
-  <div class="grid" id="grid">
-    <?php foreach ($items as $it): ?>
-      <?= view('library/_card', ['it' => $it]) ?>
-    <?php endforeach ?>
-  </div>
+  <form class="lib-toolbar" method="get" action="<?= site_url('library') ?>" id="filterForm">
+    <input class="input search" type="search" name="q" id="q" value="<?= esc($q) ?>" placeholder="제목으로 검색" autocomplete="off">
+    <select class="input" name="kind" onchange="filterForm.submit()">
+      <option value="all"<?= $kind === 'all' ? ' selected' : '' ?>>전체</option>
+      <option value="original"<?= $kind === 'original' ? ' selected' : '' ?>>원본만</option>
+      <option value="result"<?= $kind === 'result' ? ' selected' : '' ?>>편집 결과만</option>
+      <option value="video"<?= $kind === 'video' ? ' selected' : '' ?>>영상만</option>
+      <option value="image"<?= $kind === 'image' ? ' selected' : '' ?>>이미지만</option>
+    </select>
+    <select class="input" name="sort" onchange="filterForm.submit()">
+      <option value="newest"<?= $sort === 'newest' ? ' selected' : '' ?>>최신순</option>
+      <option value="oldest"<?= $sort === 'oldest' ? ' selected' : '' ?>>오래된순</option>
+      <option value="title"<?= $sort === 'title' ? ' selected' : '' ?>>제목순</option>
+      <option value="largest"<?= $sort === 'largest' ? ' selected' : '' ?>>용량순</option>
+      <option value="longest"<?= $sort === 'longest' ? ' selected' : '' ?>>길이순</option>
+    </select>
+    <?php if ($q !== '' || $kind !== 'all' || $sort !== 'newest'): ?>
+      <a class="btn sm ghost" href="<?= site_url('library') ?>">초기화</a>
+    <?php endif ?>
+    <span class="spacer"></span>
+    <span class="muted small" id="libCount"><?= count($items) ?>개<?= count($items) !== $total ? ' / 전체 ' . $total . '개' : '' ?></span>
+    <button class="btn sm secondary" type="button" id="btnSelectMode">선택</button>
+  </form>
+
+  <form method="post" action="<?= site_url('library/delete') ?>" id="bulkForm">
+    <?= csrf_field() ?>
+    <div class="bulkbar" id="bulkBar" hidden>
+      <label class="switch"><input type="checkbox" id="checkAll"> <span>전체 선택</span></label>
+      <span class="muted small" id="bulkCount">0개 선택</span>
+      <span class="spacer"></span>
+      <button class="btn sm secondary" type="button" id="btnCancelSelect">취소</button>
+      <button class="btn sm danger" type="button" id="btnBulkDelete" disabled>선택 삭제</button>
+    </div>
+
+    <div class="grid" id="grid">
+      <?php foreach ($items as $it): ?>
+        <?= view('library/_card', ['it' => $it]) ?>
+      <?php endforeach ?>
+    </div>
+  </form>
   <?php if (empty($items)): ?>
-    <div class="empty" id="empty">아직 라이브러리가 비어 있습니다.</div>
+    <div class="empty" id="empty"><?= $total > 0 ? '조건에 맞는 항목이 없습니다.' : '아직 라이브러리가 비어 있습니다.' ?></div>
   <?php endif ?>
 </main>
 <?= $this->endSection() ?>
@@ -46,16 +81,16 @@
 <?= $this->section('scripts') ?>
 <script>
 (function () {
-  const dz = document.getElementById('dropzone');
-  const input = document.getElementById('fileInput');
-  const list = document.getElementById('progressList');
-  const grid = document.getElementById('grid');
+  const $ = (id) => document.getElementById(id);
   const csrf = MV.csrf();
-  const uploadUrl = <?= json_encode(site_url('library/upload')) ?>;
   const base = <?= json_encode(site_url('/')) ?>;
   const hdr = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' };
+  const grid = $('grid'), list = $('progressList');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  document.getElementById('pickBtn').addEventListener('click', () => input.click());
+  /* ---------------- chunked upload ---------------- */
+  const dz = $('dropzone'), input = $('fileInput');
+  $('pickBtn').addEventListener('click', () => input.click());
   input.addEventListener('change', () => { queue([...input.files]); input.value = ''; });
   ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
@@ -63,107 +98,208 @@
 
   const q = []; let busy = false;
   function queue(files) { files.forEach(f => q.push(f)); next(); }
-  function next() {
-    if (busy || !q.length) return;
-    busy = true;
-    const f = q.shift();
+  function next() { if (busy || !q.length) return; busy = true; upload(q.shift()).finally(() => { busy = false; next(); }); }
+
+  function progressRow(label) {
     const el = document.createElement('div');
     el.className = 'progress-item';
     el.innerHTML = '<div><span class="name"></span> <span class="muted small pct"></span></div><div class="bar"><i></i></div>';
-    el.querySelector('.name').textContent = f.name + ' (' + MV.fmtSize(f.size) + ')';
+    el.querySelector('.name').textContent = label;
     list.prepend(el);
-    const fd = new FormData();
-    fd.append('file', f);
-    if (csrf) fd.append(csrf.name, csrf.hash);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', uploadUrl);
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    xhr.upload.onprogress = e => { if (e.lengthComputable) {
-      const p = Math.round(e.loaded / e.total * 100);
-      el.querySelector('.bar i').style.width = p + '%';
-      el.querySelector('.pct').textContent = p < 100 ? p + '%' : '처리 중...';
-    }};
-    xhr.onload = () => {
-      let r = {}; try { r = JSON.parse(xhr.responseText); } catch (e) {}
-      if (xhr.status === 200 && r.ok) {
-        el.classList.add('done'); el.querySelector('.pct').textContent = '완료';
-        grid.insertAdjacentHTML('afterbegin', cardHtml(r.item));
-        const empty = document.getElementById('empty'); if (empty) empty.remove();
-        setTimeout(() => el.remove(), 2500);
-      } else {
-        el.classList.add('fail'); el.querySelector('.pct').textContent = r.error || ('실패 (' + xhr.status + ')');
-      }
-      busy = false; next();
+    return {
+      el,
+      set: (p, text) => { el.querySelector('.bar i').style.width = p + '%'; el.querySelector('.pct').textContent = text; },
+      done: (text) => { el.classList.add('done'); el.querySelector('.bar i').style.width = '100%'; el.querySelector('.pct').textContent = text; setTimeout(() => el.remove(), 2500); },
+      fail: (text) => { el.classList.add('fail'); el.querySelector('.pct').textContent = text; },
     };
-    xhr.onerror = () => { el.classList.add('fail'); el.querySelector('.pct').textContent = '네트워크 오류'; busy = false; next(); };
-    xhr.send(fd);
-  }
-  /* ---- SNS import ---- */
-  const st = document.getElementById('importStatus'), il = document.getElementById('importList'), ia = document.getElementById('importActions');
-  let inspected = null;
-  function istatus(msg, cls) { st.hidden = !msg; st.className = 'import-status ' + (cls || ''); st.textContent = msg || ''; }
-  document.getElementById('btnInspect').addEventListener('click', inspect);
-  document.getElementById('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') inspect(); });
-  async function inspect() {
-    const url = document.getElementById('importUrl').value.trim(); if (!url) return;
-    istatus('리소스를 확인하는 중... (몇 초 걸립니다)'); il.hidden = ia.hidden = true; il.innerHTML = '';
-    document.getElementById('btnInspect').disabled = true;
-    try {
-      const res = await fetch(base + 'api/import/inspect', { method: 'POST', headers: hdr, body: JSON.stringify({ url }) });
-      const j = await res.json();
-      if (!res.ok || !j.ok) throw new Error(j.error || 'HTTP ' + res.status);
-      inspected = { url, entries: j.entries };
-      if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
-      j.entries.forEach(e => {
-        const el = document.createElement('div'); el.className = 'import-item on'; el.dataset.index = e.index;
-        el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
-          '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' + esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') + (e.width ? ' · ' + e.width + 'x' + e.height : '') + '</div></div>';
-        el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
-        il.appendChild(el);
-      });
-      il.hidden = ia.hidden = false; istatus((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.'); count();
-    } catch (e) { istatus(e.message, 'error'); }
-    document.getElementById('btnInspect').disabled = false;
-  }
-  function count() { const n = il.querySelectorAll('.import-item.on').length; document.getElementById('importCount').textContent = n + '개 선택'; document.getElementById('btnImport').disabled = !n; }
-  document.getElementById('btnSelectAll').addEventListener('click', () => { const all = [...il.querySelectorAll('.import-item')]; const on = all.every(x => x.classList.contains('on')); all.forEach(x => x.classList.toggle('on', !on)); count(); });
-  document.getElementById('btnImport').addEventListener('click', async () => {
-    const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index); if (!items.length || !inspected) return;
-    const titles = {}; inspected.entries.forEach(e => titles[e.index] = e.title);
-    istatus('가져오기 요청 중...'); document.getElementById('btnImport').disabled = true;
-    try {
-      const res = await fetch(base + 'api/import', { method: 'POST', headers: hdr, body: JSON.stringify({ url: inspected.url, items, titles }) });
-      const j = await res.json(); if (!res.ok || !j.ok) throw new Error(j.error || 'HTTP ' + res.status);
-      il.hidden = ia.hidden = true;
-      istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다. 완료되면 라이브러리에 추가됩니다.');
-      j.job_ids.forEach(id => pollJob(id));
-    } catch (e) { istatus(e.message, 'error'); document.getElementById('btnImport').disabled = false; }
-  });
-  let pending = 0;
-  function pollJob(id) {
-    pending++;
-    const tick = async () => {
-      const res = await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      const job = (await res.json()).job;
-      if (job.status === 'done') {
-        const m = await (await fetch(base + 'api/media/' + job.result_media_id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
-        grid.insertAdjacentHTML('afterbegin', cardHtml(m.media)); const empty = document.getElementById('empty'); if (empty) empty.remove();
-        if (--pending === 0) istatus('가져오기 완료.');
-      } else if (job.status === 'failed') { istatus('실패: ' + (job.error || ''), 'error'); pending--; }
-      else setTimeout(tick, 2000);
-    };
-    setTimeout(tick, 1500);
   }
 
-  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  async function post(url, body, isJson = true) {
+    const res = await fetch(url, isJson
+      ? { method: 'POST', headers: hdr, body: JSON.stringify(body) }
+      : { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body });
+    let j = {}; try { j = await res.json(); } catch (e) {}
+    if (!res.ok || j.error) throw new Error(j.error || ('HTTP ' + res.status));
+    return j;
+  }
+
+  function putChunk(fd, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', base + 'api/upload/chunk');
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded); };
+      xhr.onload = () => {
+        let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+        (xhr.status === 200 && j.ok) ? resolve(j) : reject(new Error(j.error || ('HTTP ' + xhr.status)));
+      };
+      xhr.onerror = () => reject(new Error('네트워크 오류'));
+      xhr.send(fd);
+    });
+  }
+
+  async function upload(file) {
+    const row = progressRow(file.name + ' (' + MV.fmtSize(file.size) + ')');
+    let uploadId = null;
+    try {
+      const init = await post(base + 'api/upload/init', { name: file.name, size: file.size });
+      uploadId = init.uploadId;
+      const size = init.chunkSize || 8 * 1024 * 1024;
+      const total = Math.max(1, Math.ceil(file.size / size));
+      let sent = 0;
+      for (let i = 0; i < total; i++) {
+        const blob = file.slice(i * size, Math.min(file.size, (i + 1) * size));
+        const fd = new FormData();
+        fd.append('uploadId', uploadId); fd.append('index', i); fd.append('chunk', blob);
+        if (csrf) fd.append(csrf.name, csrf.hash);
+        let tries = 0;
+        for (;;) {
+          try {
+            await putChunk(fd, (loaded) => row.set(Math.round((sent + loaded) / file.size * 100), Math.round((sent + loaded) / file.size * 100) + '%'));
+            break;
+          } catch (e) {
+            if (++tries >= 3) throw e;
+            row.set(Math.round(sent / file.size * 100), '재시도 ' + tries + '...');
+            await new Promise(r => setTimeout(r, 1000 * tries));
+          }
+        }
+        sent += blob.size;
+        row.set(Math.round(sent / file.size * 100), sent >= file.size ? '처리 중...' : Math.round(sent / file.size * 100) + '%');
+      }
+      const fin = await post(base + 'api/upload/finish', { uploadId, total });
+      row.done('완료');
+      addCard(fin.item);
+    } catch (e) {
+      row.fail(e.message);
+      if (uploadId) post(base + 'api/upload/abort', { uploadId }).catch(() => {});
+    }
+  }
+
+  function addCard(item) {
+    grid.insertAdjacentHTML('afterbegin', cardHtml(item));
+    const empty = $('empty'); if (empty) empty.remove();
+    if (selectMode) grid.firstElementChild.classList.add('selectable');
+  }
   function cardHtml(it) {
-    const base = <?= json_encode(site_url('/')) ?>;
     const thumb = it.has_thumb == 1 ? '<img src="' + base + 'media/' + it.id + '/thumb" alt="">' : '<span>' + esc(it.media_type) + '</span>';
     const dur = it.duration ? '<span class="dur">' + MV.fmtDur(it.duration) + '</span>' : '';
     const meta = [it.width && it.height ? it.width + 'x' + it.height : null, MV.fmtSize(it.size)].filter(Boolean).join(' / ');
-    return '<a class="card" href="' + base + 'library/' + it.id + '"><div class="thumb">' + thumb + dur +
+    return '<div class="card-wrap"><label class="pick"><input type="checkbox" name="ids[]" value="' + it.id + '"></label>' +
+      '<a class="card" href="' + base + 'library/' + it.id + '"><div class="thumb">' + thumb + dur +
       '<span class="badge">' + esc(it.source) + '</span></div><div class="body"><div class="title">' + esc(it.title) +
-      '</div><div class="meta">' + esc(meta) + '</div></div></a>';
+      '</div><div class="meta">' + esc(meta) + '</div></div></a></div>';
+  }
+
+  /* ---------------- select mode ---------------- */
+  let selectMode = false;
+  const bulkBar = $('bulkBar');
+  function boxes() { return [...grid.querySelectorAll('input[name="ids[]"]')]; }
+  function setSelectMode(on) {
+    selectMode = on;
+    bulkBar.hidden = !on;
+    grid.classList.toggle('picking', on);
+    $('btnSelectMode').textContent = on ? '선택 종료' : '선택';
+    if (!on) { boxes().forEach(b => b.checked = false); $('checkAll').checked = false; updateBulk(); }
+  }
+  function updateBulk() {
+    const n = boxes().filter(b => b.checked).length;
+    $('bulkCount').textContent = n + '개 선택';
+    $('btnBulkDelete').disabled = !n;
+    $('btnBulkDelete').textContent = n ? '선택 ' + n + '개 삭제' : '선택 삭제';
+  }
+  $('btnSelectMode').addEventListener('click', () => setSelectMode(!selectMode));
+  $('btnCancelSelect').addEventListener('click', () => setSelectMode(false));
+  $('checkAll').addEventListener('change', e => { boxes().forEach(b => b.checked = e.target.checked); updateBulk(); });
+  grid.addEventListener('change', e => { if (e.target.name === 'ids[]') updateBulk(); });
+  grid.addEventListener('click', e => {
+    if (!selectMode) return;
+    const card = e.target.closest('.card'); if (!card) return;
+    e.preventDefault();
+    const box = card.parentElement.querySelector('input[name="ids[]"]');
+    box.checked = !box.checked; updateBulk();
+  });
+  let armed = false;
+  $('btnBulkDelete').addEventListener('click', () => {
+    if (armed) { $('bulkForm').submit(); return; }
+    armed = true;
+    const b = $('btnBulkDelete'); const t = b.textContent;
+    b.textContent = '정말 삭제 (다시 클릭)';
+    setTimeout(() => { armed = false; b.textContent = t; }, 4000);
+  });
+
+  /* ---------------- SNS import ---------------- */
+  const st = $('importStatus'), il = $('importList'), ia = $('importActions');
+  let inspected = null;
+  function istatus(msg, cls) { st.hidden = !msg; st.className = 'import-status ' + (cls || ''); st.textContent = msg || ''; }
+  $('btnInspect').addEventListener('click', inspect);
+  $('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inspect(); } });
+  async function inspect() {
+    const url = $('importUrl').value.trim(); if (!url) return;
+    istatus('리소스를 확인하는 중... (몇 초 걸립니다)'); il.hidden = ia.hidden = true; il.innerHTML = '';
+    $('btnInspect').disabled = true;
+    try {
+      const j = await post(base + 'api/import/inspect', { url });
+      inspected = { url, entries: j.entries };
+      if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
+      j.entries.forEach(e => {
+        const el = document.createElement('div');
+        el.className = 'import-item on'; el.dataset.index = e.index;
+        el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
+          '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' +
+          esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') +
+          (e.width ? ' · ' + e.width + 'x' + e.height : '') + '</div></div>';
+        el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
+        il.appendChild(el);
+      });
+      il.hidden = ia.hidden = false;
+      istatus((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.');
+      count();
+    } catch (e) { istatus(e.message, 'error'); }
+    $('btnInspect').disabled = false;
+  }
+  function count() {
+    const n = il.querySelectorAll('.import-item.on').length;
+    $('importCount').textContent = n + '개 선택';
+    $('btnImport').disabled = !n;
+  }
+  $('btnSelectAll').addEventListener('click', () => {
+    const all = [...il.querySelectorAll('.import-item')];
+    const on = all.every(x => x.classList.contains('on'));
+    all.forEach(x => x.classList.toggle('on', !on)); count();
+  });
+  $('btnImport').addEventListener('click', async () => {
+    const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index);
+    if (!items.length || !inspected) return;
+    const titles = {}, images = {};
+    inspected.entries.forEach(e => { titles[e.index] = e.title; if (e.image_url) images[e.index] = e.image_url; });
+    istatus('가져오기 요청 중...'); $('btnImport').disabled = true;
+    try {
+      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images });
+      il.hidden = ia.hidden = true;
+      istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
+      j.job_ids.forEach(id => pollImport(id));
+    } catch (e) { istatus(e.message, 'error'); $('btnImport').disabled = false; }
+  });
+  let pending = 0;
+  function pollImport(id) {
+    pending++;
+    const row = progressRow('가져오기 #' + id);
+    row.set(5, '다운로드 중...');
+    const tick = async () => {
+      try {
+        const res = await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const job = (await res.json()).job;
+        if (job.status === 'done') {
+          const m = await (await fetch(base + 'api/media/' + job.result_media_id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+          row.el.querySelector('.name').textContent = m.media.title;
+          row.done('완료');
+          addCard(m.media);
+          if (--pending === 0) istatus('가져오기 완료.');
+        } else if (job.status === 'failed') { row.fail(job.error || '실패'); pending--; }
+        else { row.set(Math.max(5, job.progress), job.status === 'queued' ? '대기 중' : '다운로드 중...'); setTimeout(tick, 2000); }
+      } catch (e) { row.fail(e.message); pending--; }
+    };
+    setTimeout(tick, 1500);
   }
 })();
 </script>
