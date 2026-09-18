@@ -104,6 +104,48 @@ class MediaSupport
     }
 
     /** Social titles are often a whole caption; keep the first clause and a sane length. */
+    /** 3200 -> "3.2천", 128811 -> "12.9만" (Korean compact) */
+    public static function countKo(int $n): string
+    {
+        if ($n < 1000) return number_format($n);
+        $trim = static fn (float $v) => rtrim(rtrim(number_format($v, 1, '.', ''), '0'), '.');
+        if ($n < 10000) return $trim($n / 1000) . '천';
+        if ($n < 100000000) return $trim($n / 10000) . '만';
+        return $trim($n / 100000000) . '억';
+    }
+
+    /** yt-dlp upload_date "20260901" -> "2026년 9월 1일" */
+    public static function uploadDateKo(?string $ymd): ?string
+    {
+        if (! $ymd || ! preg_match('/^(\d{4})(\d{2})(\d{2})$/', $ymd, $m)) return null;
+        return sprintf('%d년 %d월 %d일', (int) $m[1], (int) $m[2], (int) $m[3]);
+    }
+
+    /** Escapes text, then turns URLs and #hashtags into links. Keeps line breaks. */
+    public static function richText(string $text, string $platform = ''): string
+    {
+        $hashBase = match ($platform) {
+            'youtube'  => 'https://www.youtube.com/hashtag/',
+            'x'        => 'https://x.com/hashtag/',
+            'instagram'=> 'https://www.instagram.com/explore/tags/',
+            'threads'  => 'https://www.threads.com/search?q=%23',
+            'facebook' => 'https://www.facebook.com/hashtag/',
+            default    => null,
+        };
+        $out = esc($text);
+        $out = preg_replace_callback('~https?://[^\s<]+~u', static function ($m) {
+            $url = rtrim($m[0], '.,)');
+            $tail = substr($m[0], strlen($url));
+            $label = mb_strlen($url) > 60 ? mb_substr($url, 0, 57) . '…' : $url;
+            return '<a href="' . $url . '" target="_blank" rel="noopener noreferrer nofollow">' . $label . '</a>' . $tail;
+        }, $out);
+        $out = preg_replace_callback('/(^|[\s(])#([\p{L}\p{N}_]{1,60})/u', static function ($m) use ($hashBase) {
+            if (! $hashBase) return $m[1] . '<span class="tag">#' . $m[2] . '</span>';
+            return $m[1] . '<a class="tag" href="' . $hashBase . rawurlencode($m[2]) . '" target="_blank" rel="noopener noreferrer nofollow">#' . $m[2] . '</a>';
+        }, $out);
+        return nl2br($out, false);
+    }
+
     public static function size(int $bytes): string
     {
         if ($bytes < 1024) return $bytes . ' B';

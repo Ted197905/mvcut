@@ -30,6 +30,7 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
     <span><?= $isVid ? '영상' : ($isImg ? '이미지' : ucfirst($item['media_type'])) ?></span>
     <span class="dot">·</span><span><?= esc($item['source']) ?></span>
     <span class="dot">·</span><span><?= esc(date('Y년 n월 j일 H:i', strtotime($item['created_at']))) ?></span>
+    <?php if (! empty($item['uploader'])): ?><span class="dot">·</span><span><?= esc($item['uploader']) ?></span><?php endif ?>
     <?php if ($item['source_url']): ?><span class="dot">·</span><a href="<?= esc($item['source_url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">원본 링크</a><?php endif ?>
     <?php if ($item['parent_id']): ?><span class="dot">·</span><a href="<?= site_url('library/' . $item['parent_id']) ?>">원본 미디어</a><?php endif ?>
   </p>
@@ -53,6 +54,37 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
         브라우저에서 바로 재생할 수 없는 형식입니다.<br>편집용 미리보기가 만들어지면 재생할 수 있습니다.
       <?php endif ?>
     </figure>
+
+    <?php
+    $stats = ! empty($item['stats']) ? (json_decode($item['stats'], true) ?: []) : [];
+    $dateKo = \App\Libraries\MediaSupport::uploadDateKo($stats['upload_date'] ?? null);
+    $hasDesc = trim((string) $item['description']) !== '';
+    ?>
+    <?php if ($hasDesc || $stats): ?>
+      <section class="desc">
+        <p class="eyebrow">설명</p>
+        <?php if ($stats): ?>
+          <div class="stats">
+            <?php if (isset($stats['like_count'])): ?>
+              <div class="stat"><b title="<?= number_format($stats['like_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['like_count'])) ?></b><span>좋아요</span></div>
+            <?php endif ?>
+            <?php if (isset($stats['view_count'])): ?>
+              <div class="stat"><b title="<?= number_format($stats['view_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['view_count'])) ?></b><span>조회수</span></div>
+            <?php endif ?>
+            <?php if (isset($stats['comment_count'])): ?>
+              <div class="stat"><b title="<?= number_format($stats['comment_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['comment_count'])) ?></b><span>댓글</span></div>
+            <?php endif ?>
+            <?php if ($dateKo && preg_match('/^(\d+)년 (.+)$/u', $dateKo, $dm)): ?>
+              <div class="stat"><b><?= esc($dm[2]) ?></b><span><?= esc($dm[1]) ?>년</span></div>
+            <?php endif ?>
+          </div>
+        <?php endif ?>
+        <?php if ($hasDesc): ?>
+          <div class="desc-body" id="descBody"><?= \App\Libraries\MediaSupport::richText((string) $item['description'], (string) $item['source']) ?></div>
+          <button class="btn ghost sm" type="button" id="descMore" hidden>더보기</button>
+        <?php endif ?>
+      </section>
+    <?php endif ?>
 
     <aside>
       <div class="aside-actions">
@@ -163,6 +195,19 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
       } catch (e) { status('실패: ' + e.message, 'error'); $('btnConvert').disabled = false; }
     }, 1000);
   }
+  /* description: clamp long text behind 더보기 */
+  const body = $('descBody'), more = $('descMore');
+  if (body && more) {
+    const collapsedMax = 168;
+    if (body.scrollHeight > collapsedMax + 24) {
+      body.classList.add('clamped'); more.hidden = false;
+      more.addEventListener('click', () => {
+        const open = body.classList.toggle('clamped');
+        more.textContent = open ? '더보기' : '접기';
+      });
+    }
+  }
+
   const pending = $('pendingBox');
   if (pending) poll(+pending.dataset.job, () => location.reload(), (job) => { $('pendingPct').textContent = job.progress + '%'; });
 })();

@@ -10,7 +10,7 @@ class MediaModel extends Model
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
     protected $allowedFields = [
-        'user_id', 'parent_id', 'kind', 'source', 'source_url', 'title', 'filename',
+        'user_id', 'parent_id', 'kind', 'source', 'source_url', 'description', 'uploader', 'stats', 'title', 'filename',
         'media_type', 'mime', 'container', 'vcodec', 'acodec', 'width', 'height',
         'duration', 'fps', 'size', 'has_thumb', 'has_proxy', 'edit_params', 'status',
     ];

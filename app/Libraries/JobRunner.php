@@ -146,7 +146,7 @@ class JobRunner
             return $this->importImage($job, $mediaId, $dir, $p, $log);
         }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
-                 '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime',
+                 '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
                  '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title', $p['url']];
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
@@ -157,9 +157,22 @@ class JobRunner
             $this->media->delete($mediaId); @rmdir($dir);
             throw new \RuntimeException('yt-dlp failed: ' . mb_substr(trim(preg_replace('/^ERROR:\s*/m', '', $r['stderr'])), -800));
         }
+        $files = array_values(array_filter($files, static fn ($f) => ! str_ends_with($f, '.info.json')));
+        if ($files === []) {
+            $this->media->delete($mediaId); MediaIntake::removeDir($dir);
+            throw new \RuntimeException('yt-dlp produced no media file');
+        }
         $file = $files[0];
-        $lines = array_values(array_filter(array_map('trim', explode("\n", $r['stdout']))));
-        $title = MediaSupport::tidyTitle((string) ($p['title'] ?: ($lines[1] ?? $lines[0] ?? '')), $platform . ' import');
+        $info = $this->applyInfoJson($mediaId, $dir, (string) ($p['platform'] ?? ''));
+        // --print output also contains the file path; never let that become a title
+        $lines = array_values(array_filter(
+            array_map('trim', explode("\n", $r['stdout'])),
+            static fn ($l) => $l !== '' && ! str_starts_with($l, '/')
+        ));
+        $title = MediaSupport::tidyTitle(
+            (string) ($p['title'] ?: ($info['title'] ?? $lines[0] ?? '')),
+            $platform . ' import'
+        );
         $this->media->update($mediaId, ['filename' => basename($file), 'title' => $title]);
         $this->finishMedia($mediaId, $file, $dir, $log);
         $m = $this->media->find($mediaId);
@@ -167,6 +180,29 @@ class JobRunner
             $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
         }
         return $mediaId;
+    }
+
+    /** Reads yt-dlp's .info.json (description, channel, counts) into the media row, then removes it. */
+    private function applyInfoJson(int $mediaId, string $dir, string $platform): ?array
+    {
+        $json = glob($dir . '/*.info.json')[0] ?? null;
+        if (! $json) return null;
+        $info = json_decode((string) file_get_contents($json), true);
+        @unlink($json);
+        if (! is_array($info)) return null;
+        $stats = array_filter([
+            'view_count'    => isset($info['view_count']) ? (int) $info['view_count'] : null,
+            'like_count'    => isset($info['like_count']) ? (int) $info['like_count'] : null,
+            'comment_count' => isset($info['comment_count']) ? (int) $info['comment_count'] : null,
+            'upload_date'   => $info['upload_date'] ?? null,
+        ], static fn ($v) => $v !== null);
+        $this->media->update($mediaId, [
+            'description' => isset($info['description']) ? mb_substr((string) $info['description'], 0, 20000) : null,
+            'uploader'    => isset($info['uploader']) || isset($info['channel'])
+                ? mb_substr((string) ($info['uploader'] ?? $info['channel']), 0, 190) : null,
+            'stats'       => $stats ? json_encode($stats, JSON_UNESCAPED_UNICODE) : null,
+        ]);
+        return $info;
     }
 
     /** Downloads a single image URL (already validated) into the media directory. */

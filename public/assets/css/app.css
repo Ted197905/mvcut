@@ -193,6 +193,22 @@ select.input { appearance: none; padding-right: 34px;
 .viewer.audio audio { width: min(520px, 100%); }
 .viewer.empty { background: var(--bg-grouped); color: var(--label2); box-shadow: none; padding: 64px 32px; text-align: center; font-size: 14px; line-height: 1.6; }
 
+/* ---------- description under the player ---------- */
+.desc { margin-top: 26px; }
+.stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.stat { flex: 1 1 96px; min-width: 96px; background: var(--bg-grouped); border-radius: var(--r-group); padding: 13px 14px; text-align: center; }
+.stat b { display: block; font-size: 19px; font-weight: 650; letter-spacing: -0.016em; font-variant-numeric: tabular-nums; }
+.stat span { display: block; font-size: 12px; color: var(--label2); margin-top: 3px; }
+.desc-body {
+  background: var(--bg-grouped); border-radius: var(--r-group); padding: 16px 18px;
+  font-size: 14px; line-height: 1.62; color: var(--label); white-space: normal; overflow-wrap: anywhere;
+}
+.desc-body.clamped { max-height: 168px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 116px, transparent); mask-image: linear-gradient(180deg, #000 116px, transparent); }
+.desc-body .tag { color: var(--blue); font-weight: 500; }
+.desc-body a { overflow-wrap: anywhere; }
+#descMore { margin-top: 6px; }
+
 /* ---------- library ---------- */
 .dropzone { border: 1.5px dashed var(--separator); border-radius: 22px; padding: 30px 24px; text-align: center; color: var(--label2); font-size: 14px; transition: border-color .15s, background .15s; margin-bottom: 20px; }
 .dropzone.over { border-color: var(--blue); background: var(--blue-tint); }
