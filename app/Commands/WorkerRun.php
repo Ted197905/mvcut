@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Libraries\Cleanup;
 use App\Libraries\JobRunner;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
@@ -20,6 +21,7 @@ class WorkerRun extends BaseCommand
         $runner = new JobRunner();
         $log    = static fn (string $m) => CLI::write('[' . date('H:i:s') . '] ' . $m);
         $log('worker started (pid ' . getmypid() . ')');
+        $nextCleanup = time() + 300;
         while (true) {
             $job = $runner->claim();
             if ($job) {
@@ -29,6 +31,18 @@ class WorkerRun extends BaseCommand
                 continue;
             }
             if ($once) { $log('no queued jobs'); return; }
+            // housekeeping runs here so the app needs no cron entry
+            if (time() >= $nextCleanup) {
+                $nextCleanup = time() + 6 * 3600;
+                try {
+                    $r = Cleanup::run();
+                    if (array_sum($r) > 0) {
+                        $log(sprintf('cleanup: stale %d, orphans %d, chunks %d, jobs %d', $r['stale'], $r['orphans'], $r['chunks'], $r['jobs']));
+                    }
+                } catch (\Throwable $e) {
+                    $log('cleanup failed: ' . $e->getMessage());
+                }
+            }
             sleep($sleep);
         }
     }
