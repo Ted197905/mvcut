@@ -21,7 +21,7 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 | Ubuntu | 26.04 LTS |
 | nginx | 1.28 |
 | PHP | 8.5 (FPM) |
-| MySQL | 9.7 LTS |
+| MySQL | 8.4 LTS |
 | CodeIgniter | 4.7.x |
 | FFmpeg | NVENC 지원 빌드 |
 
