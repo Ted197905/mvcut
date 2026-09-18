@@ -58,12 +58,35 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
 
     <?php
     $stats = ! empty($item['stats']) ? (json_decode($item['stats'], true) ?: []) : [];
+    $meta  = ! empty($item['meta']) ? (json_decode($item['meta'], true) ?: []) : [];
+    $chan  = $meta['channel'] ?? $item['uploader'] ?? null;
     $dateKo = \App\Libraries\MediaSupport::uploadDateKo($stats['upload_date'] ?? null);
     $hasDesc = trim((string) $item['description']) !== '';
     ?>
-    <?php if ($hasDesc || $stats): ?>
+    <?php if ($hasDesc || $stats || $chan): ?>
       <section class="desc">
-        <p class="eyebrow">설명</p>
+        <?php if ($chan): ?>
+          <div class="channel">
+            <?php if (! empty($meta['avatar'])): ?>
+              <img class="avatar" src="<?= esc($meta['avatar'], 'attr') ?>" alt="" referrerpolicy="no-referrer" loading="lazy">
+            <?php else: ?>
+              <span class="avatar mono"><?= esc(mb_substr($chan, 0, 1)) ?></span>
+            <?php endif ?>
+            <div class="who">
+              <div class="name"><?= esc($chan) ?></div>
+              <div class="sub">
+                <?php if (! empty($meta['handle']) && str_starts_with((string) $meta['handle'], '@')): ?><?= esc($meta['handle']) ?><?php endif ?>
+                <?php if (isset($meta['subscribers'])): ?>
+                  <?= ! empty($meta['handle']) && str_starts_with((string) $meta['handle'], '@') ? ' · ' : '' ?>구독자 <?= esc(\App\Libraries\MediaSupport::countKo((int) $meta['subscribers'])) ?>명
+                <?php endif ?>
+              </div>
+            </div>
+            <?php if (! empty($meta['channel_url'])): ?>
+              <a class="btn tinted sm" href="<?= esc($meta['channel_url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">채널</a>
+            <?php endif ?>
+          </div>
+        <?php endif ?>
+        <?php if ($hasDesc || $stats): ?><p class="eyebrow">설명</p><?php endif ?>
         <?php if ($stats): ?>
           <div class="stats">
             <?php if (isset($stats['like_count'])): ?>
@@ -110,7 +133,17 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
           <?php if ($item['width']): ?><div class="row"><dt>해상도</dt><dd><?= esc($item['width'] . ' × ' . $item['height']) ?></dd></div><?php endif ?>
           <?php if ($item['duration']): ?><div class="row"><dt>길이</dt><dd><?= gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $item['duration']) ?></dd></div><?php endif ?>
           <div class="row"><dt>크기</dt><dd><?= esc(\App\Libraries\MediaSupport::size((int) $item['size'])) ?></dd></div>
+          <?php if (! empty($meta['source_res'])): ?><div class="row"><dt>원본 화질</dt><dd><?= esc($meta['source_res']) ?><?= ! empty($meta['source_fps']) ? ' · ' . esc(rtrim(rtrim(number_format((float) $meta['source_fps'], 2), '0'), '.')) . ' fps' : '' ?><?= ! empty($meta['dynamic_range']) ? ' · ' . esc($meta['dynamic_range']) : '' ?></dd></div><?php endif ?>
+          <?php if (! empty($meta['categories'])): ?><div class="row"><dt>카테고리</dt><dd><?= esc(implode(', ', $meta['categories'])) ?></dd></div><?php endif ?>
+          <?php if (! empty($meta['language'])): ?><div class="row"><dt>언어</dt><dd><?= esc($meta['language']) ?></dd></div><?php endif ?>
+          <?php if (! empty($meta['availability'])): ?><div class="row"><dt>공개 범위</dt><dd><?= esc($meta['availability']) ?><?= ! empty($meta['age_limit']) ? ' · ' . esc($meta['age_limit']) . '+' : '' ?></dd></div><?php endif ?>
+          <?php if (! empty($meta['timestamp'])): ?><div class="row"><dt>게시</dt><dd><?= esc(date('Y-m-d H:i', (int) $meta['timestamp'])) ?></dd></div><?php endif ?>
         </dl>
+        <?php if (! empty($meta['tags'])): ?>
+          <div class="taglist">
+            <?php foreach ($meta['tags'] as $t): ?><span class="chip"><?= esc($t) ?></span><?php endforeach ?>
+          </div>
+        <?php endif ?>
       </div>
 
       <div class="panel-block">

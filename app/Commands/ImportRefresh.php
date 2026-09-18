@@ -21,7 +21,7 @@ class ImportRefresh extends BaseCommand
         $media = new MediaModel();
         $arg   = $params[0] ?? 'all';
         $rows  = $arg === 'all'
-            ? $media->where('source_url IS NOT NULL')->where('description IS NULL')->findAll()
+            ? $media->where('source_url IS NOT NULL')->groupStart()->where('description IS NULL')->orWhere('meta IS NULL')->groupEnd()->findAll()
             : array_filter([$media->find((int) $arg)]);
         if (! $rows) { CLI::write('nothing to refresh'); return; }
         $bin = MediaSupport::ytdlp();
@@ -44,6 +44,7 @@ class ImportRefresh extends BaseCommand
                 'description' => isset($info['description']) ? mb_substr((string) $info['description'], 0, 20000) : null,
                 'uploader'    => mb_substr((string) ($info['uploader'] ?? $info['channel'] ?? ''), 0, 190) ?: null,
                 'stats'       => $stats ? json_encode($stats, JSON_UNESCAPED_UNICODE) : null,
+                'meta'        => json_encode(MediaSupport::curateInfo($info), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ]);
             CLI::write("#{$row['id']} updated (" . mb_strlen((string) ($info['description'] ?? '')) . ' chars)');
         }

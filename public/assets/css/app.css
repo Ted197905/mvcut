@@ -195,6 +195,16 @@ select.input { appearance: none; padding-right: 34px;
 
 /* ---------- description under the player ---------- */
 .desc { margin-top: 26px; width: max(min(100%, 420px), min(100%, calc(var(--arw) / var(--arh) * var(--maxh)))); }
+/* channel row */
+.channel { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.channel .avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; background: var(--fill1); }
+.channel .avatar.mono { display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; color: var(--label2); }
+.channel .who { min-width: 0; flex: 1; }
+.channel .name { font-size: 15px; font-weight: 600; letter-spacing: -0.012em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.channel .sub { font-size: 13px; color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.taglist { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 12px; color: var(--label2); background: var(--fill3); border-radius: 7px; padding: 4px 9px; }
+
 .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .stat { flex: 1 1 96px; min-width: 96px; background: var(--bg-grouped); border-radius: var(--r-group); padding: 13px 14px; text-align: center; }
 .stat b { display: block; font-size: 19px; font-weight: 650; letter-spacing: -0.016em; font-variant-numeric: tabular-nums; }

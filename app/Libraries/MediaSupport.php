@@ -52,7 +52,7 @@ class MediaSupport
         'cdninstagram.com', 'fbcdn.net', 'instagram.com', 'facebook.com',
         'twimg.com', 'twitter.com', 'x.com',
         'threads.net', 'threads.com',
-        'ytimg.com', 'ggpht.com', 'youtube.com',
+        'ytimg.com', 'ggpht.com', 'googleusercontent.com', 'youtube.com',
     ];
 
     /** True when the URL is https, on an allowed CDN host, and not pointing at a private address. */
@@ -105,6 +105,77 @@ class MediaSupport
 
     /** Social titles are often a whole caption; keep the first clause and a sane length. */
     /** 3200 -> "3.2천", 128811 -> "12.9만" (Korean compact) */
+    /**
+     * Curates the fields worth keeping out of a yt-dlp info dict.
+     * Everything is optional: the extractors differ per platform.
+     */
+    public static function curateInfo(array $info): array
+    {
+        $pick = static function (array $keys) use ($info) {
+            foreach ($keys as $k) {
+                if (isset($info[$k]) && $info[$k] !== '' && $info[$k] !== []) return $info[$k];
+            }
+            return null;
+        };
+        $meta = [
+            'channel'      => $pick(['channel', 'uploader']),
+            'handle'       => $pick(['uploader_id']),
+            'channel_url'  => $pick(['channel_url', 'uploader_url']),
+            'subscribers'  => isset($info['channel_follower_count']) ? (int) $info['channel_follower_count'] : null,
+            'categories'   => isset($info['categories']) && is_array($info['categories']) ? array_slice($info['categories'], 0, 6) : null,
+            'tags'         => isset($info['tags']) && is_array($info['tags']) ? array_slice($info['tags'], 0, 30) : null,
+            'language'     => $pick(['language']),
+            'availability' => $pick(['availability']),
+            'age_limit'    => isset($info['age_limit']) && $info['age_limit'] > 0 ? (int) $info['age_limit'] : null,
+            'media_type'   => $pick(['media_type']),
+            'live_status'  => $pick(['live_status']),
+            'source_res'   => $pick(['resolution']),
+            'source_fps'   => isset($info['fps']) ? (float) $info['fps'] : null,
+            'format_note'  => $pick(['format_note']),
+            'dynamic_range'=> $pick(['dynamic_range']),
+            'thumbnail'    => $pick(['thumbnail']),
+            'webpage_url'  => $pick(['webpage_url', 'original_url']),
+            'timestamp'    => isset($info['timestamp']) ? (int) $info['timestamp'] : null,
+            'extractor'    => $pick(['extractor_key', 'extractor']),
+        ];
+        // the avatar is not in the video info dict; ask the channel page (cached per channel)
+        if (! empty($meta['channel_url'])) {
+            $avatar = self::channelAvatar((string) $meta['channel_url'], (string) ($info['channel_id'] ?? $meta['channel_url']));
+            if ($avatar) $meta['avatar'] = $avatar;
+        }
+        return array_filter($meta, static fn ($v) => $v !== null && $v !== '' && $v !== []);
+    }
+
+    /** Largest square channel thumbnail via yt-dlp, cached for a week. */
+    public static function channelAvatar(string $channelUrl, string $cacheKey): ?string
+    {
+        $key = 'avatar_' . md5($cacheKey);
+        $hit = cache($key);
+        if ($hit !== null) return $hit ?: null;
+
+        $found = '';
+        $bin   = self::ytdlp();
+        if ($bin) {
+            $out = Ffmpeg::run([$bin, '-J', '--no-warnings', '--playlist-items', '0', '--socket-timeout', '15', $channelUrl], 60);
+            $j   = trim($out['stdout']) !== '' ? json_decode($out['stdout'], true) : null;
+            if (is_array($j)) {
+                $best = null;
+                foreach ($j['thumbnails'] ?? [] as $t) {
+                    $url = (string) ($t['url'] ?? '');
+                    if ($url === '' || ! self::imageUrlAllowed($url)) continue;
+                    $id = (string) ($t['id'] ?? '');
+                    $w  = (int) ($t['width'] ?? 0);
+                    $h  = (int) ($t['height'] ?? 0);
+                    if ($id === 'avatar_uncropped') { $best = $url; break; }
+                    if ($w > 0 && $w === $h && (! $best || $w > 0)) $best = $url;
+                }
+                $found = (string) ($best ?? '');
+            }
+        }
+        cache()->save($key, $found, 604800);
+        return $found ?: null;
+    }
+
     public static function countKo(int $n): string
     {
         if ($n < 1000) return number_format($n);

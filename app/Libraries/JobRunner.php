@@ -201,6 +201,7 @@ class JobRunner
             'uploader'    => isset($info['uploader']) || isset($info['channel'])
                 ? mb_substr((string) ($info['uploader'] ?? $info['channel']), 0, 190) : null,
             'stats'       => $stats ? json_encode($stats, JSON_UNESCAPED_UNICODE) : null,
+            'meta'        => json_encode(MediaSupport::curateInfo($info), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
         return $info;
     }
