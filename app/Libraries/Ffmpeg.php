@@ -82,6 +82,34 @@ class Ffmpeg
         return $out['code'] === 0 && is_file($dest) && filesize($dest) > 0;
     }
 
+    /** Writes a horizontal filmstrip sprite with evenly spaced frames. Returns frame count or 0. */
+    public static function filmstrip(string $src, string $dest, float $duration, int $frames = 40, int $frameW = 160): int
+    {
+        $bin = self::bin('ffmpeg');
+        if (! $bin || $duration <= 0) {
+            return 0;
+        }
+        $frames = max(8, min($frames, (int) ceil($duration * 2)));
+        // select one frame nearest each of N evenly spaced timestamps (uniform even for sparse keyframes)
+        $step = $duration / $frames * 0.95; // slightly under so frame-time quantization never leaves tiles empty
+        $args = [$bin, '-v', 'error', '-y', '-i', $src,
+            '-vf', sprintf("select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%.6f)',scale=%d:-2,tile=%dx1", $step, $frameW, $frames),
+            '-vsync', '0', '-frames:v', '1', '-q:v', '5', $dest];
+        $out = self::run($args, 600);
+        return ($out['code'] === 0 && is_file($dest)) ? $frames : 0;
+    }
+
+    public static function hasNvenc(): bool
+    {
+        static $ok = null;
+        if ($ok === null) {
+            $bin = self::bin('ffmpeg');
+            $out = $bin ? self::run([$bin, '-hide_banner', '-encoders']) : ['stdout' => ''];
+            $ok = str_contains($out['stdout'], 'h264_nvenc') && (file_exists('/dev/dxg') || file_exists('/dev/nvidia0'));
+        }
+        return $ok;
+    }
+
     public static function run(array $args, int $timeout = 30): array
     {
         $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];

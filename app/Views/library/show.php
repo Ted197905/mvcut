@@ -31,7 +31,8 @@
         <dt>크기</dt><dd><?= number_format($item['size'] / 1048576, 2) ?> MB</dd>
       </dl>
       <div class="actions">
-        <a class="btn" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">다운로드</a>
+        <?php if ($item['media_type'] === 'video'): ?><a class="btn" href="<?= site_url('edit/' . $item['id']) ?>">편집</a><?php endif ?>
+        <a class="btn secondary" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">다운로드</a>
         <form method="post" action="<?= site_url('library/' . $item['id'] . '/delete') ?>" onsubmit="return confirm('삭제하시겠습니까?')">
           <?= csrf_field() ?>
           <button class="btn secondary" type="submit">삭제</button>

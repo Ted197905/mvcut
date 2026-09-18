@@ -55,6 +55,16 @@ class Media extends BaseController
         return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream', $name);
     }
 
+    public function strip(int $id)
+    {
+        $item = $this->owned($id);
+        $dir  = MediaModel::dir($item);
+        if (! is_file($dir . '/strip2.jpg') && $item['media_type'] === 'video' && $item['duration']) {
+            \App\Libraries\Ffmpeg::filmstrip($dir . '/' . $item['filename'], $dir . '/strip2.jpg', (float) $item['duration']);
+        }
+        return $this->accel($item, 'strip2.jpg', 'image/jpeg');
+    }
+
     public function proxy(int $id)
     {
         $item = $this->owned($id);

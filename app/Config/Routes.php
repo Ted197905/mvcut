@@ -24,4 +24,10 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('media/(:num)/thumb', 'Media::thumb/$1');
     $routes->get('media/(:num)/file', 'Media::file/$1');
     $routes->get('media/(:num)/proxy', 'Media::proxy/$1');
+    $routes->get('media/(:num)/strip', 'Media::strip/$1');
+
+    $routes->get('edit/(:num)', 'Edit::index/$1');
+    $routes->post('api/edit/(:num)', 'Edit::submit/$1');
+    $routes->get('api/jobs/(:num)', 'Jobs::show/$1');
+    $routes->get('api/jobs', 'Jobs::index');
 });

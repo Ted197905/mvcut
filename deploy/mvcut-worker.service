@@ -1,0 +1,17 @@
+[Unit]
+Description=MV Cut media job worker (ffmpeg)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/mvcut
+ExecStart=/usr/bin/php /var/www/mvcut/spark worker:run
+Restart=always
+RestartSec=3
+UMask=0002
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target

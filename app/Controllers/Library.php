@@ -59,6 +59,9 @@ class Library extends BaseController
             if (in_array($meta['media_type'], ['video', 'image'], true) && Ffmpeg::thumbnail($path, $dir . '/thumb.jpg', $meta['duration'])) {
                 $update['has_thumb'] = 1;
             }
+            if ($meta['media_type'] === 'video' && $meta['duration']) {
+                Ffmpeg::filmstrip($path, $dir . '/strip2.jpg', (float) $meta['duration']);
+            }
         } else {
             $update['media_type'] = str_starts_with($update['mime'], 'video/') ? 'video'
                 : (str_starts_with($update['mime'], 'image/') ? 'image'

@@ -1,0 +1,546 @@
+/* MV Cut editor: timeline (split/trim/delete), screen crop & masks, output & job submission. */
+(function () {
+  'use strict';
+  const D = window.EDITOR_DATA;
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const FPS = D.fps > 0 ? D.fps : 30;
+  const FRAME = 1 / FPS;
+  const DUR = D.duration;
+  const MIN_SEG = Math.max(FRAME, 0.04);
+  const snapFrame = (t) => clamp(Math.round(t * FPS) / FPS, 0, DUR);
+
+  /* ---------- timecode ---------- */
+  function tc(t, withFrames = true) {
+    t = Math.max(0, t || 0);
+    const totalFrames = Math.round(t * FPS);
+    const f = totalFrames % Math.round(FPS);
+    const s = Math.floor(totalFrames / FPS);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const p = (n, w = 2) => String(n).padStart(w, '0');
+    return `${p(h)}:${p(m)}:${p(sec)}` + (withFrames ? `:${p(f)}` : '');
+  }
+  function parseTc(str) {
+    str = String(str || '').trim();
+    if (!str) return null;
+    if (/^\d+(\.\d+)?$/.test(str)) return parseFloat(str);
+    const m = str.match(/^(?:(\d+):)?(?:(\d+):)?(\d+)(?:[:.](\d+))?$/);
+    if (!m) return null;
+    const parts = [m[1], m[2], m[3]].filter(v => v !== undefined).map(Number);
+    let sec = 0;
+    if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    else if (parts.length === 2) sec = parts[0] * 60 + parts[1];
+    else sec = parts[0];
+    if (m[4] !== undefined) {
+      const sepIsDot = str.lastIndexOf('.') > str.lastIndexOf(':');
+      sec += sepIsDot ? parseFloat('0.' + m[4]) : Number(m[4]) / FPS;
+    }
+    return sec;
+  }
+
+  /* ---------- state ---------- */
+  const state = {
+    segments: [{ start: 0, end: DUR, removed: false }],
+    selected: 0,
+    markIn: null, markOut: null,
+    crop: null,               // {x,y,w,h} in source px, null = off
+    cropAR: 'free',
+    masks: [],                // {x,y,w,h,style}
+    selectedMask: -1,
+    speed: 1, keepAudio: true,
+    output: { format: 'mp4', height: 0, quality: 'high' },
+  };
+  const undoStack = [], redoStack = [];
+  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed }); }
+  function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
+  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
+  function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
+  function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
+
+  // restore previous params (re-edit)
+  if (D.params && D.params.keep) {
+    const keep = D.params.keep;
+    const segs = []; let cur = 0;
+    keep.forEach(([s, e]) => { if (s > cur + 0.001) segs.push({ start: cur, end: s, removed: true }); segs.push({ start: s, end: e, removed: false }); cur = e; });
+    if (cur < DUR - 0.001) segs.push({ start: cur, end: DUR, removed: true });
+    state.segments = segs;
+    state.crop = D.params.crop || null;
+    state.masks = D.params.masks || [];
+    state.speed = D.params.speed || 1;
+    state.keepAudio = D.params.keepAudio !== false;
+    if (D.params.output) state.output = D.params.output;
+  }
+
+  /* ---------- segment ops ---------- */
+  function segAt(t) { for (let i = 0; i < state.segments.length; i++) { const s = state.segments[i]; if (t >= s.start && t < s.end) return i; } return state.segments.length - 1; }
+  function split(t) {
+    t = snapFrame(t);
+    const i = segAt(t); const s = state.segments[i];
+    if (t - s.start < MIN_SEG || s.end - t < MIN_SEG) return false;
+    commit();
+    state.segments.splice(i, 1, { start: s.start, end: t, removed: s.removed }, { start: t, end: s.end, removed: s.removed });
+    state.selected = i + 1;
+    renderAll(); return true;
+  }
+  function toggleSeg(i) {
+    if (i < 0 || i >= state.segments.length) return;
+    if (!state.segments[i].removed && state.segments.filter(s => !s.removed).length === 1) { flash('마지막 남은 구간은 삭제할 수 없습니다.'); return; }
+    commit(); state.segments[i].removed = !state.segments[i].removed; renderAll();
+  }
+  function mergeBoundary(i) { // merge segments i and i+1
+    if (i < 0 || i + 1 >= state.segments.length) return;
+    commit();
+    const a = state.segments[i], b = state.segments[i + 1];
+    state.segments.splice(i, 2, { start: a.start, end: b.end, removed: a.removed && b.removed });
+    state.selected = i; renderAll();
+  }
+  function moveBoundary(i, t, live) { // boundary between i and i+1
+    const a = state.segments[i], b = state.segments[i + 1];
+    t = clamp(snapFrame(t), a.start + MIN_SEG, b.end - MIN_SEG);
+    a.end = t; b.start = t;
+    if (live) renderSegments(); else renderAll();
+  }
+  function applyMarks(mode) { // 'keep' or 'cut'
+    if (state.markIn === null || state.markOut === null || state.markOut - state.markIn < MIN_SEG) { flash('In / Out 마크를 먼저 지정하세요.'); return; }
+    commit();
+    const a = snapFrame(state.markIn), b = snapFrame(state.markOut);
+    // split at a and b without pushing extra undo entries
+    const doSplit = (t) => { const i = segAt(t); const s = state.segments[i]; if (t - s.start >= MIN_SEG && s.end - t >= MIN_SEG) state.segments.splice(i, 1, { start: s.start, end: t, removed: s.removed }, { start: t, end: s.end, removed: s.removed }); };
+    doSplit(a); doSplit(b);
+    state.segments.forEach(s => {
+      const inside = s.start >= a - 0.0005 && s.end <= b + 0.0005;
+      if (mode === 'keep') s.removed = !inside; else if (inside) s.removed = true;
+    });
+    if (!state.segments.some(s => !s.removed)) state.segments.forEach(s => s.removed = false);
+    state.selected = segAt(a);
+    state.markIn = state.markOut = null;
+    renderAll();
+  }
+  function keepList() { return state.segments.filter(s => !s.removed).map(s => [round3(s.start), round3(s.end)]); }
+  const round3 = (v) => Math.round(v * 1000) / 1000;
+  function outputDuration() { return keepList().reduce((t, [s, e]) => t + (e - s), 0) / state.speed; }
+
+  /* ---------- video / playhead ---------- */
+  const video = $('video');
+  let playhead = 0, playing = false, rafId = 0;
+  function seek(t, fromVideo) {
+    playhead = clamp(t, 0, DUR);
+    if (!fromVideo && Math.abs(video.currentTime - playhead) > 0.001) video.currentTime = playhead;
+    renderPlayhead();
+  }
+  function play() { if (playing) return; const i = segAt(playhead); if (state.segments[i].removed) jumpToNextKept(); video.play().catch(() => {}); }
+  function pause() { video.pause(); }
+  function jumpToNextKept() {
+    const i = segAt(playhead);
+    for (let k = i; k < state.segments.length; k++) if (!state.segments[k].removed) { seek(state.segments[k].start); return true; }
+    pause(); seek(state.segments[i].end); return false;
+  }
+  video.addEventListener('play', () => { playing = true; $('btnPlay').innerHTML = '&#x23F8;'; loop(); });
+  video.addEventListener('pause', () => { playing = false; $('btnPlay').innerHTML = '&#x25B6;'; cancelAnimationFrame(rafId); seek(video.currentTime, true); });
+  video.addEventListener('ended', () => { playing = false; $('btnPlay').innerHTML = '&#x25B6;'; });
+  video.addEventListener('loadedmetadata', () => layoutStage());
+  function loop() {
+    if (!playing) return;
+    playhead = video.currentTime;
+    const i = segAt(playhead);
+    if (state.segments[i].removed) { if (!jumpToNextKept()) return; }
+    renderPlayhead(); keepPlayheadVisible();
+    rafId = requestAnimationFrame(loop);
+  }
+  function stepFrames(n) { pause(); seek(snapFrame(playhead + n * FRAME)); }
+  let jkl = 0;
+  function shuttle(dir) { // J/K/L
+    if (dir === 0) { pause(); video.playbackRate = 1; jkl = 0; return; }
+    if (dir > 0) { jkl = jkl > 0 ? Math.min(jkl * 2, 8) : 1; video.playbackRate = jkl; play(); }
+    else { pause(); stepFrames(-Math.round(FPS / 4)); } // no native reverse playback: step back 1/4 s
+  }
+
+  /* ---------- timeline geometry ---------- */
+  const tlScroll = $('tlScroll'), tlInner = $('tlInner'), ruler = $('ruler'), track = $('track'), stripEl = $('strip'), segLayer = $('segments'), markLayer = $('marks'), playheadEl = $('playhead');
+  let zoom = 1;
+  const trackWidth = () => Math.max(10, tlScroll.clientWidth * zoom);
+  const pps = () => trackWidth() / DUR; // px per second
+  const xOf = (t) => t * pps();
+  const tOf = (x) => x / pps();
+  function setZoom(z, anchorT) {
+    const viewX = anchorT !== undefined ? xOf(anchorT) - tlScroll.scrollLeft : null;
+    zoom = clamp(z, 1, 60); $('zoom').value = zoom;
+    layoutTimeline();
+    if (viewX !== null) tlScroll.scrollLeft = xOf(anchorT) - viewX;
+  }
+  function layoutTimeline() {
+    const w = trackWidth();
+    tlInner.style.width = w + 'px';
+    ruler.width = Math.floor(w * devicePixelRatio); ruler.height = Math.floor(28 * devicePixelRatio);
+    ruler.style.width = w + 'px';
+    drawRuler(); renderSegments(); renderMarks(); renderPlayhead();
+  }
+  function drawRuler() {
+    const ctx = ruler.getContext('2d'); const dpr = devicePixelRatio; const w = ruler.width / dpr, h = 28;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#1a1a1d'; ctx.fillRect(0, 0, w, h);
+    const p = pps();
+    const steps = [FRAME, FRAME * 5, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    let major = steps.find(s => s * p >= 90) || 600;
+    const minor = major / (major === FRAME ? 1 : (major <= FRAME * 5 ? 5 : (major === 0.5 ? 5 : (major === 1 ? 4 : (major === 2 ? 4 : (major === 5 ? 5 : (major === 10 ? 5 : (major === 15 ? 3 : (major === 30 ? 6 : 6)))))))));
+    ctx.strokeStyle = '#4a4a50'; ctx.fillStyle = '#9a9aa2'; ctx.font = '10px -apple-system, "SF Mono", Menlo, monospace'; ctx.textBaseline = 'top';
+    const start = Math.floor(tOf(tlScroll.scrollLeft) / minor) * minor, end = Math.min(DUR, tOf(tlScroll.scrollLeft + tlScroll.clientWidth) + minor);
+    ctx.beginPath();
+    for (let t = start; t <= end + 1e-6; t += minor) {
+      const x = Math.round(xOf(t)) + 0.5; const isMajor = Math.abs(t / major - Math.round(t / major)) < 1e-6;
+      ctx.moveTo(x, isMajor ? 14 : 21); ctx.lineTo(x, 28);
+      if (isMajor) ctx.fillText(tc(t, major < 1), x + 3, 3);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#333338'; ctx.beginPath(); ctx.moveTo(0, 27.5); ctx.lineTo(w, 27.5); ctx.stroke();
+  }
+  function renderPlayhead() {
+    playheadEl.style.left = xOf(playhead) + 'px';
+    $('tcCurrent').value = tc(playhead);
+    if (!$('segStart').matches(':focus')) syncSegFields();
+  }
+  function keepPlayheadVisible() { const x = xOf(playhead); const l = tlScroll.scrollLeft, r = l + tlScroll.clientWidth; if (x < l || x > r - 20) tlScroll.scrollLeft = x - tlScroll.clientWidth * 0.2; }
+  function renderSegments() {
+    segLayer.innerHTML = '';
+    state.segments.forEach((s, i) => {
+      const el = document.createElement('div');
+      el.className = 'seg' + (s.removed ? ' removed' : '') + (i === state.selected ? ' selected' : '');
+      el.style.left = xOf(s.start) + 'px'; el.style.width = Math.max(1, xOf(s.end) - xOf(s.start)) + 'px';
+      const len = document.createElement('span'); len.className = 'len'; len.textContent = tc(s.end - s.start, false) + ((s.end - s.start) < 60 ? '.' + String(Math.round(((s.end - s.start) % 1) * 100)).padStart(2, '0') : '');
+      el.appendChild(len);
+      el.dataset.i = i;
+      segLayer.appendChild(el);
+      if (i < state.segments.length - 1) {
+        const b = document.createElement('div'); b.className = 'boundary'; b.style.left = xOf(s.end) + 'px'; b.dataset.i = i; segLayer.appendChild(b);
+      }
+    });
+    renderSegList();
+  }
+  function renderMarks() {
+    markLayer.innerHTML = '';
+    if (state.markIn !== null && state.markOut !== null) { const r = document.createElement('div'); r.className = 'markrange'; r.style.left = xOf(state.markIn) + 'px'; r.style.width = (xOf(state.markOut) - xOf(state.markIn)) + 'px'; markLayer.appendChild(r); }
+    if (state.markIn !== null) { const m = document.createElement('div'); m.className = 'mark in'; m.style.left = xOf(state.markIn) + 'px'; markLayer.appendChild(m); }
+    if (state.markOut !== null) { const m = document.createElement('div'); m.className = 'mark out'; m.style.left = (xOf(state.markOut) - 2) + 'px'; markLayer.appendChild(m); }
+    $('markIn').value = state.markIn === null ? '' : tc(state.markIn);
+    $('markOut').value = state.markOut === null ? '' : tc(state.markOut);
+  }
+  function renderSegList() {
+    const list = $('segList'); list.innerHTML = '';
+    state.segments.forEach((s, i) => {
+      const el = document.createElement('div'); el.className = 'segitem' + (s.removed ? ' removed' : '') + (i === state.selected ? ' selected' : '');
+      el.innerHTML = `<span class="dot"></span><span>${tc(s.start)} - ${tc(s.end)}</span><span class="len">${(s.end - s.start).toFixed(2)}s</span>`;
+      el.addEventListener('click', () => { state.selected = i; pause(); seek(s.start); renderSegments(); });
+      list.appendChild(el);
+    });
+    const kept = keepList();
+    $('keepSummary').textContent = `남는 구간 ${kept.length}개, 총 ${outputDuration().toFixed(2)}s (원본 ${DUR.toFixed(2)}s)`;
+    $('outDuration').value = tc(outputDuration());
+    syncSegFields();
+  }
+  function syncSegFields() { const s = state.segments[state.selected]; if (!s) return; $('segStart').value = tc(s.start); $('segEnd').value = tc(s.end); }
+
+  /* ---------- timeline interactions ---------- */
+  function snapTime(t, exclude) { // snap to boundaries / playhead / marks within 8px
+    const tol = 8 / pps(); let best = t, bd = tol;
+    const cands = [0, DUR, playhead];
+    state.segments.forEach((s, i) => { if (i !== exclude) cands.push(s.end); if (i - 1 !== exclude) cands.push(s.start); });
+    if (state.markIn !== null) cands.push(state.markIn); if (state.markOut !== null) cands.push(state.markOut);
+    cands.forEach(c => { const d = Math.abs(c - t); if (d < bd) { bd = d; best = c; } });
+    return best;
+  }
+  const localX = (e) => e.clientX - tlInner.getBoundingClientRect().left;
+  // ruler / track scrub
+  function startScrub(e) {
+    if (e.button !== 0) return;
+    pause();
+    const move = (ev) => { const t = snapFrame(tOf(clamp(localX(ev), 0, trackWidth()))); seek(ev.altKey ? t : snapTime(t, -1)); };
+    move(e);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  ruler.addEventListener('pointerdown', startScrub);
+  segLayer.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.boundary');
+    if (b) { startBoundaryDrag(+b.dataset.i, e, b); return; }
+    const seg = e.target.closest('.seg');
+    if (seg) { state.selected = +seg.dataset.i; renderSegments(); }
+    startScrub(e);
+  });
+  segLayer.addEventListener('dblclick', (e) => {
+    const b = e.target.closest('.boundary'); if (b) { mergeBoundary(+b.dataset.i); return; }
+    const seg = e.target.closest('.seg'); if (seg) toggleSeg(+seg.dataset.i);
+  });
+  function startBoundaryDrag(i, e, el) {
+    e.stopPropagation(); e.preventDefault(); pause();
+    el.classList.add('dragging'); commit();
+    const move = (ev) => { let t = tOf(clamp(localX(ev), 0, trackWidth())); if (!ev.altKey) t = snapTime(t, i); moveBoundary(i, t, true); seek(state.segments[i].end); };
+    const up = () => { el.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); renderAll(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  tlScroll.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); const t = tOf(localX(e)); setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), t); }
+    else if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { tlScroll.scrollLeft += e.deltaY; }
+  }, { passive: false });
+  tlScroll.addEventListener('scroll', drawRuler);
+  $('zoom').addEventListener('input', (e) => setZoom(+e.target.value, tOf(tlScroll.scrollLeft + tlScroll.clientWidth / 2)));
+  $('btnFit').addEventListener('click', () => setZoom(1));
+  window.addEventListener('resize', () => { layoutTimeline(); layoutStage(); });
+
+  /* ---------- transport / keyboard ---------- */
+  $('btnPlay').addEventListener('click', () => playing ? pause() : play());
+  $('btnStart').addEventListener('click', () => { pause(); seek(0); });
+  $('btnEnd').addEventListener('click', () => { pause(); seek(DUR); });
+  $('btnPrevFrame').addEventListener('click', () => stepFrames(-1));
+  $('btnNextFrame').addEventListener('click', () => stepFrames(1));
+  $('btnSplit').addEventListener('click', () => split(playhead));
+  $('btnSplit2').addEventListener('click', () => split(playhead));
+  $('btnToggleSeg').addEventListener('click', () => toggleSeg(state.selected));
+  $('btnDelete').addEventListener('click', () => toggleSeg(state.selected));
+  $('btnMarkIn').addEventListener('click', markIn); $('btnMarkOut').addEventListener('click', markOut);
+  $('btnKeepMark').addEventListener('click', () => applyMarks('keep'));
+  $('btnCutMark').addEventListener('click', () => applyMarks('cut'));
+  $('btnClearMark').addEventListener('click', () => { state.markIn = state.markOut = null; renderMarks(); });
+  $('btnUndo').addEventListener('click', undo); $('btnRedo').addEventListener('click', redo);
+  function markIn() { state.markIn = snapFrame(playhead); if (state.markOut !== null && state.markOut <= state.markIn) state.markOut = null; renderMarks(); }
+  function markOut() { state.markOut = snapFrame(playhead); if (state.markIn !== null && state.markIn >= state.markOut) state.markIn = null; renderMarks(); }
+  $('tcCurrent').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = parseTc(e.target.value); if (t !== null) { pause(); seek(snapFrame(t)); } e.target.blur(); } if (e.key === 'Escape') e.target.blur(); });
+  $('tcCurrent').addEventListener('blur', () => renderPlayhead());
+  $('markIn').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markIn = snapFrame(t); } renderMarks(); });
+  $('markOut').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markOut = snapFrame(t); } renderMarks(); });
+  $('segStart').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i > 0) { commit(); moveBoundary(i - 1, t); } else syncSegFields(); });
+  $('segEnd').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i < state.segments.length - 1) { commit(); moveBoundary(i, t); } else syncSegFields(); });
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    const k = e.key;
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 's') { e.preventDefault(); submit(); return; }
+    switch (k) {
+      case ' ': e.preventDefault(); playing ? pause() : play(); break;
+      case 'ArrowLeft': e.preventDefault(); e.shiftKey ? (pause(), seek(snapFrame(playhead - 1))) : stepFrames(-1); break;
+      case 'ArrowRight': e.preventDefault(); e.shiftKey ? (pause(), seek(snapFrame(playhead + 1))) : stepFrames(1); break;
+      case 'Home': e.preventDefault(); pause(); seek(0); break;
+      case 'End': e.preventDefault(); pause(); seek(DUR); break;
+      case 'i': case 'I': markIn(); break;
+      case 'o': case 'O': markOut(); break;
+      case 's': case 'S': split(playhead); break;
+      case 'Delete': case 'Backspace': e.preventDefault(); if (state.selectedMask >= 0 && activeTab() === 'screen') removeMask(state.selectedMask); else toggleSeg(state.selected); break;
+      case 'j': case 'J': shuttle(-1); break;
+      case 'k': case 'K': shuttle(0); break;
+      case 'l': case 'L': shuttle(1); break;
+      case '[': { pause(); const prev = state.segments.map(s => s.start).filter(t => t < playhead - 0.001).pop(); seek(prev ?? 0); break; }
+      case ']': { pause(); const next = state.segments.map(s => s.end).find(t => t > playhead + 0.001); seek(next ?? DUR); break; }
+      case '=': case '+': setZoom(zoom * 1.25, playhead); break;
+      case '-': setZoom(zoom / 1.25, playhead); break;
+      case 'Escape': state.markIn = state.markOut = null; renderMarks(); break;
+      default: return;
+    }
+  });
+
+  /* ---------- tabs ---------- */
+  const activeTab = () => document.querySelector('.tab.active').dataset.tab;
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.tab'); if (!b) return;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === b));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === b.dataset.tab));
+    renderOverlay();
+  });
+
+  /* ---------- stage / crop / masks ---------- */
+  const stage = $('stage'), overlay = $('overlay'), cropRect = $('cropRect'), maskLayer = $('maskLayer');
+  let scale = 1; // stage px per source px
+  function layoutStage() {
+    const wrap = $('previewWrap'); const aw = wrap.clientWidth - 32, ah = wrap.clientHeight - 32;
+    const ar = D.width / D.height; let w = aw, h = w / ar; if (h > ah) { h = ah; w = h * ar; }
+    stage.style.width = w + 'px'; stage.style.height = h + 'px'; video.style.width = w + 'px'; video.style.height = h + 'px';
+    scale = w / D.width; renderOverlay();
+  }
+  function placeRect(el, r) { el.style.left = r.x * scale + 'px'; el.style.top = r.y * scale + 'px'; el.style.width = r.w * scale + 'px'; el.style.height = r.h * scale + 'px'; }
+  function renderOverlay() {
+    const screenTab = activeTab() === 'screen';
+    overlay.classList.toggle('active', screenTab);
+    cropRect.hidden = !state.crop; if (state.crop) placeRect(cropRect, state.crop);
+    cropRect.style.pointerEvents = screenTab ? 'auto' : 'none';
+    maskLayer.innerHTML = '';
+    state.masks.forEach((m, i) => {
+      const el = document.createElement('div'); el.className = 'rect mask ' + m.style + (i === state.selectedMask ? ' selected' : '');
+      el.innerHTML = '<div class="rect-label">' + (m.style === 'blur' ? 'BLUR' : 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
+      el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
+    });
+    syncCropFields(); renderMaskList();
+  }
+  function syncCropFields() {
+    $('cropOn').checked = !!state.crop;
+    const c = state.crop || { x: 0, y: 0, w: D.width, h: D.height };
+    $('cropX').value = c.x; $('cropY').value = c.y; $('cropW').value = c.w; $('cropH').value = c.h;
+    [ 'cropX', 'cropY', 'cropW', 'cropH' ].forEach(id => $(id).disabled = !state.crop);
+    document.querySelectorAll('#cropPresets button').forEach(b => b.classList.toggle('active', b.dataset.ar === state.cropAR));
+  }
+  const even = (v) => Math.round(v / 2) * 2;
+  function normRect(r) {
+    r.w = clamp(even(r.w), 2, D.width); r.h = clamp(even(r.h), 2, D.height);
+    r.x = clamp(even(r.x), 0, D.width - r.w); r.y = clamp(even(r.y), 0, D.height - r.h);
+    return r;
+  }
+  function arValue(ar) { if (ar === 'src') return D.width / D.height; if (ar === 'free') return null; const [a, b] = ar.split(':').map(Number); return a / b; }
+  function applyAR(r, ar, anchor) {
+    const v = arValue(ar); if (!v) return normRect(r);
+    // keep width, adjust height (or vice versa when it does not fit)
+    let w = r.w, h = w / v;
+    if (h > D.height) { h = D.height; w = h * v; }
+    if (w > D.width) { w = D.width; h = w / v; }
+    const cx = anchor ? anchor.x : r.x + r.w / 2, cy = anchor ? anchor.y : r.y + r.h / 2;
+    return normRect({ x: cx - w / 2, y: cy - h / 2, w, h });
+  }
+  function setCropOn(on) {
+    commit();
+    if (on) { const r = { x: 0, y: 0, w: D.width, h: D.height }; state.crop = applyAR(r, state.cropAR); }
+    else state.crop = null;
+    renderOverlay();
+  }
+  $('cropOn').addEventListener('change', (e) => setCropOn(e.target.checked));
+  $('cropPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.cropAR = b.dataset.ar;
+    if (!state.crop) { setCropOn(true); $('cropOn').checked = true; }
+    else { commit(); state.crop = applyAR(state.crop, state.cropAR); }
+    if (state.cropAR !== 'free' && state.crop) { // maximize within frame while keeping ratio
+      const v = arValue(state.cropAR); let w = D.width, h = w / v; if (h > D.height) { h = D.height; w = h * v; }
+      state.crop = normRect({ x: (D.width - w) / 2, y: (D.height - h) / 2, w, h });
+    }
+    renderOverlay();
+  });
+  ['cropX', 'cropY', 'cropW', 'cropH'].forEach(id => $(id).addEventListener('change', () => {
+    if (!state.crop) return; commit();
+    let r = { x: +$('cropX').value, y: +$('cropY').value, w: +$('cropW').value, h: +$('cropH').value };
+    if (state.cropAR !== 'free') { const v = arValue(state.cropAR); if (id === 'cropH') r.w = r.h * v; else r.h = r.w / v; }
+    state.crop = normRect(r); renderOverlay();
+  }));
+  $('btnCropCenter').addEventListener('click', () => { if (!state.crop) return; commit(); state.crop.x = even((D.width - state.crop.w) / 2); state.crop.y = even((D.height - state.crop.h) / 2); renderOverlay(); });
+  $('btnCropReset').addEventListener('click', () => { commit(); state.crop = null; state.cropAR = 'free'; renderOverlay(); });
+
+  function addMask(style) {
+    commit();
+    const w = even(D.width / 4), h = even(D.height / 4);
+    state.masks.push(normRect({ x: (D.width - w) / 2, y: (D.height - h) / 2, w, h, style }));
+    state.selectedMask = state.masks.length - 1; renderOverlay();
+  }
+  function removeMask(i) { commit(); state.masks.splice(i, 1); state.selectedMask = -1; renderOverlay(); }
+  $('btnMaskBlack').addEventListener('click', () => addMask('black'));
+  $('btnMaskBlur').addEventListener('click', () => addMask('blur'));
+  function renderMaskList() {
+    const list = $('maskList'); list.innerHTML = '';
+    state.masks.forEach((m, i) => {
+      const el = document.createElement('div'); el.className = 'maskitem' + (i === state.selectedMask ? ' selected' : '');
+      el.innerHTML = `<span>${m.style === 'blur' ? '블러' : '검정'} ${m.w}x${m.h} @ ${m.x},${m.y}</span><span class="x" title="삭제">&#x2715;</span>`;
+      el.addEventListener('click', (e) => { if (e.target.classList.contains('x')) removeMask(i); else { state.selectedMask = i; renderOverlay(); } });
+      list.appendChild(el);
+    });
+    const f = $('maskFields'); f.hidden = state.selectedMask < 0;
+    if (state.selectedMask >= 0) { const m = state.masks[state.selectedMask]; $('maskX').value = m.x; $('maskY').value = m.y; $('maskW').value = m.w; $('maskH').value = m.h; }
+  }
+  ['maskX', 'maskY', 'maskW', 'maskH'].forEach(id => $(id).addEventListener('change', () => {
+    const i = state.selectedMask; if (i < 0) return; commit();
+    const m = state.masks[i]; state.masks[i] = normRect({ x: +$('maskX').value, y: +$('maskY').value, w: +$('maskW').value, h: +$('maskH').value, style: m.style }); renderOverlay();
+  }));
+
+  // rect drag / resize (crop and masks)
+  overlay.addEventListener('pointerdown', (e) => {
+    const rectEl = e.target.closest('.rect'); if (!rectEl || e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const isCrop = rectEl.classList.contains('crop');
+    const idx = isCrop ? -1 : +rectEl.dataset.i;
+    if (!isCrop && state.selectedMask !== idx) { state.selectedMask = idx; renderOverlay(); }
+    const handle = e.target.dataset.h || null;
+    const get = () => isCrop ? state.crop : state.masks[idx];
+    const start = { ...get() }; const sx = e.clientX, sy = e.clientY;
+    const ar = isCrop ? arValue(state.cropAR) : null;
+    commit();
+    const move = (ev) => {
+      const dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
+      let r = { ...start };
+      if (!handle) { r.x = start.x + dx; r.y = start.y + dy; r.w = start.w; r.h = start.h; r.x = clamp(r.x, 0, D.width - r.w); r.y = clamp(r.y, 0, D.height - r.h); }
+      else {
+        if (handle.includes('e')) r.w = start.w + dx;
+        if (handle.includes('s')) r.h = start.h + dy;
+        if (handle.includes('w')) { r.x = start.x + dx; r.w = start.w - dx; }
+        if (handle.includes('n')) { r.y = start.y + dy; r.h = start.h - dy; }
+        r.w = Math.max(16, r.w); r.h = Math.max(16, r.h);
+        if (ar) {
+          if (handle === 'n' || handle === 's') r.w = r.h * ar; else r.h = r.w / ar;
+          if (handle.includes('w')) r.x = start.x + start.w - r.w;
+          if (handle.includes('n')) r.y = start.y + start.h - r.h;
+        }
+        if (r.x < 0) { if (ar) { r.w += r.x; r.h = r.w / ar; } else r.w += r.x; r.x = 0; }
+        if (r.y < 0) { if (ar) { r.h += r.y; r.w = r.h * ar; } else r.h += r.y; r.y = 0; }
+        if (r.x + r.w > D.width) { r.w = D.width - r.x; if (ar) r.h = r.w / ar; }
+        if (r.y + r.h > D.height) { r.h = D.height - r.y; if (ar) r.w = r.h * ar; }
+      }
+      r = normRect(r); if (!isCrop) r.style = start.style;
+      if (isCrop) state.crop = r; else state.masks[idx] = r;
+      if (isCrop) placeRect(cropRect, r); else placeRect(rectEl, r);
+      syncCropFields(); if (!isCrop) renderMaskList();
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); renderOverlay(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  });
+
+  /* ---------- output / speed ---------- */
+  $('speedPresets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.speed = +b.dataset.speed; document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', x === b)); renderSegList(); });
+  $('keepAudio').addEventListener('change', (e) => state.keepAudio = e.target.checked);
+  $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; $('keepAudio').disabled = e.target.value === 'gif'; });
+  $('outHeight').addEventListener('change', (e) => state.output.height = +e.target.value);
+  $('outQuality').addEventListener('change', (e) => state.output.quality = e.target.value);
+  function syncOutputFields() {
+    document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', +x.dataset.speed === state.speed));
+    $('keepAudio').checked = state.keepAudio; $('outFormat').value = state.output.format; $('outHeight').value = String(state.output.height); $('outQuality').value = state.output.quality;
+    $('keepAudio').disabled = !D.hasAudio || state.output.format === 'gif';
+  }
+
+  /* ---------- submit / job polling ---------- */
+  let pollTimer = 0;
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, speed: state.speed, keepAudio: state.keepAudio, output: state.output }; }
+  async function submit() {
+    const csrf = MV.csrf();
+    const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;
+    $('jobStatus').textContent = '요청 중...'; $('jobPct').textContent = ''; $('jobBar').style.width = '0%';
+    $('btnSave').disabled = $('btnSave2').disabled = true;
+    document.querySelector('.tab[data-tab=output]').click();
+    try {
+      const res = await fetch(D.submitUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify(params()) });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      poll(j.job.id);
+    } catch (err) { showJobError(err.message); }
+  }
+  function poll(id) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(D.jobsUrl + '/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const j = (await res.json()).job;
+        const label = { queued: '대기 중 (워커 대기)', running: '처리 중', done: '완료', failed: '실패' }[j.status] || j.status;
+        $('jobStatus').textContent = label; $('jobPct').textContent = j.progress + '%'; $('jobBar').style.width = j.progress + '%';
+        if (j.status === 'done') { $('jobBox').classList.add('done'); $('jobLinks').hidden = false; $('jobResultLink').href = D.libraryUrl + '/' + j.result_media_id; $('btnSave').disabled = $('btnSave2').disabled = false; return; }
+        if (j.status === 'failed') { showJobError(j.error || '알 수 없는 오류'); return; }
+        poll(id);
+      } catch (e) { showJobError(e.message); }
+    }, 1000);
+  }
+  function showJobError(msg) { $('jobStatus').textContent = '실패'; const e = $('jobError'); e.hidden = false; e.textContent = msg; $('btnSave').disabled = $('btnSave2').disabled = false; }
+  $('btnSave').addEventListener('click', submit); $('btnSave2').addEventListener('click', submit);
+
+  /* ---------- misc ---------- */
+  let flashTimer = 0;
+  function flash(msg) { let el = document.getElementById('flash'); if (!el) { el = document.createElement('div'); el.id = 'flash'; el.style.cssText = 'position:fixed;left:50%;bottom:260px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;z-index:99;pointer-events:none;transition:opacity .3s'; document.body.appendChild(el); } el.textContent = msg; el.style.opacity = 1; clearTimeout(flashTimer); flashTimer = setTimeout(() => el.style.opacity = 0, 1800); }
+  function renderAll() { renderSegments(); renderMarks(); renderPlayhead(); renderOverlay(); }
+
+  /* ---------- init ---------- */
+  stripEl.style.backgroundImage = `url("${D.stripUrl}")`;
+  $('tcTotal').textContent = '/ ' + tc(DUR);
+  syncOutputFields();
+  layoutStage(); layoutTimeline(); renderAll();
+})();
