@@ -180,8 +180,8 @@ select.input { appearance: none; padding-right: 34px;
 
 /* ---------- media viewer ---------- */
 /* width = min(column, aspect x max height) so nothing is letterboxed and nothing overflows */
+.detail-main { --arw: 16; --arh: 9; --maxh: min(74vh, 820px); display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .viewer {
-  --arw: 16; --arh: 9; --maxh: min(74vh, 820px);
   margin: 0 auto; display: flex; align-items: center; justify-content: center;
   background: #000; border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-lg);
   width: min(100%, calc(var(--arw) / var(--arh) * var(--maxh)));
@@ -194,7 +194,7 @@ select.input { appearance: none; padding-right: 34px;
 .viewer.empty { background: var(--bg-grouped); color: var(--label2); box-shadow: none; padding: 64px 32px; text-align: center; font-size: 14px; line-height: 1.6; }
 
 /* ---------- description under the player ---------- */
-.desc { margin-top: 26px; }
+.desc { margin-top: 26px; width: max(min(100%, 420px), min(100%, calc(var(--arw) / var(--arh) * var(--maxh)))); }
 .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .stat { flex: 1 1 96px; min-width: 96px; background: var(--bg-grouped); border-radius: var(--r-group); padding: 13px 14px; text-align: center; }
 .stat b { display: block; font-size: 19px; font-weight: 650; letter-spacing: -0.016em; font-variant-numeric: tabular-nums; }
@@ -290,7 +290,7 @@ select.input { appearance: none; padding-right: 34px;
 
 @media (max-width: 900px) {
   .detail { grid-template-columns: 1fr; gap: 26px; }
-  .viewer { --maxh: min(66vh, 600px); }
+  .detail-main { --maxh: min(66vh, 600px); }
 }
 @media (max-width: 640px) {
   main { padding: 28px 18px 72px; }

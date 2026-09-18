@@ -41,7 +41,8 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
     $vh = (int) ($item['height'] ?: 9);
     $cls = $item['media_type'] === 'audio' ? ' audio' : ((! $isVid && ! $isImg && ! $item['has_thumb']) ? ' empty' : '');
 ?>
-    <figure class="viewer<?= $cls ?>" style="--arw:<?= $vw ?>;--arh:<?= $vh ?>">
+    <div class="detail-main" style="--arw:<?= $vw ?>;--arh:<?= $vh ?>">
+    <figure class="viewer<?= $cls ?>">
       <?php if ($isVid && $playable): ?>
         <video controls playsinline preload="metadata" src="<?= site_url('media/' . $item['id'] . '/proxy') ?>" <?= $item['has_thumb'] ? 'poster="' . site_url('media/' . $item['id'] . '/thumb') . '"' : '' ?>></video>
       <?php elseif ($isImg): ?>
@@ -85,6 +86,7 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
         <?php endif ?>
       </section>
     <?php endif ?>
+    </div>
 
     <aside>
       <div class="aside-actions">
