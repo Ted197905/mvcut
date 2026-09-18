@@ -317,8 +317,11 @@
   $('btnMarkIn').addEventListener('click', markIn); $('btnMarkOut').addEventListener('click', markOut);
   $('btnKeepMark').addEventListener('click', () => applyMarks('keep'));
   $('btnCutMark').addEventListener('click', () => applyMarks('cut'));
+  $('btnMarkAll').addEventListener('click', markAll);
   $('btnClearMark').addEventListener('click', () => { state.markIn = state.markOut = null; renderMarks(); });
   $('btnUndo').addEventListener('click', undo); $('btnRedo').addEventListener('click', redo);
+  /** In at the very start, Out at the very end. */
+  function markAll() { state.markIn = 0; state.markOut = DUR; renderMarks(); flash('전체 구간을 선택했습니다.'); }
   function markIn() { state.markIn = snapFrame(playhead); if (state.markOut !== null && state.markOut <= state.markIn) state.markOut = null; renderMarks(); }
   function markOut() { state.markOut = snapFrame(playhead); if (state.markIn !== null && state.markIn >= state.markOut) state.markIn = null; renderMarks(); }
   $('tcCurrent').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const t = parseTc(e.target.value); if (t !== null) { pause(); seek(snapFrame(t)); } e.target.blur(); } if (e.key === 'Escape') e.target.blur(); });
@@ -335,6 +338,7 @@
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 's') { e.preventDefault(); submit(); return; }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'a') { e.preventDefault(); markAll(); return; }
     switch (k) {
       case ' ': e.preventDefault(); playing ? pause() : play(); break;
       case 'ArrowLeft': e.preventDefault(); e.shiftKey ? (pause(), seek(snapFrame(playhead - 1))) : stepFrames(-1); break;

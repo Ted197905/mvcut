@@ -73,7 +73,8 @@ $icons = [
             <button class="btn sm secondary" id="btnCutMark" title="마크 구간 잘라내기">구간 잘라내기</button>
           </div>
           <div class="row2">
-            <button class="btn sm ghost" id="btnClearMark">마크 지우기</button>
+            <button class="btn sm ghost" id="btnMarkAll" title="시작을 In, 끝을 Out으로 (Ctrl+A)">전체 선택</button>
+            <button class="btn sm ghost" id="btnClearMark" title="마크 해제 (Esc)">마크 지우기</button>
           </div>
         </div>
         <div class="sec">
