@@ -37,6 +37,14 @@ class Media extends BaseController
         return $resp;
     }
 
+    /** GET /api/media/{id} */
+    public function info(int $id)
+    {
+        $item = $this->owned($id);
+        $item['playable'] = \App\Libraries\MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
+        return $this->response->setJSON(['media' => $item]);
+    }
+
     public function thumb(int $id)
     {
         $item = $this->owned($id);

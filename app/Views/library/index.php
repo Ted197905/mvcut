@@ -16,6 +16,22 @@
   </div>
   <div class="progress-list" id="progressList"></div>
 
+  <div class="import-panel">
+    <h3>SNS 링크로 가져오기</h3>
+    <div class="import-row">
+      <input class="input" type="url" id="importUrl" placeholder="Instagram, Facebook, X, Threads 게시물 링크 붙여넣기" autocomplete="off">
+      <button class="btn" type="button" id="btnInspect">리소스 확인</button>
+    </div>
+    <div class="import-status" id="importStatus" hidden></div>
+    <div class="import-list" id="importList" hidden></div>
+    <div class="toolbar" id="importActions" hidden style="margin-top:12px">
+      <span class="muted small" id="importCount"></span>
+      <span class="spacer"></span>
+      <button class="btn secondary sm" type="button" id="btnSelectAll">전체 선택</button>
+      <button class="btn sm" type="button" id="btnImport">선택한 리소스 가져오기</button>
+    </div>
+  </div>
+
   <div class="grid" id="grid">
     <?php foreach ($items as $it): ?>
       <?= view('library/_card', ['it' => $it]) ?>
@@ -36,6 +52,8 @@
   const grid = document.getElementById('grid');
   const csrf = MV.csrf();
   const uploadUrl = <?= json_encode(site_url('library/upload')) ?>;
+  const base = <?= json_encode(site_url('/')) ?>;
+  const hdr = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' };
 
   document.getElementById('pickBtn').addEventListener('click', () => input.click());
   input.addEventListener('change', () => { queue([...input.files]); input.value = ''; });
@@ -80,6 +98,63 @@
     xhr.onerror = () => { el.classList.add('fail'); el.querySelector('.pct').textContent = '네트워크 오류'; busy = false; next(); };
     xhr.send(fd);
   }
+  /* ---- SNS import ---- */
+  const st = document.getElementById('importStatus'), il = document.getElementById('importList'), ia = document.getElementById('importActions');
+  let inspected = null;
+  function istatus(msg, cls) { st.hidden = !msg; st.className = 'import-status ' + (cls || ''); st.textContent = msg || ''; }
+  document.getElementById('btnInspect').addEventListener('click', inspect);
+  document.getElementById('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') inspect(); });
+  async function inspect() {
+    const url = document.getElementById('importUrl').value.trim(); if (!url) return;
+    istatus('리소스를 확인하는 중... (몇 초 걸립니다)'); il.hidden = ia.hidden = true; il.innerHTML = '';
+    document.getElementById('btnInspect').disabled = true;
+    try {
+      const res = await fetch(base + 'api/import/inspect', { method: 'POST', headers: hdr, body: JSON.stringify({ url }) });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'HTTP ' + res.status);
+      inspected = { url, entries: j.entries };
+      if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
+      j.entries.forEach(e => {
+        const el = document.createElement('div'); el.className = 'import-item on'; el.dataset.index = e.index;
+        el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
+          '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' + esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') + (e.width ? ' · ' + e.width + 'x' + e.height : '') + '</div></div>';
+        el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
+        il.appendChild(el);
+      });
+      il.hidden = ia.hidden = false; istatus((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.'); count();
+    } catch (e) { istatus(e.message, 'error'); }
+    document.getElementById('btnInspect').disabled = false;
+  }
+  function count() { const n = il.querySelectorAll('.import-item.on').length; document.getElementById('importCount').textContent = n + '개 선택'; document.getElementById('btnImport').disabled = !n; }
+  document.getElementById('btnSelectAll').addEventListener('click', () => { const all = [...il.querySelectorAll('.import-item')]; const on = all.every(x => x.classList.contains('on')); all.forEach(x => x.classList.toggle('on', !on)); count(); });
+  document.getElementById('btnImport').addEventListener('click', async () => {
+    const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index); if (!items.length || !inspected) return;
+    const titles = {}; inspected.entries.forEach(e => titles[e.index] = e.title);
+    istatus('가져오기 요청 중...'); document.getElementById('btnImport').disabled = true;
+    try {
+      const res = await fetch(base + 'api/import', { method: 'POST', headers: hdr, body: JSON.stringify({ url: inspected.url, items, titles }) });
+      const j = await res.json(); if (!res.ok || !j.ok) throw new Error(j.error || 'HTTP ' + res.status);
+      il.hidden = ia.hidden = true;
+      istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다. 완료되면 라이브러리에 추가됩니다.');
+      j.job_ids.forEach(id => pollJob(id));
+    } catch (e) { istatus(e.message, 'error'); document.getElementById('btnImport').disabled = false; }
+  });
+  let pending = 0;
+  function pollJob(id) {
+    pending++;
+    const tick = async () => {
+      const res = await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const job = (await res.json()).job;
+      if (job.status === 'done') {
+        const m = await (await fetch(base + 'api/media/' + job.result_media_id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+        grid.insertAdjacentHTML('afterbegin', cardHtml(m.media)); const empty = document.getElementById('empty'); if (empty) empty.remove();
+        if (--pending === 0) istatus('가져오기 완료.');
+      } else if (job.status === 'failed') { istatus('실패: ' + (job.error || ''), 'error'); pending--; }
+      else setTimeout(tick, 2000);
+    };
+    setTimeout(tick, 1500);
+  }
+
   function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function cardHtml(it) {
     const base = <?= json_encode(site_url('/')) ?>;

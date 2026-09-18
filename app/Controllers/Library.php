@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\Ffmpeg;
+use App\Libraries\MediaSupport;
+use App\Models\JobModel;
 use App\Models\MediaModel;
 
 class Library extends BaseController
@@ -68,7 +70,11 @@ class Library extends BaseController
                 : (str_starts_with($update['mime'], 'audio/') ? 'audio' : 'unknown'));
         }
         $media->update($id, $update);
-        return $this->response->setJSON(['ok' => true, 'item' => $media->find($id)]);
+        $item = $media->find($id);
+        if (MediaSupport::needsProxy($item)) {
+            (new JobModel())->insert(['user_id' => $userId, 'media_id' => $id, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
+        }
+        return $this->response->setJSON(['ok' => true, 'item' => $item]);
     }
 
     public function show(int $id)
@@ -78,9 +84,9 @@ class Library extends BaseController
         if (! $item) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }
-        $playable = $item['media_type'] === 'video' && in_array($item['container'], ['mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2', 'matroska', 'webm'], true)
-            && in_array($item['vcodec'], ['h264', 'vp8', 'vp9', 'av1'], true);
-        return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable]);
+        $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
+        $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
+        return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable, 'pending' => $pending]);
     }
 
     public function delete(int $id)
