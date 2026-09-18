@@ -11,8 +11,8 @@
       <span class="badge"><?= esc($it['source']) ?></span>
     </div>
     <div class="body">
-      <div class="title"><?= esc($it['title']) ?></div>
-      <div class="meta"><?= $it['width'] ? esc($it['width'] . 'x' . $it['height']) . ' / ' : '' ?><?= number_format($it['size'] / 1048576, 1) ?> MB</div>
+      <div class="title" title="<?= esc($it['title'], 'attr') ?>"><?= esc($it['title']) ?></div>
+      <div class="meta"><?= $it['width'] ? esc($it['width'] . '×' . $it['height']) . ' · ' : '' ?><?= esc(\App\Libraries\MediaSupport::size((int) $it['size'])) ?></div>
     </div>
   </a>
 </div>

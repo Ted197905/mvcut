@@ -36,6 +36,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/jobs/(:num)', 'Jobs::show/$1');
     $routes->get('api/jobs', 'Jobs::index');
     $routes->get('api/media/(:num)', 'Media::info/$1');
+    $routes->post('api/media/(:num)/rename', 'Media::rename/$1');
     $routes->post('api/convert/(:num)', 'Convert::submit/$1');
     $routes->post('api/import/inspect', 'Import::inspect');
     $routes->post('api/import', 'Import::submit');

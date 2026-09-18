@@ -38,7 +38,7 @@ class Import extends BaseController
             $entries[] = [
                 'index'     => $i + 1,
                 'id'        => (string) ($e['id'] ?? $i),
-                'title'     => mb_substr((string) ($e['title'] ?? $e['id'] ?? 'item ' . ($i + 1)), 0, 120),
+                'title'     => MediaSupport::tidyTitle((string) ($e['title'] ?? ''), (string) ($e['id'] ?? 'item ' . ($i + 1))),
                 'duration'  => isset($e['duration']) ? (float) $e['duration'] : null,
                 'thumbnail' => $e['thumbnail'] ?? ($e['thumbnails'][0]['url'] ?? null),
                 'width'     => $e['width'] ?? null,

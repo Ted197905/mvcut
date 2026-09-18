@@ -45,6 +45,20 @@ class Media extends BaseController
         return $this->response->setJSON(['media' => $item]);
     }
 
+    /** POST /api/media/{id}/rename {title} */
+    public function rename(int $id)
+    {
+        $item  = $this->owned($id);
+        $title = trim((string) (($this->request->getJSON(true) ?: [])['title'] ?? ''));
+        $title = preg_replace('/\s+/u', ' ', $title);
+        if ($title === '') {
+            return $this->response->setStatusCode(422)->setJSON(['error' => '제목을 입력하세요.']);
+        }
+        $title = mb_substr($title, 0, 255);
+        (new MediaModel())->update($item['id'], ['title' => $title]);
+        return $this->response->setJSON(['ok' => true, 'title' => $title]);
+    }
+
     public function thumb(int $id)
     {
         $item = $this->owned($id);

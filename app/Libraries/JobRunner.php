@@ -136,7 +136,7 @@ class JobRunner
         $idx = max(1, (int) ($p['index'] ?? 1));
         $mediaId = $this->media->insert([
             'user_id' => $job['user_id'], 'kind' => 'original', 'source' => $platform, 'source_url' => mb_substr($p['url'], 0, 1000),
-            'title' => mb_substr($p['title'] ?: ($platform . ' import'), 0, 255), 'filename' => 'original.mp4', 'status' => 'processing',
+            'title' => MediaSupport::tidyTitle((string) $p['title'], $platform . ' import'), 'filename' => 'original.mp4', 'status' => 'processing',
         ]);
         $this->jobs->update($job['id'], ['media_id' => $mediaId]);
         $row = $this->media->find($mediaId); $dir = MediaModel::dir($row);
@@ -159,8 +159,8 @@ class JobRunner
         }
         $file = $files[0];
         $lines = array_values(array_filter(array_map('trim', explode("\n", $r['stdout']))));
-        $title = $p['title'] ?: ($lines[1] ?? $lines[0] ?? $platform . ' import');
-        $this->media->update($mediaId, ['filename' => basename($file), 'title' => mb_substr($title, 0, 255)]);
+        $title = MediaSupport::tidyTitle((string) ($p['title'] ?: ($lines[1] ?? $lines[0] ?? '')), $platform . ' import');
+        $this->media->update($mediaId, ['filename' => basename($file), 'title' => $title]);
         $this->finishMedia($mediaId, $file, $dir, $log);
         $m = $this->media->find($mediaId);
         if (MediaSupport::needsProxy($m)) {

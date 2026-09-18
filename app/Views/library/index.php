@@ -12,7 +12,7 @@
     <strong>파일을 여기에 끌어다 놓으세요</strong><br>
     <span class="small">또는</span> <button class="btn sm" type="button" id="pickBtn">파일 선택</button>
     <input type="file" id="fileInput" multiple accept="video/*,image/*,audio/*,.mkv,.mov,.ts" hidden>
-    <div class="small" style="margin-top:8px">mp4, mov, mkv, webm, gif, jpg, png 등. 8MB씩 나눠 올리므로 대용량도 안정적입니다 (최대 4GB)</div>
+    <div class="small muted" style="margin-top:12px">mp4 · mov · mkv · webm · gif · jpg · png · 최대 4GB</div>
   </div>
   <div class="progress-list" id="progressList"></div>
 

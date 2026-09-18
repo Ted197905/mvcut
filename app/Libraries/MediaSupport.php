@@ -103,6 +103,32 @@ class MediaSupport
         return array_slice($urls, 0, 20);
     }
 
+    /** Social titles are often a whole caption; keep the first clause and a sane length. */
+    public static function size(int $bytes): string
+    {
+        if ($bytes < 1024) return $bytes . ' B';
+        if ($bytes < 1048576) return number_format($bytes / 1024) . ' KB';
+        if ($bytes < 1073741824) return number_format($bytes / 1048576, 1) . ' MB';
+        return number_format($bytes / 1073741824, 2) . ' GB';
+    }
+
+    public static function tidyTitle(string $raw, string $fallback = 'imported'): string
+    {
+        $t = preg_replace('/\s+/u', ' ', trim($raw));
+        foreach ([' | ', ' — ', ' · '] as $sep) {
+            $pos = mb_strpos($t, $sep);
+            if ($pos !== false && $pos >= 8) { $t = mb_substr($t, 0, $pos); break; }
+        }
+        $t = preg_replace('/\s*(https?:\/\/\S+)\s*/u', ' ', $t);
+        $t = trim(preg_replace('/\s+/u', ' ', $t));
+        if (mb_strlen($t) > 90) {
+            $cut = mb_substr($t, 0, 90);
+            $sp  = mb_strrpos($cut, ' ');
+            $t   = rtrim($sp > 40 ? mb_substr($cut, 0, $sp) : $cut) . '…';
+        }
+        return $t !== '' ? $t : $fallback;
+    }
+
     public static function ytdlp(): ?string
     {
         foreach ([ROOTPATH . 'bin/yt-dlp', '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp'] as $p) {
