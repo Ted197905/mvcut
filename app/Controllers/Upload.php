@@ -43,6 +43,8 @@ class Upload extends BaseController
         if (! mkdir($dir, 0775, true)) {
             return $this->response->setStatusCode(500)->setJSON(['error' => '임시 디렉토리를 만들 수 없습니다.']);
         }
+        MediaIntake::relax(dirname($dir));
+        MediaIntake::relax($dir);
         file_put_contents($dir . '/meta.json', json_encode(['name' => $name, 'size' => $size, 'ext' => $ext]));
         return $this->response->setJSON(['ok' => true, 'uploadId' => $uploadId, 'chunkSize' => 8 * 1024 * 1024, 'received' => []]);
     }
@@ -67,6 +69,7 @@ class Upload extends BaseController
             return $this->response->setStatusCode(413)->setJSON(['error' => '조각이 너무 큽니다.']);
         }
         $file->move($dir, sprintf('%06d.part', $index), true);
+        MediaIntake::relax($dir . '/' . sprintf('%06d.part', $index));
         return $this->response->setJSON(['ok' => true, 'index' => $index]);
     }
 

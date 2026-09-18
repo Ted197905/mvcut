@@ -45,6 +45,8 @@ class MediaIntake
             $media->delete($id);
             throw new \RuntimeException('저장 디렉토리를 만들 수 없습니다.');
         }
+        self::relax(dirname($dir));
+        self::relax($dir);
         return [(int) $id, $dir, $dir . '/original.' . $ext];
     }
 
@@ -75,11 +77,28 @@ class MediaIntake
                 : (str_starts_with($m, 'audio/') ? 'audio' : 'unknown'));
         }
         $media->update($id, $update);
+        self::relax($dir);
         $item = $media->find($id);
         if (MediaSupport::needsProxy($item)) {
             (new JobModel())->insert(['user_id' => $item['user_id'], 'media_id' => $id, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
         }
         return $item;
+    }
+
+    /**
+     * Makes a path group-writable so both the web user and the deploy account can manage it.
+     * php-fpm's umask (022) would otherwise leave 0755/0644 and lock the other account out.
+     */
+    public static function relax(string $path): void
+    {
+        if (is_dir($path)) {
+            @chmod($path, 0775);
+            foreach (glob($path . '/*') ?: [] as $f) {
+                @chmod($f, is_dir($f) ? 0775 : 0664);
+            }
+        } elseif (is_file($path)) {
+            @chmod($path, 0664);
+        }
     }
 
     public static function removeDir(string $dir): void

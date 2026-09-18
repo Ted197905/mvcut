@@ -2,6 +2,7 @@
 
 namespace App\Libraries;
 
+use App\Libraries\MediaIntake;
 use App\Libraries\MediaSupport;
 use App\Models\JobModel;
 use App\Models\MediaModel;
@@ -85,6 +86,7 @@ class JobRunner
         ]);
         $row = $this->media->find($resultId); $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
+        MediaIntake::relax(dirname($dir)); MediaIntake::relax($dir);
         $out = $dir . '/result.' . $fmt;
         $args = [Ffmpeg::bin('ffmpeg'), '-y', '-v', 'error', '-i', $srcPath, '-frames:v', '1'];
         if (! empty($c['height'])) array_push($args, '-vf', "scale=-2:'min(ih," . (int) $c['height'] . ")'");
@@ -119,6 +121,7 @@ class JobRunner
         if (! $src['has_thumb'] && Ffmpeg::thumbnail($out, $dir . '/thumb.jpg', (float) $src['duration'])) $upd['has_thumb'] = 1;
         if (! is_file($dir . '/strip2.jpg') && $src['duration']) Ffmpeg::filmstrip($out, $dir . '/strip2.jpg', (float) $src['duration']);
         $this->media->update($src['id'], $upd);
+        MediaIntake::relax($dir);
         return (int) $src['id'];
     }
 
@@ -138,6 +141,7 @@ class JobRunner
         $this->jobs->update($job['id'], ['media_id' => $mediaId]);
         $row = $this->media->find($mediaId); $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
+        MediaIntake::relax(dirname($dir)); MediaIntake::relax($dir);
         if (! empty($p['image_url'])) {
             return $this->importImage($job, $mediaId, $dir, $p, $log);
         }
@@ -202,6 +206,7 @@ class JobRunner
         $row = $this->media->find($resultId);
         $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
+        MediaIntake::relax(dirname($dir)); MediaIntake::relax($dir);
         $out = $dir . '/result.' . $fmt;
 
         $cmd = $this->buildEditCommand($srcPath, $out, $p, $src);
@@ -226,6 +231,7 @@ class JobRunner
             if ($meta['media_type'] === 'video' && $meta['duration']) Ffmpeg::filmstrip($file, $dir . '/strip2.jpg', (float) $meta['duration']);
         }
         $this->media->update($id, $update);
+        MediaIntake::relax($dir);
     }
 
     /** @return string[] argv */
