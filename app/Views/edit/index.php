@@ -1,3 +1,22 @@
+<?php
+// inline SVG icon set (SF Symbols-like): stroke icons use currentColor
+$svg = static function (string $body, string $extra = '') {
+    return '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ' . $extra . '>' . $body . '</svg>';
+};
+$icons = [
+    'start'  => '<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor"><rect x="2.4" y="3" width="1.7" height="10" rx=".85"/><path d="M13.3 3.9v8.2a.7.7 0 0 1-1.08.59l-6.2-4.1a.7.7 0 0 1 0-1.17l6.2-4.1a.7.7 0 0 1 1.08.58z"/></svg>',
+    'end'    => '<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor"><rect x="11.9" y="3" width="1.7" height="10" rx=".85"/><path d="M2.7 3.9v8.2a.7.7 0 0 0 1.08.59l6.2-4.1a.7.7 0 0 0 0-1.17l-6.2-4.1A.7.7 0 0 0 2.7 3.9z"/></svg>',
+    'prev'   => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>',
+    'next'   => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg>',
+    'play'   => '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M4.2 2.9v10.2a.7.7 0 0 0 1.07.6l8-5.1a.7.7 0 0 0 0-1.2l-8-5.1a.7.7 0 0 0-1.07.6z"/></svg>',
+    'pause'  => '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="3.6" y="2.9" width="3.1" height="10.2" rx="1.1"/><rect x="9.3" y="2.9" width="3.1" height="10.2" rx="1.1"/></svg>',
+    'split'  => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3.6" cy="12.2" r="2.1"/><circle cx="12.4" cy="12.2" r="2.1"/><path d="M5.2 10.6 12 1.8M10.8 10.6 4 1.8"/></svg>',
+    'trash'  => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 4.3h10.8M6.2 4.3V2.9h3.6v1.4M3.9 4.3l.6 8.4a1 1 0 0 0 1 .9h5a1 1 0 0 0 1-.9l.6-8.4"/></svg>',
+    'undo'   => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 5.2h7.4a3.5 3.5 0 0 1 0 7H6M2.8 5.2 5.6 2.6M2.8 5.2l2.8 2.6"/></svg>',
+    'redo'   => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 5.2H5.8a3.5 3.5 0 0 0 0 7H10M13.2 5.2 10.4 2.6M13.2 5.2l-2.8 2.6"/></svg>',
+    'back'   => '<svg viewBox="0 0 16 16" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.6 4.6 8 10 13.4"/></svg>',
+];
+?>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -11,12 +30,12 @@
 <body class="editor-body">
 <div class="ed" id="editor">
   <header class="ed-top">
-    <a class="ed-back" href="<?= site_url('library/' . $item['id']) ?>" title="라이브러리로">&#x2039;</a>
+    <a class="ed-back" href="<?= site_url('library/' . $item['id']) ?>" title="미디어로 돌아가기" aria-label="뒤로"><?= $icons['back'] ?></a>
     <div class="ed-title"><span class="name"><?= esc($item['title']) ?></span>
       <span class="meta"><?= esc($item['width'] . 'x' . $item['height']) ?> · <?= esc(rtrim(rtrim((string) $item['fps'], '0'), '.')) ?> fps · <?= esc($item['vcodec']) ?></span></div>
     <div class="ed-top-actions">
-      <button class="tb" id="btnUndo" title="실행 취소 (Ctrl+Z)" disabled>&#x21A9;</button>
-      <button class="tb" id="btnRedo" title="다시 실행 (Ctrl+Shift+Z)" disabled>&#x21AA;</button>
+      <button class="tb" id="btnUndo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소" disabled><?= $icons['undo'] ?></button>
+      <button class="tb" id="btnRedo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행" disabled><?= $icons['redo'] ?></button>
       <button class="btn sm" id="btnSave">저장</button>
     </div>
   </header>
@@ -152,19 +171,19 @@
 
   <section class="ed-timeline">
     <div class="transport">
-      <button class="tb" id="btnStart" title="처음으로 (Home)">&#x23EE;</button>
-      <button class="tb" id="btnPrevFrame" title="이전 프레임 (←)">&#x25C0;</button>
-      <button class="tb play" id="btnPlay" title="재생/일시정지 (Space)">&#x25B6;</button>
-      <button class="tb" id="btnNextFrame" title="다음 프레임 (→)">&#x25B6;</button>
-      <button class="tb" id="btnEnd" title="끝으로 (End)">&#x23ED;</button>
+      <button class="tb" id="btnStart" title="처음으로 (Home)" aria-label="처음으로"><?= $icons['start'] ?></button>
+      <button class="tb" id="btnPrevFrame" title="이전 프레임 (←)" aria-label="이전 프레임"><?= $icons['prev'] ?></button>
+      <button class="tb play" id="btnPlay" title="재생 / 일시정지 (Space)" aria-label="재생"><?= $icons['play'] ?></button>
+      <button class="tb" id="btnNextFrame" title="다음 프레임 (→)" aria-label="다음 프레임"><?= $icons['next'] ?></button>
+      <button class="tb" id="btnEnd" title="끝으로 (End)" aria-label="끝으로"><?= $icons['end'] ?></button>
       <span class="sep"></span>
       <input class="tc big" id="tcCurrent" title="타임코드 입력 후 Enter">
       <span class="tc-total" id="tcTotal"></span>
       <span class="spacer"></span>
       <button class="tb" id="btnMarkIn" title="마크 In (I)">I</button>
       <button class="tb" id="btnMarkOut" title="마크 Out (O)">O</button>
-      <button class="tb" id="btnSplit2" title="분할 (S)">&#x2702;</button>
-      <button class="tb" id="btnDelete" title="세그먼트 삭제/복원 (Del)">&#x232B;</button>
+      <button class="tb" id="btnSplit2" title="플레이헤드에서 분할 (S)" aria-label="분할"><?= $icons['split'] ?></button>
+      <button class="tb" id="btnDelete" title="세그먼트 삭제 / 복원 (Del)" aria-label="세그먼트 삭제"><?= $icons['trash'] ?></button>
       <span class="sep"></span>
       <label class="zoom" title="줌 (Ctrl+휠, +/-)">&#x1F50D;<input type="range" id="zoom" min="1" max="60" step="0.5" value="1"></label>
       <button class="tb" id="btnFit" title="전체 보기">Fit</button>
@@ -184,6 +203,7 @@
 </div>
 
 <script>
+window.ICONS = { play: <?= json_encode($icons['play']) ?>, pause: <?= json_encode($icons['pause']) ?> };
 window.EDITOR_DATA = <?= json_encode([
     'id'       => (int) $item['id'],
     'duration' => (float) $item['duration'],

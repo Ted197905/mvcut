@@ -6,8 +6,9 @@
 .ed { display: grid; grid-template-rows: 48px 1fr 240px; height: 100vh; height: 100dvh; max-width: 100vw; overflow: hidden; }
 .ed-main, .ed-preview, .ed-inspector, .ed-timeline, .tl-scroll, .transport { min-width: 0; }
 .ed-top { display: flex; align-items: center; gap: 12px; padding: 0 12px 0 8px; background: var(--e-panel); border-bottom: 1px solid var(--e-line); }
-.ed-back { color: var(--e-fg); font-size: 28px; line-height: 1; padding: 0 10px; text-decoration: none; opacity: .8; }
-.ed-back:hover { opacity: 1; text-decoration: none; }
+.ed-back { color: var(--e-fg); display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; text-decoration: none; opacity: .85; transition: background .12s, opacity .12s; }
+.ed-back:hover { background: var(--e-panel2); opacity: 1; }
+
 .ed-title { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .ed-title .name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ed-title .meta { font-size: 12px; color: var(--e-fg2); }
@@ -83,10 +84,13 @@
 /* timeline */
 .ed-timeline { display: flex; flex-direction: column; background: var(--e-panel); border-top: 1px solid var(--e-line); min-height: 0; }
 .transport { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--e-line); }
-.tb { background: none; border: 0; color: var(--e-fg); width: 32px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
+.tb { background: none; border: 0; color: var(--e-fg); width: 32px; height: 30px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; transition: background .12s, color .12s; }
 .tb:hover { background: var(--e-panel2); }
-.tb:disabled { opacity: .35; cursor: default; }
-.tb.play { width: 38px; font-size: 16px; }
+.tb:active { background: var(--e-line); }
+.tb:disabled { opacity: .3; cursor: default; background: none; }
+.tb svg { display: block; }
+.tb.play { width: 40px; color: var(--e-fg); }
 .transport .sep { width: 1px; height: 20px; background: var(--e-line); margin: 0 6px; }
 .transport .spacer { flex: 1; }
 .transport .tc.big { width: 130px; font-size: 14px; padding: 5px 8px; }

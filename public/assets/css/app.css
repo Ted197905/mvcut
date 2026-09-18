@@ -274,7 +274,7 @@ select.input { appearance: none; padding-right: 34px;
 
 @media (max-width: 900px) {
   .detail { grid-template-columns: 1fr; gap: 26px; }
-  .viewer { --maxh: min(58vh, 620px); }
+  .viewer { --maxh: min(66vh, 600px); }
 }
 @media (max-width: 640px) {
   main { padding: 28px 18px 72px; }

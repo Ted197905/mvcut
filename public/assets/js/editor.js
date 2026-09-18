@@ -136,9 +136,9 @@
     for (let k = i; k < state.segments.length; k++) if (!state.segments[k].removed) { seek(state.segments[k].start); return true; }
     pause(); seek(state.segments[i].end); return false;
   }
-  video.addEventListener('play', () => { playing = true; $('btnPlay').innerHTML = '&#x23F8;'; loop(); });
-  video.addEventListener('pause', () => { playing = false; $('btnPlay').innerHTML = '&#x25B6;'; cancelAnimationFrame(rafId); seek(video.currentTime, true); });
-  video.addEventListener('ended', () => { playing = false; $('btnPlay').innerHTML = '&#x25B6;'; });
+  video.addEventListener('play', () => { playing = true; $('btnPlay').innerHTML = window.ICONS.pause; loop(); });
+  video.addEventListener('pause', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; cancelAnimationFrame(rafId); seek(video.currentTime, true); });
+  video.addEventListener('ended', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; });
   video.addEventListener('loadedmetadata', () => layoutStage());
   function loop() {
     if (!playing) return;
