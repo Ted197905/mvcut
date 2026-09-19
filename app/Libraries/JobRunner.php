@@ -647,9 +647,9 @@ class JobRunner
 
     /** Repaint quality: processing size and how much temporal context ProPainter gets. */
     private const ERASE_QUALITY = [
-        'fast'   => ['long' => 384, 'neighbor' => 5,  'subvideo' => 24, 'raft' => 8],
-        'normal' => ['long' => 512, 'neighbor' => 6,  'subvideo' => 30, 'raft' => 12],
-        'fine'   => ['long' => 768, 'neighbor' => 8,  'subvideo' => 20, 'raft' => 16],
+        'fast'   => ['long' => 384, 'neighbor' => 6,  'subvideo' => 40, 'raft' => 8,  'ref' => 12],
+        'normal' => ['long' => 512, 'neighbor' => 10, 'subvideo' => 60, 'raft' => 12, 'ref' => 10],
+        'fine'   => ['long' => 768, 'neighbor' => 10, 'subvideo' => 80, 'raft' => 20, 'ref' => 6],
     ];
 
     /** @return string[] extra argv for bin/inpaint.py */
@@ -657,7 +657,8 @@ class JobRunner
     {
         $q = self::ERASE_QUALITY[$p['erase']['quality'] ?? 'normal'] ?? self::ERASE_QUALITY['normal'];
         return ['--proc-long', (string) $q['long'], '--neighbor', (string) $q['neighbor'],
-                '--subvideo', (string) $q['subvideo'], '--raft_iter', (string) $q['raft']];
+                '--subvideo', (string) $q['subvideo'], '--raft_iter', (string) $q['raft'],
+                '--ref-stride', (string) $q['ref']];
     }
 
     /** Runs $fn, recording how long it took under $label. */

@@ -46,6 +46,8 @@ def main() -> int:
     ap.add_argument("--mask-dir", dest="mask_dir", default="",
                     help="folder of per-frame PNG masks (white = repaint); overrides --rects")
     ap.add_argument("--dilate", type=int, default=6, help="grow the mask, so edges are repainted too")
+    ap.add_argument("--ref-stride", dest="ref_stride", type=int, default=10,
+                    help="spacing of the global reference frames ProPainter pulls background from")
     ap.add_argument("--propainter", default="/var/www/mvcut/vendor_ml/ProPainter")
     ap.add_argument("--subvideo", type=int, default=30, help="frames per chunk; lower needs less VRAM")
     ap.add_argument("--neighbor", type=int, default=6)
@@ -69,7 +71,7 @@ def main() -> int:
         print("no rects", file=sys.stderr)
         return 2
 
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFilter
 
     v = probe(a.src)
     work = tempfile.mkdtemp(prefix="inpaint-")
@@ -98,9 +100,12 @@ def main() -> int:
             mask_path = os.path.join(work, "masks")
             os.makedirs(mask_path)
             names = sorted(f for f in os.listdir(a.mask_dir) if f.endswith(".png"))
+            # a tracked mask hugs the object, leaving its motion blur and shadow just outside;
+            # those leftovers are what show up as a ghost, so grow the mask before repainting
+            grow = max(3, int(a.dilate * pw / max(1, v["w"]) * 2) | 1)
             for nm in names:
-                Image.open(os.path.join(a.mask_dir, nm)).convert("L") \
-                     .resize((pw, ph), Image.NEAREST).save(os.path.join(mask_path, nm))
+                m = Image.open(os.path.join(a.mask_dir, nm)).convert("L").resize((pw, ph), Image.NEAREST)
+                m.filter(ImageFilter.MaxFilter(grow)).save(os.path.join(mask_path, nm))
             if not names:
                 print("mask folder is empty", file=sys.stderr)
                 return 7
@@ -121,7 +126,7 @@ def main() -> int:
         # memory no matter the resolution. Feed it a window at a time; each window is its own
         # process, so its memory is released when it ends.
         names = sorted(f for f in os.listdir(frames_dir) if f.endswith(".png"))
-        per = a.window if a.window > 0 else max(16, min(160, int(2.2e7 / max(1, pw * ph))))
+        per = a.window if a.window > 0 else max(16, min(240, int(4.0e7 / max(1, pw * ph))))
         mask_names = sorted(f for f in os.listdir(mask_path)) if a.mask_dir else []
 
         out_frames = os.path.join(work, "out_frames")
@@ -149,8 +154,9 @@ def main() -> int:
                    "--save_fps", str(max(1, int(round(v["fps"])))),
                    "--output", out_dir,
                    "--neighbor_length", str(a.neighbor),
+                   "--ref_stride", str(a.ref_stride),
                    "--raft_iter", str(a.raft_iter),
-                   "--mask_dilation", "0",
+                   "--mask_dilation", "4",
                    "--save_frames",
                    "--fp16"]
             if a.outpaint:
