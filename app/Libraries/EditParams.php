@@ -24,6 +24,12 @@ namespace App\Libraries;
  */
 class EditParams
 {
+    /** Subtitle designs the editor offers; see JobRunner::subtitleStyle(). */
+    public const TEMPLATES = [
+        'outline', 'plain', 'box', 'whitebox', 'highlight',
+        'heavy', 'blackbox', 'grayline', 'glow', 'softglow',
+    ];
+
     public static function normalize(array $in, array $media): array
     {
         $dur = (float) $media['duration'];
@@ -137,7 +143,7 @@ class EditParams
             if ($size < 8) $size = max(20, (int) round($H * 0.045));
             $subs[] = [
                 'template' => in_array($layer['template'] ?? 'outline',
-                                       ['plain', 'outline', 'box', 'whitebox', 'highlight'], true)
+                                       self::TEMPLATES, true)
                               ? $layer['template'] : 'outline',
                 'font'   => $font,
                 'size'   => max(8, min(400, $size)),
@@ -253,7 +259,9 @@ class EditParams
         foreach ($p['subtitles'] ?? [] as $i => $sub) {
             $tpl = match ($sub['template']) {
                 'plain' => '기본', 'box' => '반투명 박스', 'whitebox' => '흰 박스',
-                'highlight' => '노란 강조', default => '외곽선',
+                'highlight' => '노란 강조', 'heavy' => '굵은 외곽선', 'blackbox' => '검정 박스',
+                'grayline' => '회색 외곽선', 'glow' => '외곽선 + 번짐', 'softglow' => '번짐',
+                default => '외곽선',
             };
             $lines[] = '자막 ' . ($i + 1) . ': ' . count($sub['cues']) . '개 · ' . $tpl . ' · '
                      . \App\Libraries\Fonts::label($sub['font']) . ' ' . $sub['size'] . 'px · ' . $sub['color'];

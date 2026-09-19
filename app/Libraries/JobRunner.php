@@ -765,16 +765,15 @@ class JobRunner
         $si = 0;
         foreach ($p['subtitles'] ?? [] as $li => $sub) {
             foreach ($sub['cues'] as $ci => $cue) {
-                $draw = $this->drawtext(
-                    $this->subtitleStyle($sub, $cue['text']),
-                    $p['crop'],
-                    dirname($out),
-                    sprintf('sub%d_%d.txt', $li, $ci),
-                    [$this->timelinePos($p, $cue['start']), $this->timelinePos($p, $cue['end'])]
-                );
-                if ($draw === 'null') continue;
-                $f[] = '[' . $label . ']' . $draw . '[vs' . $si . ']';
-                $label = 'vs' . $si; $si++;
+                $span = [$this->timelinePos($p, $cue['start']), $this->timelinePos($p, $cue['end'])];
+                // a design can need two passes: the halo first, the text over it
+                foreach ($this->subtitleStyle($sub, $cue['text']) as $pass) {
+                    $draw = $this->drawtext($pass, $p['crop'], dirname($out),
+                                            sprintf('sub%d_%d.txt', $li, $ci), $span);
+                    if ($draw === 'null') continue;
+                    $f[] = '[' . $label . ']' . $draw . '[vs' . $si . ']';
+                    $label = 'vs' . $si; $si++;
+                }
             }
         }
         $post = [];
@@ -855,18 +854,33 @@ class JobRunner
         return round($elapsed, 3);
     }
 
-    /** Turns a subtitle layer's template into the drawtext options the watermark path uses. */
+    /**
+     * Turns a subtitle layer's template into drawtext option sets, one per pass.
+     * Most designs need a single pass; the glow ones lay a wide, faint halo in the
+     * text colour underneath and draw the text on top of it.
+     */
     private function subtitleStyle(array $sub, string $text): array
     {
-        [$style, $color, $opacity] = match ($sub['template']) {
-            'plain'     => ['shadow', $sub['color'], 1.0],
-            'box'       => ['box', $sub['color'], 1.0],
-            'whitebox'  => ['whitebox', '#111111', 1.0],
-            'highlight' => ['outline', '#ffd60a', 1.0],
-            default     => ['outline', $sub['color'], 1.0],
-        };
         // array_merge, not +: the template's colour has to win over the layer's own
-        return array_merge($sub, ['text' => $text, 'style' => $style, 'color' => $color, 'opacity' => $opacity]);
+        $pass = static fn (string $style, string $color, float $opacity = 1.0, float $halo = 0.0): array
+            => array_merge($sub, ['text' => $text, 'style' => $style, 'color' => $color,
+                                  'opacity' => $opacity, 'halo' => $halo]);
+        $c = $sub['color'];
+
+        return match ($sub['template']) {
+            'plain'     => [$pass('shadow', $c)],
+            'box'       => [$pass('box', $c)],
+            'whitebox'  => [$pass('whitebox', '#111111')],
+            'highlight' => [$pass('outline', '#ffd60a')],
+            'heavy'     => [$pass('heavy', $c)],
+            'blackbox'  => [$pass('blackbox', $c)],
+            'grayline'  => [$pass('grayline', $c)],
+            'glow'      => [$pass('halo', $c, 0.16, 0.24), $pass('halo', $c, 0.20, 0.16),
+                            $pass('halo', $c, 0.24, 0.09), $pass('heavy', $c)],
+            'softglow'  => [$pass('halo', $c, 0.10, 0.22), $pass('halo', $c, 0.18, 0.18),
+                            $pass('halo', $c, 0.28, 0.14), $pass('none', $c)],
+            default     => [$pass('outline', $c)],
+        };
     }
 
     private function drawtext(array $w, ?array $crop, string $workDir, string $file = 'wm.txt', ?array $span = null): string
@@ -916,6 +930,26 @@ class JobRunner
                 $args[] = 'box=1';
                 $args[] = 'boxcolor=white@' . $op;
                 $args[] = 'boxborderw=' . max(6, (int) round($w['size'] * 0.35));
+                break;
+            case 'heavy':
+                $args[] = 'borderw=' . max(2, (int) round($w['size'] * 0.13));
+                $args[] = 'bordercolor=black@' . $op;
+                break;
+            case 'grayline':
+                $args[] = 'borderw=' . max(1, (int) round($w['size'] * 0.05));
+                $args[] = 'bordercolor=#8a8a8a@' . $op;
+                break;
+            case 'blackbox':
+                $args[] = 'box=1';
+                $args[] = 'boxcolor=black@' . $op;
+                $args[] = 'boxborderw=' . max(4, (int) round($w['size'] * 0.22));
+                break;
+            case 'halo':
+                // faint borders in the text colour, widest first: as near a glow as drawtext gets
+                $args[] = 'borderw=' . max(2, (int) round($w['size'] * ((float) ($w['halo'] ?? 0) ?: 0.20)));
+                $args[] = 'bordercolor=' . $w['color'] . '@' . $op;
+                break;
+            case 'none':
                 break;
         }
         if ($span !== null) {

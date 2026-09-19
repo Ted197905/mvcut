@@ -426,12 +426,18 @@
 
   /* ---------- subtitles ---------- */
   const subEls = [$('subPreview0'), $('subPreview1')];
+  // preview of the server side designs; keys match EditParams::TEMPLATES
   const TPL = {
-    outline:   { color: null, stroke: 0.06, shadow: 0, box: null },
-    plain:     { color: null, stroke: 0,    shadow: 0.05, box: null },
-    box:       { color: null, stroke: 0,    shadow: 0, box: 'rgba(0,0,0,.55)' },
-    whitebox:  { color: '#111111', stroke: 0, shadow: 0, box: '#ffffff' },
-    highlight: { color: '#ffd60a', stroke: 0.06, shadow: 0, box: null },
+    outline:   { stroke: 0.06 },
+    heavy:     { stroke: 0.13 },
+    plain:     { shadow: 0.05 },
+    box:       { box: 'rgba(0,0,0,.55)' },
+    blackbox:  { box: '#000000' },
+    whitebox:  { color: '#111111', box: '#ffffff' },
+    grayline:  { stroke: 0.05, strokeColor: '#8a8a8a' },
+    highlight: { color: '#ffd60a', stroke: 0.06 },
+    glow:      { stroke: 0.13, glow: 0.20 },
+    softglow:  { glow: 0.28 },
   };
   function defaultSub() {
     const b = wmBox();
@@ -467,8 +473,10 @@
       el.style.pointerEvents = editing ? 'auto' : 'none';
       el.classList.toggle('sel', editing);
       span.style.cssText = '';
-      if (tpl.stroke) { span.style.webkitTextStroke = Math.max(1, sub.size * scale * tpl.stroke) + 'px #000'; span.style.paintOrder = 'stroke fill'; }
+      if (tpl.stroke) { span.style.webkitTextStroke = Math.max(1, sub.size * scale * tpl.stroke) + 'px ' + (tpl.strokeColor || '#000'); span.style.paintOrder = 'stroke fill'; }
       if (tpl.shadow) { const sw = Math.max(1, sub.size * scale * tpl.shadow); span.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)'; }
+      if (tpl.glow) { const g = Math.max(2, sub.size * scale * tpl.glow), c = tpl.color || sub.color;
+        span.style.textShadow = '0 0 ' + g + 'px ' + c + ', 0 0 ' + (g / 2) + 'px ' + c; }
       if (tpl.box) { span.style.background = tpl.box; span.style.padding = Math.max(2, sub.size * scale * 0.18) + 'px ' + Math.max(3, sub.size * scale * 0.3) + 'px'; }
     });
     syncSubFields();

@@ -169,10 +169,15 @@ $icons = [
           <div class="sec-title">디자인</div>
           <div class="presets" id="subTemplate">
             <button data-t="outline" class="active">외곽선</button>
+            <button data-t="heavy">굵은 외곽선</button>
+            <button data-t="grayline">회색 외곽선</button>
             <button data-t="plain">그림자</button>
             <button data-t="box">반투명 박스</button>
+            <button data-t="blackbox">검정 박스</button>
             <button data-t="whitebox">흰 박스</button>
             <button data-t="highlight">노란 강조</button>
+            <button data-t="glow">번짐 + 외곽선</button>
+            <button data-t="softglow">번짐</button>
           </div>
           <div class="field-lite" style="margin-top:10px">
             <label for="subFont">폰트</label>
