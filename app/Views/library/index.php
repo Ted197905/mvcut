@@ -257,13 +257,10 @@
     try {
       const j = await post(base + 'api/import/inspect', { url });
       inspected = { url, entries: j.entries, desc: j.desc || '' };
-      const collapse = !!j.collapse;
       if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
-      j.entries.forEach((e, i) => {
-        const extra = collapse && i > 0;
+      j.entries.forEach(e => {
         const el = document.createElement('div');
-        el.className = 'import-item' + (extra ? '' : ' on'); el.dataset.index = e.index;
-        if (extra) el.hidden = true;
+        el.className = 'import-item on'; el.dataset.index = e.index;
         el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
           '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' +
           esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') +
@@ -271,16 +268,6 @@
         el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
         il.appendChild(el);
       });
-      if (collapse && j.entries.length > 1) {
-        const more = document.createElement('button');
-        more.type = 'button'; more.className = 'btn ghost sm import-more';
-        more.textContent = '나머지 ' + (j.entries.length - 1) + '개 보기';
-        more.addEventListener('click', () => {
-          il.querySelectorAll('.import-item[hidden]').forEach(x => { x.hidden = false; });
-          more.remove();
-        });
-        il.appendChild(more);
-      }
       il.hidden = ia.hidden = false;
       istatus(j.notice ? j.notice : ((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.'), j.notice ? 'warn' : '');
       count();

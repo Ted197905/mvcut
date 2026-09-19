@@ -279,7 +279,6 @@ select.input { appearance: none; padding-right: 34px;
 .import-item img { width: 96px; height: 96px; object-fit: contain; border-radius: 9px; background: var(--fill2); flex: none; }
 .import-item .t { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .import-item .m { color: var(--label2); font-size: 11px; }
-.import-more { align-self: center; justify-self: start; }
 .import-status { margin-top: 12px; font-size: 13px; color: var(--label2); }
 .import-status.error { color: var(--red); }
 

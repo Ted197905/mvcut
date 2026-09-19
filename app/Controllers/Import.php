@@ -33,8 +33,7 @@ class Import extends BaseController
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
                 $e = $this->imageEntries($images);
-                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e,
-                                                 'collapse' => count($e) > 1, 'notice' => $reason]);
+                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e, 'notice' => $reason]);
             }
             return $this->response->setStatusCode(422)->setJSON(['error' => $reason]);
         }
@@ -54,7 +53,7 @@ class Import extends BaseController
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
                 $e = $this->imageEntries($images);
-                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e, 'collapse' => count($e) > 1]);
+                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e]);
             }
             $msg = trim(preg_replace('/^ERROR:\s*/m', '', $out['stderr'])) ?: '리소스를 찾을 수 없습니다.';
             if (stripos($msg, 'empty media response') !== false || stripos($msg, 'login') !== false || stripos($msg, 'cookies') !== false) {
@@ -143,8 +142,7 @@ class Import extends BaseController
         $notice = MediaSupport::cookieFile((string) MediaSupport::platformOf($url))
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
             : '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
-        // one post can expose many frames (carousel pages, poster images): show the main one first
-        return ['ok' => true, 'entries' => $entries, 'title' => $title, 'collapse' => count($entries) > 1,
+        return ['ok' => true, 'entries' => $entries, 'title' => $title,
                 'desc' => mb_substr($body, 0, 5000), 'notice' => $notice];
     }
 
