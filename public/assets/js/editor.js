@@ -531,7 +531,7 @@
     if (!force && sig === cueSig) return;
     cueSig = sig;
     state.subtitles.forEach((sub, li) => {
-      subTracks[li].classList.toggle('off', !sub);
+      subTracks[li].classList.toggle('nolayer', !sub);
       const layer = cueLayers[li]; layer.innerHTML = '';
       if (!sub) return;
       sub.cues.forEach((c, ci) => {
