@@ -166,7 +166,7 @@ $icons = [
         </div>
 
         <div class="sec" id="subBody">
-          <div class="sec-title">디자인</div>
+          <div class="sec-title">디자인 <span class="scope" id="styleScope">레이어 전체</span></div>
           <div class="presets" id="subTemplate">
             <button data-t="outline" class="active">외곽선</button>
             <button data-t="heavy">굵은 외곽선</button>
@@ -178,6 +178,11 @@ $icons = [
             <button data-t="highlight">노란 강조</button>
             <button data-t="glow">번짐 + 외곽선</button>
             <button data-t="softglow">번짐</button>
+            <button data-t="yellowline">노랑 굵은 외곽선</button>
+            <button data-t="invert">검정 글자</button>
+            <button data-t="softbox">흰 반투명 박스</button>
+            <button data-t="drop">큰 그림자</button>
+            <button data-t="neon">네온</button>
           </div>
           <div class="field-lite" style="margin-top:10px">
             <label for="subFont">폰트</label>
@@ -218,6 +223,8 @@ $icons = [
             <label for="cueText">내용</label>
             <input class="tc-off" id="cueText" maxlength="200" autocomplete="off">
           </div>
+          <label class="switch" id="cueOwnField" hidden><input type="checkbox" id="cueOwn"> <span>이 문장만 따로 꾸미기</span></label>
+          <p class="hint">"이 문장만 따로 꾸미기"를 켜면 그 문장만 디자인, 폰트, 크기, 색, 위치를 따로 잡습니다. 켜는 순간 레이어 설정이 복사되고, 위 "디자인"이 그 문장을 편집합니다(문장 블록은 노란 테두리로 표시). 끄면 레이어 설정으로 돌아갑니다.</p>
           <p class="hint">타임라인 아래 "자막 1 / 자막 2" 줄에서 더블클릭하면 그 자리에 문장이 생기고, 블록을 끌면 위치가, 양 끝을 끌면 길이가 바뀝니다. Del 키로 선택한 문장을 지웁니다.</p>
           <p class="hint">시간은 원본 기준입니다. 구간을 잘라내면 남은 구간에 맞춰 자동으로 당겨집니다.</p>
         </div>

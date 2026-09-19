@@ -28,7 +28,11 @@ class EditParams
     public const TEMPLATES = [
         'outline', 'plain', 'box', 'whitebox', 'highlight',
         'heavy', 'blackbox', 'grayline', 'glow', 'softglow',
+        'yellowline', 'invert', 'softbox', 'drop', 'neon',
     ];
+
+    /** Anchors shared by the watermark and the subtitles. */
+    private const ANCHORS = ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'];
 
     /**
      * Validates a watermark the user wants kept for next time. It has no video to
@@ -53,6 +57,23 @@ class EditParams
             'style'     => in_array($in['style'] ?? 'shadow', ['none', 'shadow', 'outline', 'box'], true)
                            ? $in['style'] : 'shadow',
         ];
+    }
+
+    /** One subtitle line's own look; only the keys the editor actually set are kept. */
+    private static function cueStyle(array $in, int $W, int $H): array
+    {
+        $ov = [];
+        if (isset($in['template']) && in_array($in['template'], self::TEMPLATES, true)) $ov['template'] = $in['template'];
+        if (isset($in['font']) && \App\Libraries\Fonts::has((string) $in['font'])) $ov['font'] = (string) $in['font'];
+        if (isset($in['size'])) {
+            $size = (int) round((float) $in['size']);
+            if ($size >= 8) $ov['size'] = min(400, $size);
+        }
+        if (isset($in['color'])) $ov['color'] = self::color($in['color']);
+        if (isset($in['anchor']) && in_array($in['anchor'], self::ANCHORS, true)) $ov['anchor'] = $in['anchor'];
+        if (isset($in['x'])) $ov['x'] = max(0, min($W, (int) round((float) $in['x'])));
+        if (isset($in['y'])) $ov['y'] = max(0, min($H, (int) round((float) $in['y'])));
+        return $ov;
     }
 
     public static function normalize(array $in, array $media): array
@@ -156,8 +177,12 @@ class EditParams
                 $cs = max(0.0, min($dur, (float) ($c['start'] ?? 0)));
                 $ce = max(0.0, min($dur, (float) ($c['end'] ?? 0)));
                 if ($ce - $cs < 0.05) continue;
-                $cues[] = ['start' => round($cs, 3), 'end' => round($ce, 3),
-                           'text' => mb_substr($text, 0, 200)];
+                $cue = ['start' => round($cs, 3), 'end' => round($ce, 3),
+                        'text' => mb_substr($text, 0, 200)];
+                // a single line may override the layer's look
+                $ov = self::cueStyle((array) ($c['style'] ?? []), $W, $H);
+                if ($ov !== []) $cue['style'] = $ov;
+                $cues[] = $cue;
             }
             if ($cues === []) continue;
             usort($cues, static fn ($a, $b) => $a['start'] <=> $b['start']);
@@ -173,8 +198,7 @@ class EditParams
                 'font'   => $font,
                 'size'   => max(8, min(400, $size)),
                 'color'  => self::color($layer['color'] ?? '#ffffff'),
-                'anchor' => in_array($layer['anchor'] ?? 's', ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'], true)
-                            ? $layer['anchor'] : 's',
+                'anchor' => in_array($layer['anchor'] ?? 's', self::ANCHORS, true) ? $layer['anchor'] : 's',
                 'x'      => max(0, min($W, (int) round((float) ($layer['x'] ?? $W / 2)))),
                 'y'      => max(0, min($H, (int) round((float) ($layer['y'] ?? $H * 0.85)))),
                 'cues'   => $cues,
@@ -286,10 +310,14 @@ class EditParams
                 'plain' => '기본', 'box' => '반투명 박스', 'whitebox' => '흰 박스',
                 'highlight' => '노란 강조', 'heavy' => '굵은 외곽선', 'blackbox' => '검정 박스',
                 'grayline' => '회색 외곽선', 'glow' => '외곽선 + 번짐', 'softglow' => '번짐',
+                'yellowline' => '노랑 굵은 외곽선', 'invert' => '검정 글자 + 흰 외곽선',
+                'softbox' => '흰 반투명 박스', 'drop' => '큰 그림자', 'neon' => '네온',
                 default => '외곽선',
             };
+            $own = count(array_filter($sub['cues'], static fn ($c) => ! empty($c['style'])));
             $lines[] = '자막 ' . ($i + 1) . ': ' . count($sub['cues']) . '개 · ' . $tpl . ' · '
-                     . \App\Libraries\Fonts::label($sub['font']) . ' ' . $sub['size'] . 'px · ' . $sub['color'];
+                     . \App\Libraries\Fonts::label($sub['font']) . ' ' . $sub['size'] . 'px · ' . $sub['color']
+                     . ($own ? ' · 개별 스타일 ' . $own . '개' : '');
         }
 
         if ($p['speed'] != 1.0) {

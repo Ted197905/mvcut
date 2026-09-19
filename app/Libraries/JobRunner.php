@@ -767,7 +767,7 @@ class JobRunner
             foreach ($sub['cues'] as $ci => $cue) {
                 $span = [$this->timelinePos($p, $cue['start']), $this->timelinePos($p, $cue['end'])];
                 // a design can need two passes: the halo first, the text over it
-                foreach ($this->subtitleStyle($sub, $cue['text']) as $pass) {
+                foreach ($this->subtitleStyle($sub, $cue) as $pass) {
                     $draw = $this->drawtext($pass, $p['crop'], dirname($out),
                                             sprintf('sub%d_%d.txt', $li, $ci), $span);
                     if ($draw === 'null') continue;
@@ -859,8 +859,10 @@ class JobRunner
      * Most designs need a single pass; the glow ones lay a wide, faint halo in the
      * text colour underneath and draw the text on top of it.
      */
-    private function subtitleStyle(array $sub, string $text): array
+    private function subtitleStyle(array $sub, array $cue): array
     {
+        $sub  = array_merge($sub, $cue['style'] ?? []);   // one line's own look wins over the layer's
+        $text = $cue['text'];
         // array_merge, not +: the template's colour has to win over the layer's own
         $pass = static fn (string $style, string $color, float $opacity = 1.0, float $halo = 0.0): array
             => array_merge($sub, ['text' => $text, 'style' => $style, 'color' => $color,
@@ -879,6 +881,12 @@ class JobRunner
                             $pass('halo', $c, 0.24, 0.09), $pass('heavy', $c)],
             'softglow'  => [$pass('halo', $c, 0.10, 0.22), $pass('halo', $c, 0.18, 0.18),
                             $pass('halo', $c, 0.28, 0.14), $pass('none', $c)],
+            'yellowline' => [$pass('heavy', '#ffd60a')],
+            'invert'     => [$pass('whiteline', '#111111')],
+            'softbox'    => [$pass('softbox', '#111111')],
+            'drop'       => [$pass('drop', $c)],
+            'neon'       => [$pass('halo', $c, 0.12, 0.26), $pass('halo', $c, 0.20, 0.18),
+                             $pass('halo', $c, 0.30, 0.10), $pass('none', '#ffffff')],
             default     => [$pass('outline', $c)],
         };
     }
@@ -943,6 +951,20 @@ class JobRunner
                 $args[] = 'box=1';
                 $args[] = 'boxcolor=black@' . $op;
                 $args[] = 'boxborderw=' . max(4, (int) round($w['size'] * 0.22));
+                break;
+            case 'whiteline':
+                $args[] = 'borderw=' . max(2, (int) round($w['size'] * 0.13));
+                $args[] = 'bordercolor=white@' . $op;
+                break;
+            case 'softbox':
+                $args[] = 'box=1';
+                $args[] = 'boxcolor=white@' . round(min(1.0, $op * 0.78), 3);
+                $args[] = 'boxborderw=' . max(6, (int) round($w['size'] * 0.3));
+                break;
+            case 'drop':
+                $args[] = 'shadowcolor=black@' . round(min(1.0, $op * 0.8), 3);
+                $args[] = 'shadowx=' . max(2, (int) round($w['size'] * 0.12));
+                $args[] = 'shadowy=' . max(2, (int) round($w['size'] * 0.12));
                 break;
             case 'halo':
                 // faint borders in the text colour, widest first: as near a glow as drawtext gets

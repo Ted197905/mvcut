@@ -443,7 +443,23 @@
     highlight: { color: '#ffd60a', stroke: 0.06 },
     glow:      { stroke: 0.13, glow: 0.20 },
     softglow:  { glow: 0.28 },
+    yellowline:{ color: '#ffd60a', stroke: 0.13 },
+    invert:    { color: '#111111', stroke: 0.13, strokeColor: '#fff' },
+    softbox:   { color: '#111111', box: 'rgba(255,255,255,.78)' },
+    drop:      { shadow: 0.12 },
+    neon:      { color: '#ffffff', glow: 0.30, glowLayer: true },
   };
+  /** The style being edited: the selected line's own, when it has one, otherwise the layer's. */
+  function styleTarget() {
+    const sub = curSub(); if (!sub) return null;
+    const c = sub.cues[state.subCue];
+    return c && c.style ? c.style : sub;
+  }
+  const STYLE_KEYS = ['template', 'font', 'size', 'color', 'anchor', 'x', 'y'];
+  /** The layer's look with the line's overrides applied, for drawing. */
+  function cueView(sub, cue) {
+    return cue && cue.style ? Object.assign({}, sub, cue.style) : sub;
+  }
   function defaultSub() {
     const b = wmBox();
     return { template: 'outline', font: Object.keys(window.FONTS)[0] || 'pretendard',
@@ -464,25 +480,26 @@
       const cue = sub ? cueAt(sub, t) : null;
       el.hidden = !sub || !cue;
       if (!sub || !cue) return;
-      ensureFont(sub.font);
-      const b = wmBox(), tpl = TPL[sub.template] || TPL.outline;
+      const v = cueView(sub, cue);
+      ensureFont(v.font);
+      const b = wmBox(), tpl = TPL[v.template] || TPL.outline;
       span.textContent = cue.text;
-      el.style.left = (b.x + sub.x) * scale + 'px';
-      el.style.top = (b.y + sub.y) * scale + 'px';
-      const tx = sub.anchor.includes('e') ? '-100%' : (['n', 's', 'c'].includes(sub.anchor) ? '-50%' : '0');
-      const ty = sub.anchor.startsWith('s') ? '-100%' : (['w', 'e', 'c'].includes(sub.anchor) ? '-50%' : '0');
+      el.style.left = (b.x + v.x) * scale + 'px';
+      el.style.top = (b.y + v.y) * scale + 'px';
+      const tx = v.anchor.includes('e') ? '-100%' : (['n', 's', 'c'].includes(v.anchor) ? '-50%' : '0');
+      const ty = v.anchor.startsWith('s') ? '-100%' : (['w', 'e', 'c'].includes(v.anchor) ? '-50%' : '0');
       el.style.transform = 'translate(' + tx + ',' + ty + ')';
-      el.style.fontFamily = '"wm-' + sub.font + '", sans-serif';
-      el.style.fontSize = (sub.size * scale) + 'px';
-      el.style.color = tpl.color || sub.color;
+      el.style.fontFamily = '"wm-' + v.font + '", sans-serif';
+      el.style.fontSize = (v.size * scale) + 'px';
+      el.style.color = tpl.color || v.color;
       el.style.pointerEvents = editing ? 'auto' : 'none';
       el.classList.toggle('sel', editing);
       span.style.cssText = '';
-      if (tpl.stroke) { span.style.webkitTextStroke = Math.max(1, sub.size * scale * tpl.stroke) + 'px ' + (tpl.strokeColor || '#000'); span.style.paintOrder = 'stroke fill'; }
-      if (tpl.shadow) { const sw = Math.max(1, sub.size * scale * tpl.shadow); span.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)'; }
-      if (tpl.glow) { const g = Math.max(2, sub.size * scale * tpl.glow), c = tpl.color || sub.color;
+      if (tpl.stroke) { span.style.webkitTextStroke = Math.max(1, v.size * scale * tpl.stroke) + 'px ' + (tpl.strokeColor || '#000'); span.style.paintOrder = 'stroke fill'; }
+      if (tpl.shadow) { const sw = Math.max(1, v.size * scale * tpl.shadow); span.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)'; }
+      if (tpl.glow) { const g = Math.max(2, v.size * scale * tpl.glow), c = tpl.glowLayer ? v.color : (tpl.color || v.color);
         span.style.textShadow = '0 0 ' + g + 'px ' + c + ', 0 0 ' + (g / 2) + 'px ' + c; }
-      if (tpl.box) { span.style.background = tpl.box; span.style.padding = Math.max(2, sub.size * scale * 0.18) + 'px ' + Math.max(3, sub.size * scale * 0.3) + 'px'; }
+      if (tpl.box) { span.style.background = tpl.box; span.style.padding = Math.max(2, v.size * scale * 0.18) + 'px ' + Math.max(3, v.size * scale * 0.3) + 'px'; }
     });
     syncSubFields(); renderCueTrack();
   }
@@ -495,10 +512,12 @@
     });
     ['subFont', 'subSize', 'subColor', 'subX', 'subY', 'btnCueAdd', 'btnCueClear'].forEach(id => $(id).disabled = !sub);
     if (!sub) { $('cueList').innerHTML = ''; $('cueFields').hidden = true; $('cueTextField').hidden = true; return; }
-    document.querySelectorAll('#subTemplate button').forEach(b => b.classList.toggle('active', b.dataset.t === sub.template));
-    document.querySelectorAll('#subPos button').forEach(b => b.classList.toggle('active', b.dataset.a === sub.anchor));
-    $('subFont').value = sub.font; $('subSize').value = sub.size; $('subColor').value = sub.color;
-    $('subX').value = Math.round(sub.x); $('subY').value = Math.round(sub.y);
+    const st = styleTarget();
+    $('styleScope').textContent = st === sub ? '레이어 전체' : '선택한 문장';
+    document.querySelectorAll('#subTemplate button').forEach(b => b.classList.toggle('active', b.dataset.t === st.template));
+    document.querySelectorAll('#subPos button').forEach(b => b.classList.toggle('active', b.dataset.a === st.anchor));
+    $('subFont').value = st.font; $('subSize').value = st.size; $('subColor').value = st.color;
+    $('subX').value = Math.round(st.x); $('subY').value = Math.round(st.y);
     renderCueList();
   }
   function renderCueList() {
@@ -515,7 +534,8 @@
       list.appendChild(el);
     });
     const c = sub.cues[state.subCue];
-    $('cueFields').hidden = !c; $('cueTextField').hidden = !c;
+    $('cueFields').hidden = !c; $('cueTextField').hidden = !c; $('cueOwnField').hidden = !c;
+    $('cueOwn').checked = !!(c && c.style);
     if (c) {
       if (document.activeElement !== $('cueStart')) $('cueStart').value = tc(c.start, false);
       if (document.activeElement !== $('cueEnd')) $('cueEnd').value = tc(c.end, false);
@@ -528,7 +548,7 @@
   let cueSig = '';
   // rebuilding runs on every frame through renderSubs(), so skip it when nothing moved
   function renderCueTrack(force) {
-    const sig = JSON.stringify([state.subtitles.map(s => s && s.cues.map(c => [c.start, c.end, c.text])),
+    const sig = JSON.stringify([state.subtitles.map(s => s && s.cues.map(c => [c.start, c.end, c.text, !!c.style])),
                                 state.subLayer, state.subCue, Math.round(trackWidth())]);
     if (!force && sig === cueSig) return;
     cueSig = sig;
@@ -538,7 +558,8 @@
       if (!sub) return;
       sub.cues.forEach((c, ci) => {
         const el = document.createElement('div');
-        el.className = 'cue' + (li === state.subLayer && ci === state.subCue ? ' selected' : '');
+        el.className = 'cue' + (li === state.subLayer && ci === state.subCue ? ' selected' : '')
+                             + (c.style ? ' own' : '');
         el.style.left = xOf(c.start) + 'px';
         el.style.width = Math.max(4, xOf(c.end) - xOf(c.start)) + 'px';
         el.dataset.i = ci;
@@ -632,25 +653,36 @@
     state.subCue = -1; renderSubs();
   });
   $('subTemplate').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b || !curSub()) return;
-    commit(); curSub().template = b.dataset.t; renderSubs();
+    const b = e.target.closest('button'), st = styleTarget(); if (!b || !st) return;
+    commit(); st.template = b.dataset.t; renderSubs();
   });
   $('subPos').addEventListener('click', (e) => {
-    const b = e.target.closest('button'); if (!b || !curSub()) return;
+    const b = e.target.closest('button'), st = styleTarget(); if (!b || !st) return;
     commit();
-    const sub = curSub(), box = wmBox(), pad = Math.round(Math.min(box.w, box.h) * 0.06);
-    sub.anchor = b.dataset.a;
-    sub.x = sub.anchor.includes('w') ? pad : (sub.anchor.includes('e') ? box.w - pad : Math.round(box.w / 2));
-    sub.y = sub.anchor.startsWith('n') ? pad : (sub.anchor.startsWith('s') ? box.h - pad : Math.round(box.h / 2));
+    const box = wmBox(), pad = Math.round(Math.min(box.w, box.h) * 0.06);
+    st.anchor = b.dataset.a;
+    st.x = st.anchor.includes('w') ? pad : (st.anchor.includes('e') ? box.w - pad : Math.round(box.w / 2));
+    st.y = st.anchor.startsWith('n') ? pad : (st.anchor.startsWith('s') ? box.h - pad : Math.round(box.h / 2));
     renderSubs();
   });
-  $('subFont').addEventListener('change', (e) => { if (!curSub()) return; commit(); curSub().font = e.target.value; renderSubs(); });
-  $('subSize').addEventListener('input', (e) => { if (!curSub()) return; curSub().size = clamp(+e.target.value || 20, 8, 400); renderSubs(); });
-  $('subColor').addEventListener('input', (e) => { if (!curSub()) return; curSub().color = e.target.value; renderSubs(); });
+  $('subFont').addEventListener('change', (e) => { const st = styleTarget(); if (!st) return; commit(); st.font = e.target.value; renderSubs(); });
+  $('subSize').addEventListener('input', (e) => { const st = styleTarget(); if (!st) return; st.size = clamp(+e.target.value || 20, 8, 400); renderSubs(); });
+  $('subColor').addEventListener('input', (e) => { const st = styleTarget(); if (!st) return; st.color = e.target.value; renderSubs(); });
   ['subX', 'subY'].forEach(id => $(id).addEventListener('change', () => {
-    const sub = curSub(); if (!sub) return; commit();
-    sub.x = Math.round(+$('subX').value) || 0; sub.y = Math.round(+$('subY').value) || 0; renderSubs();
+    const st = styleTarget(); if (!st) return; commit();
+    st.x = Math.round(+$('subX').value) || 0; st.y = Math.round(+$('subY').value) || 0; renderSubs();
   }));
+  // one line can carry its own look; turning it on copies the layer's as a starting point
+  $('cueOwn').addEventListener('change', (e) => {
+    const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c) return;
+    commit();
+    if (e.target.checked) {
+      c.style = {}; STYLE_KEYS.forEach(k => c.style[k] = sub[k]);
+    } else {
+      delete c.style;
+    }
+    renderSubs(); renderCueTrack(true);
+  });
   $('btnCueAdd').addEventListener('click', () => {
     const sub = curSub(); if (!sub) return; commit();
     const t = video.currentTime || 0;
@@ -815,10 +847,11 @@
     if (!sub || e.button !== 0 || activeTab() !== 'subtitle' || i !== state.subLayer) return;
     e.preventDefault(); e.stopPropagation();
     commit();
-    const sx = e.clientX, sy = e.clientY, ox = sub.x, oy = sub.y, b = wmBox();
+    const target = styleTarget();
+    const sx = e.clientX, sy = e.clientY, ox = target.x, oy = target.y, b = wmBox();
     const move = (ev) => {
-      sub.x = clamp(Math.round(ox + (ev.clientX - sx) / scale), 0, b.w);
-      sub.y = clamp(Math.round(oy + (ev.clientY - sy) / scale), 0, b.h);
+      target.x = clamp(Math.round(ox + (ev.clientX - sx) / scale), 0, b.w);
+      target.y = clamp(Math.round(oy + (ev.clientY - sy) / scale), 0, b.h);
       renderSubs();
     };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
