@@ -41,7 +41,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="src", required=True)
     ap.add_argument("--out", dest="dst", required=True)
-    ap.add_argument("--rects", required=True, help="JSON list of {x,y,w,h} in output pixels")
+    ap.add_argument("--rects", default="[]", help="JSON list of {x,y,w,h} in output pixels")
+    ap.add_argument("--outpaint", default="", help="SH,SW scales; generates new frame border instead")
     ap.add_argument("--dilate", type=int, default=6, help="grow the mask, so edges are repainted too")
     ap.add_argument("--propainter", default="/var/www/mvcut/vendor_ml/ProPainter")
     ap.add_argument("--subvideo", type=int, default=50, help="frames per chunk; lower needs less VRAM")
@@ -52,7 +53,14 @@ def main() -> int:
     a = ap.parse_args()
 
     rects = json.loads(a.rects)
-    if not rects:
+    sh = sw = 1.0
+    if a.outpaint:
+        sh, sw = (float(x) for x in a.outpaint.split(",")[:2])
+        sh, sw = max(1.0, min(2.5, sh)), max(1.0, min(2.5, sw))
+        if sh == 1.0 and sw == 1.0:
+            print("no expansion", file=sys.stderr)
+            return 2
+    elif not rects:
         print("no rects", file=sys.stderr)
         return 2
 
@@ -96,12 +104,15 @@ def main() -> int:
         cmd = [sys.executable, "inference_propainter.py",
                "--video", frames_dir,
                "--save_fps", str(max(1, int(round(v["fps"])))),
-               "--mask", mask_path,
                "--output", out_dir,
                "--subvideo_length", str(a.subvideo),
                "--neighbor_length", str(a.neighbor),
                "--mask_dilation", "0",
                "--fp16"]
+        if a.outpaint:
+            cmd += ["--mode", "video_outpainting", "--scale_h", str(sh), "--scale_w", str(sw)]
+        else:
+            cmd += ["--mask", mask_path]
         print("progress 5", file=sys.stderr, flush=True)
         proc = subprocess.Popen(cmd, cwd=a.propainter, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, bufsize=1)
@@ -125,6 +136,23 @@ def main() -> int:
         if not made:
             print("propainter produced no video\n" + "\n".join(tail[-20:]), file=sys.stderr)
             return 4
+
+        if a.outpaint:
+            # the generated border is what we want; the middle keeps the original pixels
+            fw = max(2, int(v["w"] * sw) // 2 * 2)
+            fh = max(2, int(v["h"] * sh) // 2 * 2)
+            x0 = (fw - v["w"]) // 2 // 2 * 2
+            y0 = (fh - v["h"]) // 2 // 2 * 2
+            mux = ["ffmpeg", "-v", "error", "-y", "-i", made, "-i", os.path.abspath(a.src),
+                   "-filter_complex",
+                   f"[0:v]scale={fw}:{fh}:flags=bicubic[bg];[bg][1:v]overlay={x0}:{y0}[vout]",
+                   "-map", "[vout]", "-map", "1:a?", "-c:a", "copy",
+                   "-c:v", "libx264", "-preset", "medium", "-crf", a.crf,
+                   "-pix_fmt", "yuv420p", "-movflags", "+faststart", os.path.abspath(a.dst)]
+            if subprocess.run(mux).returncode != 0:
+                return 5
+            print("progress 100", file=sys.stderr, flush=True)
+            return 0
 
         # composite: original frame, with the repainted rectangles pasted back at full size
         boxes = []

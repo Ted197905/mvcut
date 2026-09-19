@@ -13,6 +13,7 @@ namespace App\Libraries;
  *   "enhance": {"sharpen":"off|low|mid|high", "denoise":bool}
  *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
  *   "restore": {"mode":"off|ai|ai2x", "model":"general|anime"}   Real-ESRGAN detail restore
+ *   "expand":  {"w":1.0,"h":1.0}           ProPainter outpainting, 1.0 .. 2.0
  *   "keepAudio": true
  *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
  * }
@@ -92,6 +93,10 @@ class EditParams
         $rModel = ($in['restore']['model'] ?? 'general') === 'anime' ? 'anime' : 'general';
         $restore = ['mode' => $rMode, 'model' => $rModel];
 
+        $ew = round(max(1.0, min(2.0, (float) ($in['expand']['w'] ?? 1))), 2);
+        $eh = round(max(1.0, min(2.0, (float) ($in['expand']['h'] ?? 1))), 2);
+        $expand = ['w' => $ew, 'h' => $eh];
+
         $smooth = (string) ($in['smooth'] ?? 'off');
         if (! in_array($smooth, ['off', 'x2', 'x4', 'slow'], true)) $smooth = 'off';
 
@@ -112,6 +117,7 @@ class EditParams
             'enhance'   => $enhance,
             'smooth'    => $smooth,
             'restore'   => $restore,
+            'expand'    => $expand,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
@@ -205,6 +211,12 @@ class EditParams
             $lines[] = '프레임 생성: ' . match ($smooth) {
                 'x2' => '2배 (부드럽게)', 'x4' => '4배 (부드럽게)', default => '슬로우 보정',
             };
+        }
+
+        $ex = $p['expand'] ?? ['w' => 1, 'h' => 1];
+        if ($ex['w'] > 1 || $ex['h'] > 1) {
+            $lines[] = '프레임 확장: 가로 ' . rtrim(rtrim(number_format($ex['w'], 2), '0'), '.') . '배 · 세로 '
+                     . rtrim(rtrim(number_format($ex['h'], 2), '0'), '.') . '배 (바깥 영역 AI 생성)';
         }
 
         $o = $p['output'];

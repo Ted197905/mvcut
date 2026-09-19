@@ -207,6 +207,15 @@ $icons = [
             <button data-smooth="slow">슬로우 보정</button>
           </div>
           <p class="hint">중간 프레임을 AI로 만들어 채웁니다. 슬로우 보정은 느리게 만든 영상의 끊김을 없앱니다. 처리 시간이 크게 늘어납니다.</p>
+          <div class="sec-title" style="margin-top:14px">프레임 확장 (GPU)</div>
+          <div class="presets" id="expandPresets">
+            <button data-w="1" data-h="1" class="active">끄기</button>
+            <button data-w="1.2" data-h="1">좌우 1.2배</button>
+            <button data-w="1.5" data-h="1">좌우 1.5배</button>
+            <button data-w="1" data-h="1.2">위아래 1.2배</button>
+            <button data-w="1.2" data-h="1.2">전체 1.2배</button>
+          </div>
+          <p class="hint">화면 바깥을 AI로 만들어 화각을 넓힙니다. 검은 띠 대신 배경을 채울 때 씁니다. 1.5배를 넘으면 생성 영역이 부자연스러워집니다.</p>
         </div>
         <div class="sec">
           <div class="sec-title">화질</div>

@@ -52,6 +52,7 @@
     enhance: { sharpen: 'off', denoise: true },
     smooth: 'off',
     restore: { mode: 'off', model: 'general' },
+    expand: { w: 1, h: 1 },
     output: { format: 'mp4', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
@@ -643,6 +644,7 @@
     $('denoise').disabled = state.enhance.sharpen === 'off';
     document.querySelectorAll('#smoothPresets button').forEach(x => x.classList.toggle('active', x.dataset.smooth === state.smooth));
     document.querySelectorAll('#restorePresets button').forEach(x => x.classList.toggle('active', x.dataset.restore === state.restore.mode));
+    document.querySelectorAll('#expandPresets button').forEach(x => x.classList.toggle('active', +x.dataset.w === state.expand.w && +x.dataset.h === state.expand.h));
     $('restoreModel').value = state.restore.model;
     $('restoreModelRow').hidden = state.restore.mode === 'off';
   });
@@ -654,6 +656,11 @@
     $('restoreModelRow').hidden = state.restore.mode === 'off';
   });
   $('restoreModel').addEventListener('change', (e) => state.restore.model = e.target.value);
+  $('expandPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.expand = { w: +b.dataset.w, h: +b.dataset.h };
+    document.querySelectorAll('#expandPresets button').forEach(x => x.classList.toggle('active', x === b));
+  });
   $('smoothPresets').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     state.smooth = b.dataset.smooth;
@@ -673,7 +680,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, smooth: state.smooth, restore: state.restore, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, smooth: state.smooth, restore: state.restore, expand: state.expand, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

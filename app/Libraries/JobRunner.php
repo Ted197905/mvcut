@@ -202,6 +202,25 @@ class JobRunner
         rename($tmp, $out);
     }
 
+    /** Grows the frame and lets ProPainter generate the new border. */
+    private function outpaint(array $job, string $out, array $p, int $at, int $span, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_dir(ROOTPATH . 'vendor_ml/ProPainter')) { $log('propainter not installed, skipping'); return; }
+        $tmp  = preg_replace('/\.[^.]+$/', '', $out) . '.ex.mp4';
+        $args = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+                 '--outpaint', sprintf('%.2f,%.2f', $p['expand']['h'], $p['expand']['w']),
+                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+        $log('propainter expand ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('propainter expand failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            return;
+        }
+        rename($tmp, $out);
+    }
+
     /**
      * Rebuilds detail with Real-ESRGAN and replaces the encoded file.
      * Like interpolation, a failure leaves the plain encode in place.
@@ -472,7 +491,9 @@ class JobRunner
         $smooth   = $p['smooth'] ?? 'off';
         $restore  = $p['restore']['mode'] ?? 'off';
         $aiRects  = $this->inpaintRects($p, $src);
-        $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0) + ($aiRects ? 1 : 0);
+        $expand   = ($p['expand']['w'] ?? 1) > 1 || ($p['expand']['h'] ?? 1) > 1;
+        $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0)
+                      + ($aiRects ? 1 : 0) + ($expand ? 1 : 0);
         $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         @unlink($dir . '/wm.txt');
@@ -485,6 +506,10 @@ class JobRunner
         // inpainting first: it reads the frames as shot, before any generated detail
         if ($aiRects && $fmt !== 'gif') {
             $this->inpaint($job, $out, $aiRects, $at, $span, $log);
+            $at += $span;
+        }
+        if ($expand && $fmt !== 'gif') {
+            $this->outpaint($job, $out, $p, $at, $span, $log);
             $at += $span;
         }
         // restore next: RIFE then works from the cleaner frames
