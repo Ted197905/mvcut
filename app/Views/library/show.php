@@ -3,7 +3,9 @@ $ext    = strtoupper(pathinfo($item['filename'], PATHINFO_EXTENSION));
 $isVid  = $item['media_type'] === 'video';
 $isImg  = $item['media_type'] === 'image';
 $fmts   = $isImg ? ['jpg' => 'JPG', 'png' => 'PNG', 'webp' => 'WebP'] : ['mp4' => 'MP4', 'webm' => 'WebM', 'gif' => 'GIF'];
-$srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ? $item['width'] . '×' . $item['height'] : null]);
+$srcSum = $isImg
+    ? array_filter([$ext, $item['width'] ? $item['width'] . '×' . $item['height'] : null])
+    : array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ? $item['width'] . '×' . $item['height'] : null]);
 ?>
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
@@ -133,9 +135,9 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
         <p class="eyebrow">정보</p>
         <dl class="list">
           <div class="row"><dt>파일</dt><dd><?= esc($item['filename']) ?></dd></div>
-          <div class="row"><dt>형식</dt><dd><?= esc($item['container'] ?: $item['mime']) ?><?= $item['has_proxy'] ? ' <span class="muted">· 프록시</span>' : '' ?></dd></div>
-          <?php if ($item['vcodec']): ?><div class="row"><dt>비디오</dt><dd><?= esc($item['vcodec']) ?><?= $item['fps'] ? ' · ' . esc(rtrim(rtrim($item['fps'], '0'), '.')) . ' fps' : '' ?></dd></div><?php endif ?>
-          <?php if ($item['acodec']): ?><div class="row"><dt>오디오</dt><dd><?= esc($item['acodec']) ?></dd></div><?php endif ?>
+          <div class="row"><dt>형식</dt><dd><?= $isImg ? esc($ext) . ' <span class="muted">· ' . esc($item['mime']) . '</span>' : esc($item['container'] ?: $item['mime']) . ($item['has_proxy'] ? ' <span class="muted">· 프록시</span>' : '') ?></dd></div>
+          <?php if (! $isImg && $item['vcodec']): ?><div class="row"><dt>비디오</dt><dd><?= esc($item['vcodec']) ?><?= $item['fps'] ? ' · ' . esc(rtrim(rtrim($item['fps'], '0'), '.')) . ' fps' : '' ?></dd></div><?php endif ?>
+          <?php if (! $isImg && $item['acodec']): ?><div class="row"><dt>오디오</dt><dd><?= esc($item['acodec']) ?></dd></div><?php endif ?>
           <?php if ($item['width']): ?><div class="row"><dt>해상도</dt><dd><?= esc($item['width'] . ' × ' . $item['height']) ?></dd></div><?php endif ?>
           <?php if ($item['duration']): ?><div class="row"><dt>길이</dt><dd><?= gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $item['duration']) ?></dd></div><?php endif ?>
           <div class="row"><dt>크기</dt><dd><?= esc(\App\Libraries\MediaSupport::size((int) $item['size'])) ?></dd></div>
@@ -161,12 +163,29 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
               <label><input type="radio" name="dlfmt" value="<?= $v ?>"<?= $first ? ' checked' : '' ?>><span><?= $labelText ?></span></label>
             <?php $first = false; endforeach ?>
           </div>
-          <div class="dl-row">
-            <select class="input" id="dlHeight">
-              <option value="0">원본 해상도</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option>
-            </select>
-            <select class="input" id="dlQuality"><option value="high">높은 품질</option><option value="medium">작은 용량</option></select>
-          </div>
+          <?php if ($isImg): ?>
+            <div class="dl-field">
+              <label for="dlLong">긴 방향 크기</label>
+              <div class="dl-row">
+                <input class="input" type="number" id="dlLong" min="16" max="20000" step="1"
+                       placeholder="원본 <?= (int) max((int) $item['width'], (int) $item['height']) ?>px" inputmode="numeric">
+                <span class="unit">px</span>
+              </div>
+              <p class="hint">비워 두면 원본 크기 그대로. 원본보다 크게는 늘리지 않습니다.</p>
+            </div>
+            <div class="dl-field" id="dlQualityBox">
+              <label for="dlQuality">압축률 <b id="dlQualityVal">60%</b></label>
+              <input type="range" id="dlQuality" min="10" max="100" step="5" value="60">
+              <p class="hint">낮을수록 용량이 작고 화질이 떨어집니다. JPG에만 적용됩니다.</p>
+            </div>
+          <?php else: ?>
+            <div class="dl-row">
+              <select class="input" id="dlHeight">
+                <option value="0">원본 해상도</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option>
+              </select>
+              <select class="input" id="dlQuality"><option value="high">높은 품질</option><option value="medium">작은 용량</option></select>
+            </div>
+          <?php endif ?>
           <button class="btn block" type="button" id="btnConvert">변환 후 다운로드</button>
           <div class="dl-status" id="dlStatus" hidden></div>
         </div>
@@ -210,13 +229,26 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
   });
 
   /* convert */
+  const isImage = <?= $isImg ? 'true' : 'false' ?>;
+  if (isImage) {
+    const q = $('dlQuality'), qv = $('dlQualityVal'), qbox = $('dlQualityBox');
+    q.addEventListener('input', () => { qv.textContent = q.value + '%'; });
+    const syncQuality = () => {
+      qbox.hidden = document.querySelector('input[name=dlfmt]:checked').value !== 'jpg';
+    };
+    document.getElementById('dlFormat').addEventListener('change', syncQuality);
+    syncQuality();
+  }
   const st = $('dlStatus');
   const status = (html, cls) => { st.hidden = false; st.className = 'dl-status ' + (cls || ''); st.innerHTML = html; };
   $('btnConvert').addEventListener('click', async () => {
     const fmt = document.querySelector('input[name=dlfmt]:checked').value;
     status('요청하는 중…'); $('btnConvert').disabled = true;
     try {
-      const res = await fetch(base + 'api/convert/' + id, { method: 'POST', headers: hdr, body: JSON.stringify({ format: fmt, height: +$('dlHeight').value, quality: $('dlQuality').value }) });
+      const body = isImage
+        ? { format: fmt, long: +($('dlLong').value || 0), quality: +$('dlQuality').value }
+        : { format: fmt, height: +$('dlHeight').value, quality: $('dlQuality').value };
+      const res = await fetch(base + 'api/convert/' + id, { method: 'POST', headers: hdr, body: JSON.stringify(body) });
       const j = await res.json(); if (!res.ok || !j.ok) throw new Error(j.error || 'HTTP ' + res.status);
       if (j.cached) return done(j.media.id);
       poll(j.job.id, (job) => done(job.result_media_id), (job) => status('변환 중 ' + job.progress + '%'));

@@ -78,10 +78,12 @@ class JobRunner
     private function convertImage(array $job, array $src, array $c, string $key, callable $log): int
     {
         $fmt = in_array($c['format'] ?? '', ['jpg', 'png', 'webp'], true) ? $c['format'] : 'jpg';
+        $long = (int) ($c['long'] ?? 0);
+        $suffix = ' - ' . strtoupper($fmt) . ($long ? ' ' . $long . 'px' : '');
         $srcPath = MediaModel::dir($src) . '/' . $src['filename'];
         $resultId = $this->media->insert([
             'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => 'convert',
-            'title' => mb_substr($src['title'] . ' - ' . strtoupper($fmt), 0, 255), 'filename' => 'result.' . $fmt,
+            'title' => mb_substr($src['title'] . $suffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'image', 'edit_params' => $key, 'status' => 'processing',
         ]);
         $row = $this->media->find($resultId); $dir = MediaModel::dir($row);
@@ -89,9 +91,21 @@ class JobRunner
         MediaIntake::relax(dirname($dir)); MediaIntake::relax($dir);
         $out = $dir . '/result.' . $fmt;
         $args = [Ffmpeg::bin('ffmpeg'), '-y', '-v', 'error', '-i', $srcPath, '-frames:v', '1'];
-        if (! empty($c['height'])) array_push($args, '-vf', "scale=-2:'min(ih," . (int) $c['height'] . ")'");
-        if ($fmt === 'jpg') array_push($args, '-q:v', ($c['quality'] ?? 'high') === 'high' ? '2' : '5');
-        if ($fmt === 'webp') array_push($args, '-quality', ($c['quality'] ?? 'high') === 'high' ? '90' : '75');
+        // scale by the long edge so portrait and landscape behave the same, and never upscale
+        $sw = (int) $src['width']; $sh = (int) $src['height'];
+        if ($long > 0 && $sw > 0 && $sh > 0 && $long < max($sw, $sh)) {
+            $r = $long / max($sw, $sh);
+            $args[] = '-vf';
+            $args[] = 'scale=' . max(1, (int) round($sw * $r)) . ':' . max(1, (int) round($sh * $r)) . ':flags=lanczos';
+        } elseif (! empty($c['height'])) {
+            array_push($args, '-vf', "scale=-2:'min(ih," . (int) $c['height'] . ")'");
+        }
+        if ($fmt === 'jpg') {
+            // 10..100 % -> ffmpeg -q:v 31..2 (lower is better)
+            $pct = max(10, min(100, (int) ($c['quality'] ?? 60)));
+            array_push($args, '-q:v', (string) (int) round(31 - (($pct - 10) / 90) * 29));
+        }
+        if ($fmt === 'webp') array_push($args, '-quality', '90');
         $args[] = $out;
         $r = Ffmpeg::run($args, 120);
         if ($r['code'] !== 0 || ! is_file($out)) { $this->media->delete($resultId); @rmdir($dir); throw new \RuntimeException('ffmpeg failed: ' . mb_substr($r['stderr'], -800)); }

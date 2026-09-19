@@ -74,8 +74,9 @@ def parse_post(text: str) -> dict:
     while lines and COUNT.match(lines[-1]) and len(counts) < 4:
         counts.insert(0, lines.pop())
     out["counts"] = counts
-    # an embedded post leaves its author's handle on its own line at the end
-    while lines and HANDLE.match(lines[-1]):
+    # an embedded post leaves its author's handle on its own line at the end; never take the
+    # last remaining line, which is the body of a one-word post
+    if len(lines) > 1 and HANDLE.match(lines[-1]):
         lines.pop()
     out["body"] = "\n".join(lines).strip()
     return out

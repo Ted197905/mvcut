@@ -23,10 +23,23 @@ class Convert extends BaseController
         if (! in_array($format, $isImage ? self::IMAGE_FORMATS : self::VIDEO_FORMATS, true)) {
             return $this->response->setStatusCode(422)->setJSON(['error' => '지원하지 않는 포맷입니다.']);
         }
-        $height  = (int) ($in['height'] ?? 0);
-        if (! in_array($height, [0, 1080, 720, 480, 360], true)) $height = 0;
-        $quality = ($in['quality'] ?? 'high') === 'medium' ? 'medium' : 'high';
-        $params  = ['format' => $format, 'height' => $height, 'quality' => $quality];
+        if ($isImage) {
+            // images: long edge in pixels (0 = keep original) and a JPEG quality percentage
+            $long = (int) ($in['long'] ?? 0);
+            $max  = max((int) $item['width'], (int) $item['height']);
+            if ($long < 16 || ($max > 0 && $long >= $max)) $long = 0;
+            $long = min($long, 20000);
+            $params = ['format' => $format, 'long' => $long];
+            if ($format === 'jpg') {
+                $pct = (int) ($in['quality'] ?? 60);
+                $params['quality'] = max(10, min(100, $pct));
+            }
+        } else {
+            $height = (int) ($in['height'] ?? 0);
+            if (! in_array($height, [0, 1080, 720, 480, 360], true)) $height = 0;
+            $quality = ($in['quality'] ?? 'high') === 'medium' ? 'medium' : 'high';
+            $params  = ['format' => $format, 'height' => $height, 'quality' => $quality];
+        }
 
         // cached?
         $key = json_encode(['convert' => $params]);
