@@ -117,7 +117,7 @@ class JobRunner
      * Generates intermediate frames with RIFE and replaces the encoded file.
      * A failure here is not fatal: the un-smoothed result is still a valid export.
      */
-    private function interpolate(array $job, string $out, array $p, array $src, string $smooth, callable $log): void
+    private function interpolate(array $job, string $out, array $p, array $src, string $smooth, int $at, int $span, callable $log): void
     {
         $py = Ffmpeg::python();
         if (! $py || ! is_file(ROOTPATH . 'bin/interpolate.py')) { $log('rife not installed, skipping'); return; }
@@ -141,10 +141,36 @@ class JobRunner
             array_push($args, '--scale', '0.5');
         }
         $log('rife x' . $factor . ' ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
-        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => 45 + (int) round($pct * 0.54)]));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('rife failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            return;
+        }
+        rename($tmp, $out);
+    }
+
+    /**
+     * Rebuilds detail with Real-ESRGAN and replaces the encoded file.
+     * Like interpolation, a failure leaves the plain encode in place.
+     */
+    private function restore(array $job, string $out, array $p, int $at, int $span, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/upscale.py')) { $log('real-esrgan not installed, skipping'); return; }
+        $meta  = Ffmpeg::probe($out);
+        $scale = ($p['restore']['mode'] ?? 'ai') === 'ai2x' ? '2.0' : '1.0';
+        // the model works at 4x internally, so big frames need smaller tiles
+        $tile  = max((int) ($meta['width'] ?? 0), (int) ($meta['height'] ?? 0)) >= 1440 ? '256' : '512';
+        $tmp   = preg_replace('/\.[^.]+$/', '', $out) . '.sr.mp4';
+        $args  = [$py, ROOTPATH . 'bin/upscale.py', '--in', $out, '--out', $tmp,
+                  '--model', $p['restore']['model'] ?? 'general', '--out-scale', $scale,
+                  '--tile', $tile, '--weights-dir', ROOTPATH . 'vendor_ml'];
+        $log('real-esrgan ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('real-esrgan failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
             return;
         }
         rename($tmp, $out);
@@ -391,15 +417,24 @@ class JobRunner
         $log('ffmpeg ' . implode(' ', array_map('escapeshellarg', array_slice($cmd, 1))));
         $expected = max(0.1, EditParams::outputDuration($p));
         $smooth   = $p['smooth'] ?? 'off';
-        $encMax   = $smooth === 'off' ? 100 : 45;   // leave room for the interpolation pass
+        $restore  = $p['restore']['mode'] ?? 'off';
+        $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0);
+        $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         @unlink($dir . '/wm.txt');
         if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
             @unlink($out); $this->media->delete($resultId); @rmdir($dir);
             throw new \RuntimeException('ffmpeg failed (' . $r['code'] . '): ' . mb_substr(trim($r['stderr']), -1500));
         }
+        $span = $stages > 1 ? (int) floor((99 - $encMax) / ($stages - 1)) : 0;
+        $at   = $encMax;
+        // restore first: RIFE then works from the cleaner frames
+        if ($restore !== 'off' && $fmt !== 'gif') {
+            $this->restore($job, $out, $p, $at, $span, $log);
+            $at += $span;
+        }
         if ($smooth !== 'off' && $fmt !== 'gif') {
-            $this->interpolate($job, $out, $p, $src, $smooth, $log);
+            $this->interpolate($job, $out, $p, $src, $smooth, $at, $span, $log);
         }
         $this->finishMedia($resultId, $out, $dir, $log);
         return $resultId;

@@ -37,6 +37,9 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 - Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정/블러)
 - 속도 0.25x ~ 4x (오디오 동반, 소스 fps 유지)
 - 워터마크: 9분할 위치 프리셋과 드래그, 크기/색/불투명도/스타일 4종, SIL OFL 폰트 7종
+- 화질: 압축 노이즈 정리 + 대비 기반 선명화 3단계 (필터, 추가 설치 없음)
+- AI 복원: Real-ESRGAN 압축 모델로 디테일 재생성, 원본 크기 또는 2배 확대 (GPU)
+- 프레임 생성: RIFE 4.25로 2배/4배 부드럽게, 슬로우 모션의 끊김 제거 (GPU)
 
 ### 변환과 다운로드
 - 원본 포맷을 표시하고 MP4 / WebM / GIF, 해상도, 품질 선택
@@ -61,6 +64,9 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 | FFmpeg | NVENC 지원 빌드 |
 | yt-dlp | 최신 릴리스 |
 | Playwright | Chromium (Instagram / Threads 수집) |
+| PyTorch | 2.14 + CUDA 12.6 (AI 보정, 선택) |
+| RIFE | 4.25 (MIT) |
+| Real-ESRGAN | realesr-general-x4v3 / animevideov3 (BSD-3-Clause) |
 
 프론트엔드는 HTML5 + CSS3 + Vanilla JS, Apple Human Interface Guidelines 기준. 빌드 도구 없음.
 
@@ -152,6 +158,22 @@ sudo pip install --break-system-packages playwright
 sudo PLAYWRIGHT_BROWSERS_PATH=/var/www/mvcut/browsers playwright install chromium
 ```
 
+### AI 보정 (선택, GPU 필요)
+
+없으면 해당 옵션만 건너뛰고 나머지는 그대로 동작한다.
+
+```bash
+pip install --target ./pylibs --index-url https://download.pytorch.org/whl/cu126 torch torchvision
+pip install --target ./pylibs gdown
+
+cd vendor_ml
+git clone --depth 1 https://github.com/hzwer/Practical-RIFE.git
+PYTHONPATH=../pylibs python3 -m gdown -O rife425.zip 1ZKjcbmt1hypiFprJPIKW0Tt0lr_2i7bg
+unzip -q rife425.zip && rm -rf __MACOSX rife425.zip && mv train_log Practical-RIFE/
+curl -sLO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth
+curl -sLO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth
+```
+
 ### 워터마크 폰트
 
 ```bash
@@ -186,6 +208,8 @@ journalctl -u mvcut-worker -f
 | `bin/yt-dlp` | 실행 바이너리 |
 | `browsers/` | Playwright Chromium |
 | `fonts/` | 워터마크 폰트 |
+| `pylibs/` | PyTorch 등 AI 보정 라이브러리 |
+| `vendor_ml/` | RIFE / Real-ESRGAN 모델 |
 | `secrets/` | 플랫폼 로그인 쿠키 |
 
 ## 개발

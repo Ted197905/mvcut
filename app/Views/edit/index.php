@@ -213,6 +213,16 @@ $icons = [
           </div>
           <label class="switch"><input type="checkbox" id="denoise" checked> <span>압축 노이즈 정리 후 선명화</span></label>
           <p class="hint">SNS에서 가져온 영상처럼 압축으로 뭉개진 화면에 효과가 큽니다. 강하게는 윤곽에 테두리가 생길 수 있습니다.</p>
+          <div class="sec-title" style="margin-top:14px">AI 복원 (GPU)</div>
+          <div class="presets" id="restorePresets">
+            <button data-restore="off" class="active">끄기</button>
+            <button data-restore="ai">디테일 복원</button>
+            <button data-restore="ai2x">2배 확대</button>
+          </div>
+          <div class="row2" id="restoreModelRow" hidden>
+            <label>모델<select id="restoreModel"><option value="general">실사</option><option value="anime">애니메이션 · 그래픽</option></select></label>
+          </div>
+          <p class="hint">프레임마다 신경망을 돌려 디테일을 다시 만듭니다. 처리 시간이 길고(720p 기준 실시간의 5배 안팎), 얼굴이 작게 나오면 이목구비가 달라 보일 수 있습니다.</p>
         </div>
         <div class="sec">
           <div class="sec-title">출력</div>

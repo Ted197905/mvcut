@@ -12,6 +12,7 @@ namespace App\Libraries;
  *   "speed":  1.0                        0.25 .. 4
  *   "enhance": {"sharpen":"off|low|mid|high", "denoise":bool}
  *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
+ *   "restore": {"mode":"off|ai|ai2x", "model":"general|anime"}   Real-ESRGAN detail restore
  *   "keepAudio": true
  *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
  * }
@@ -85,6 +86,11 @@ class EditParams
         if (! in_array($sharpen, ['off', 'low', 'mid', 'high'], true)) $sharpen = 'off';
         $enhance = ['sharpen' => $sharpen, 'denoise' => (bool) ($in['enhance']['denoise'] ?? ($sharpen !== 'off'))];
 
+        $rMode = (string) ($in['restore']['mode'] ?? 'off');
+        if (! in_array($rMode, ['off', 'ai', 'ai2x'], true)) $rMode = 'off';
+        $rModel = ($in['restore']['model'] ?? 'general') === 'anime' ? 'anime' : 'general';
+        $restore = ['mode' => $rMode, 'model' => $rModel];
+
         $smooth = (string) ($in['smooth'] ?? 'off');
         if (! in_array($smooth, ['off', 'x2', 'x4', 'slow'], true)) $smooth = 'off';
 
@@ -104,6 +110,7 @@ class EditParams
             'watermark' => $wm,
             'enhance'   => $enhance,
             'smooth'    => $smooth,
+            'restore'   => $restore,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
