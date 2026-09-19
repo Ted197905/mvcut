@@ -48,16 +48,29 @@ class MediaSupport
         'threads'   => ['label' => 'Threads',   'level' => 'none'],
     ];
 
-    /** Support level for a platform: full | login | none. */
+    /**
+     * Netscape cookies.txt for a platform, placed on the server by the operator.
+     * Never in git; see docs/deploy.html.
+     */
+    public static function cookieFile(string $platform): ?string
+    {
+        if (! preg_match('/^[a-z]+$/', $platform)) return null;
+        $p = ROOTPATH . 'secrets/cookies_' . $platform . '.txt';
+        return is_readable($p) && filesize($p) > 0 ? $p : null;
+    }
+
+    /** Support level for a platform: full | login | none. Cookies raise a login-gated platform to full. */
     public static function supportLevel(string $platform): string
     {
-        return (string) (self::PLATFORM_SUPPORT[$platform]['level'] ?? 'full');
+        $level = (string) (self::PLATFORM_SUPPORT[$platform]['level'] ?? 'full');
+        if ($level === 'login' && self::cookieFile($platform)) return 'full';
+        return $level;
     }
 
     /** User-facing explanation when a platform cannot be imported. */
     public static function unsupportedReason(string $platform): ?string
     {
-        $level = self::PLATFORM_SUPPORT[$platform]['level'] ?? 'full';
+        $level = self::supportLevel($platform);
         return match ($level) {
             'none'  => 'Threads는 게시물 내용을 로그인 없이 내려주지 않아 자동 가져오기를 지원하지 않습니다. 영상을 직접 저장한 뒤 위 업로드 영역에 올려 주세요. 같은 게시물이 Instagram에도 올라와 있다면 Instagram 링크로 시도해 볼 수 있습니다.',
             'login' => 'Instagram은 현재 로그인 없이는 게시물을 내려주지 않습니다. 영상을 직접 저장한 뒤 업로드하거나, 공개 링크가 있는 다른 플랫폼 주소를 사용해 주세요.',
@@ -302,7 +315,9 @@ class MediaSupport
             'HOME'                     => rtrim(WRITEPATH, '/'),
             'LANG'                     => 'C.UTF-8',
         ];
-        $r = Ffmpeg::run(['python3', ROOTPATH . 'bin/render_media.py', $url, '--timeout', (string) $timeout], $timeout + 25, $env);
+        $args = ['python3', ROOTPATH . 'bin/render_media.py', $url, '--timeout', (string) $timeout];
+        if ($c = self::cookieFile((string) self::platformOf($url))) array_push($args, '--cookies', $c);
+        $r = Ffmpeg::run($args, $timeout + 25, $env);
         $j = json_decode(trim($r['stdout']), true);
         if (! is_array($j)) return null;
         $keep = static fn (array $list): array => array_values(array_filter(

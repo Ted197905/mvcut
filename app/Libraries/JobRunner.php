@@ -151,7 +151,9 @@ class JobRunner
         }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
                  '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
-                 '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title', $p['url']];
+                 '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title'];
+        if ($c = MediaSupport::cookieFile($platform)) array_push($args, '--cookies', $c);
+        $args[] = $p['url'];
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
         $r = Ffmpeg::run($args, 900);

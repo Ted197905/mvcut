@@ -26,7 +26,34 @@ JUNK_IMG = re.compile(r"rsrc\.php|/static/|\.svg(\?|$)|/s\d{2}x\d{2}/", re.I)
 PROFILE_IMG = re.compile(r"/t51\.[0-9.]+-19/|_s(?:[1-9]\d|1\d\d|2[0-4]\d)x(?:[1-9]\d|1\d\d|2[0-4]\d)", re.I)
 
 
-def run(url: str, timeout: float) -> dict:
+def load_cookies(path: str) -> list[dict]:
+    """Reads a Netscape cookies.txt file into Playwright cookie dicts."""
+    out = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                f = line.split("\t")
+                if len(f) < 7:
+                    continue
+                domain, _flag, cpath, secure, expires, name, value = f[:7]
+                c = {"name": name, "value": value, "domain": domain, "path": cpath or "/",
+                     "secure": secure.upper() == "TRUE", "httpOnly": False, "sameSite": "Lax"}
+                try:
+                    exp = int(expires)
+                    if exp > 0:
+                        c["expires"] = exp
+                except ValueError:
+                    pass
+                out.append(c)
+    except OSError:
+        return []
+    return out
+
+
+def run(url: str, timeout: float, cookies: str = "") -> dict:
     from playwright.sync_api import sync_playwright
 
     videos: list[str] = []
@@ -56,6 +83,13 @@ def run(url: str, timeout: float) -> dict:
             user_agent=UA, locale="ko-KR", viewport={"width": 1280, "height": 1600},
             ignore_https_errors=True,
         )
+        if cookies:
+            jar = load_cookies(cookies)
+            if jar:
+                try:
+                    ctx.add_cookies(jar)
+                except Exception:  # noqa: BLE001
+                    pass
         page = ctx.new_page()
         page.on("response", lambda r: note(r.url))
         try:
@@ -137,11 +171,17 @@ def main() -> int:
             timeout = float(sys.argv[sys.argv.index("--timeout") + 1])
         except (ValueError, IndexError):
             pass
+    cookies = ""
+    if "--cookies" in sys.argv:
+        try:
+            cookies = sys.argv[sys.argv.index("--cookies") + 1]
+        except IndexError:
+            pass
     if not re.match(r"^https://", url):
         print(json.dumps({"ok": False, "error": "https url required"}))
         return 2
     try:
-        out = run(url, timeout)
+        out = run(url, timeout, cookies)
     except Exception as e:  # noqa: BLE001
         out = {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
     print(json.dumps(out, ensure_ascii=False))

@@ -131,3 +131,4 @@ _modules/*
 /bin/yt-dlp
 /fonts/
 /browsers/
+/secrets/

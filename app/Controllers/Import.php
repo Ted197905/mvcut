@@ -35,7 +35,10 @@ class Import extends BaseController
         $bin = MediaSupport::ytdlp();
         if (! $bin) return $this->response->setStatusCode(500)->setJSON(['error' => '서버에 yt-dlp가 없습니다.']);
 
-        $out = Ffmpeg::run([$bin, '-J', '--no-warnings', '--flat-playlist', '--no-playlist', '--socket-timeout', '20', $url], 90);
+        $probe = [$bin, '-J', '--no-warnings', '--flat-playlist', '--no-playlist', '--socket-timeout', '20'];
+        if ($c = MediaSupport::cookieFile($platform)) array_push($probe, '--cookies', $c);
+        $probe[] = $url;
+        $out = Ffmpeg::run($probe, 90);
         $j = trim($out['stdout']) !== '' ? json_decode($out['stdout'], true) : null;
         if ($out['code'] !== 0 || ! is_array($j)) {
             // no video: try the renderer, then fall back to og:image / twitter:image
