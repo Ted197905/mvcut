@@ -254,9 +254,10 @@ class JobRunner
             throw new \RuntimeException('영상을 내려받지 못했습니다.');
         }
         $meta = Ffmpeg::probe($tmp);
-        if (empty($meta['vcodec']) && empty($meta['acodec'])) {
+        $still = in_array($meta['vcodec'] ?? '', ['mjpeg', 'png', 'webp', 'bmp'], true);
+        if (empty($meta['vcodec']) || $still || (float) ($meta['duration'] ?? 0) < 0.3 || filesize($tmp) < 65536) {
             @unlink($tmp); $this->media->delete($mediaId); @rmdir($dir);
-            throw new \RuntimeException('내려받은 파일이 재생 가능한 영상이 아닙니다.');
+            throw new \RuntimeException('영상을 온전히 받지 못했습니다. 이 게시물은 분할 스트리밍이라 직접 내려받을 수 없습니다.');
         }
         $ext  = match ($meta['container'] ?? '') { 'matroska,webm' => 'webm', 'mov,mp4,m4a,3gp,3g2,mj2' => 'mp4', default => 'mp4' };
         $file = $dir . '/original.' . $ext;

@@ -119,17 +119,26 @@ class Import extends BaseController
             trim(($handle !== '' ? '@' . $handle : '') . ($lead !== '' ? ' ' . $lead : '')),
             '가져온 게시물'
         );
+        // Instagram serves reels as fragmented streams that a plain download cannot reassemble,
+        // so let yt-dlp fetch the video from the post URL whenever it can read this platform.
+        $platform = (string) MediaSupport::platformOf($url);
+        $useYtdlp = $platform !== 'threads' && MediaSupport::ytdlp() && MediaSupport::cookieFile($platform);
+
         $entries = []; $i = 0;
         foreach (array_slice($r['videos'], 0, 10) as $u) {
             $i++;
-            $entries[] = [
+            $entry = [
                 'index' => $i, 'id' => (string) $i, 'title' => $title . ($i > 1 ? ' ' . $i : ''),
                 'duration' => null, 'thumbnail' => $r['images'][0] ?? null, 'width' => null, 'height' => null,
-                'kind' => 'video', 'url' => $url, 'media_url' => $u,
+                'kind' => 'video', 'url' => $url,
             ];
+            if (! $useYtdlp) $entry['media_url'] = $u;
+            $entries[] = $entry;
         }
+        // a reel's images are just cover frames of the video already listed above
+        $coverOnly = $entries !== [] && preg_match('#/(reel|reels)/#', $url) === 1;
         $n = 0;
-        foreach (array_slice($r['images'], 0, 20) as $u) {
+        foreach ($coverOnly ? [] : array_slice($r['images'], 0, 20) as $u) {
             $i++; $n++;
             $imgTitle = $title !== '가져온 게시물' ? $title . ' (' . $n . ')' : '이미지 ' . $n;
             $entries[] = [
@@ -138,8 +147,8 @@ class Import extends BaseController
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];
         }
-        Cookies::clearFailure((string) MediaSupport::platformOf($url));
-        $notice = MediaSupport::cookieFile((string) MediaSupport::platformOf($url))
+        Cookies::clearFailure($platform);
+        $notice = MediaSupport::cookieFile($platform)
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
             : '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
         return ['ok' => true, 'entries' => $entries, 'title' => $title,
