@@ -186,7 +186,7 @@
     tlInner.style.width = w + 'px';
     ruler.width = Math.floor(w * devicePixelRatio); ruler.height = Math.floor(28 * devicePixelRatio);
     ruler.style.width = w + 'px';
-    drawRuler(); renderSegments(); renderMarks(); renderPlayhead();
+    drawRuler(); renderSegments(); renderMarks(); renderCueTrack(true); renderPlayhead();
   }
   function drawRuler() {
     const ctx = ruler.getContext('2d'); const dpr = devicePixelRatio; const w = ruler.width / dpr, h = 28;
@@ -360,7 +360,10 @@
       case 'i': case 'I': markIn(); break;
       case 'o': case 'O': markOut(); break;
       case 's': case 'S': split(playhead); break;
-      case 'Delete': case 'Backspace': e.preventDefault(); if (state.selectedMask >= 0 && activeTab() === 'screen') removeMask(state.selectedMask); else toggleSeg(state.selected); break;
+      case 'Delete': case 'Backspace': e.preventDefault();
+        if (state.selectedMask >= 0 && activeTab() === 'screen') removeMask(state.selectedMask);
+        else if (activeTab() === 'subtitle' && curSub() && curSub().cues[state.subCue]) removeCue(state.subLayer, state.subCue);
+        else toggleSeg(state.selected); break;
       case 'j': case 'J': shuttle(-1); break;
       case 'k': case 'K': shuttle(0); break;
       case 'l': case 'L': shuttle(1); break;
@@ -479,7 +482,7 @@
         span.style.textShadow = '0 0 ' + g + 'px ' + c + ', 0 0 ' + (g / 2) + 'px ' + c; }
       if (tpl.box) { span.style.background = tpl.box; span.style.padding = Math.max(2, sub.size * scale * 0.18) + 'px ' + Math.max(3, sub.size * scale * 0.3) + 'px'; }
     });
-    syncSubFields();
+    syncSubFields(); renderCueTrack();
   }
   function syncSubFields() {
     const sub = curSub();
@@ -517,6 +520,102 @@
       if (document.activeElement !== $('cueText')) $('cueText').value = c.text;
     }
   }
+  /* ---------- subtitle tracks on the timeline ---------- */
+  const subTracks = [$('subTrack0'), $('subTrack1')], cueLayers = [$('cues0'), $('cues1')];
+  const MIN_CUE = 0.1;
+  let cueSig = '';
+  // rebuilding runs on every frame through renderSubs(), so skip it when nothing moved
+  function renderCueTrack(force) {
+    const sig = JSON.stringify([state.subtitles.map(s => s && s.cues.map(c => [c.start, c.end, c.text])),
+                                state.subLayer, state.subCue, Math.round(trackWidth())]);
+    if (!force && sig === cueSig) return;
+    cueSig = sig;
+    state.subtitles.forEach((sub, li) => {
+      subTracks[li].classList.toggle('off', !sub);
+      const layer = cueLayers[li]; layer.innerHTML = '';
+      if (!sub) return;
+      sub.cues.forEach((c, ci) => {
+        const el = document.createElement('div');
+        el.className = 'cue' + (li === state.subLayer && ci === state.subCue ? ' selected' : '');
+        el.style.left = xOf(c.start) + 'px';
+        el.style.width = Math.max(4, xOf(c.end) - xOf(c.start)) + 'px';
+        el.dataset.i = ci;
+        el.innerHTML = '<span></span><i data-h="s"></i><i data-h="e"></i>';
+        el.firstChild.textContent = c.text;
+        layer.appendChild(el);
+      });
+    });
+  }
+  function removeCue(li, ci) {
+    const sub = state.subtitles[li]; if (!sub || !sub.cues[ci]) return;
+    commit(); sub.cues.splice(ci, 1); state.subCue = -1; renderSubs(); renderCueTrack(true);
+  }
+  function selectCue(li, ci) {
+    state.subLayer = li; state.subCue = ci;
+    const tab = document.querySelector('.tab[data-tab=subtitle]');
+    if (tab && activeTab() !== 'subtitle') tab.click();
+    renderSubs(); renderCueTrack(true);
+  }
+  function addCueAt(li, t) {
+    const at = clamp(t, 0, DUR - MIN_CUE);
+    const cur = state.subtitles[li];
+    const hit = cur ? cur.cues.findIndex(c => at >= c.start && at <= c.end) : -1;
+    if (hit >= 0) { selectCue(li, hit); return; }   // the spot is taken: just select what is there
+    commit();
+    if (!state.subtitles[li]) state.subtitles[li] = defaultSub();
+    const sub = state.subtitles[li];
+    let end = Math.min(DUR, at + 2);
+    sub.cues.forEach(c => { if (c.start > at && c.start < end) end = c.start; });
+    if (end - at < MIN_CUE) { flash('자막을 넣을 자리가 좁습니다.'); return; }
+    sub.cues.push({ start: round3(at), end: round3(end), text: '자막' });
+    sub.cues.sort((a, b) => a.start - b.start);
+    selectCue(li, sub.cues.findIndex(c => Math.abs(c.start - at) < 1e-6));
+    $('cueText').focus(); $('cueText').select();
+  }
+  function startCueDrag(li, ci, mode, e) {
+    e.preventDefault(); e.stopPropagation(); pause(); commit();
+    const sub = state.subtitles[li], c = sub.cues[ci];
+    const t0 = tOf(localX(e)), s0 = c.start, e0 = c.end;
+    // a cue may not run into its neighbours on the same layer
+    const lo = ci > 0 ? sub.cues[ci - 1].end : 0;
+    const hi = ci + 1 < sub.cues.length ? sub.cues[ci + 1].start : DUR;
+    const move = (ev) => {
+      const d = tOf(clamp(localX(ev), 0, trackWidth())) - t0;
+      if (mode === 'move') {
+        let st = s0 + d;
+        if (!ev.altKey) st = snapTime(st, -1);
+        st = clamp(st, lo, hi - (e0 - s0));
+        c.start = round3(st); c.end = round3(st + (e0 - s0));
+      } else if (mode === 's') {
+        let t = ev.altKey ? s0 + d : snapTime(s0 + d, -1);
+        c.start = round3(clamp(t, lo, e0 - MIN_CUE));
+      } else {
+        let t = ev.altKey ? e0 + d : snapTime(e0 + d, -1);
+        c.end = round3(clamp(t, s0 + MIN_CUE, hi));
+      }
+      renderCueTrack(true); renderSubs();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      renderCueTrack(true); renderSubs();
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  subTracks.forEach((tr, li) => {
+    tr.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const cue = e.target.closest('.cue');
+      if (!cue) { startScrub(e); return; }
+      const ci = +cue.dataset.i;
+      selectCue(li, ci);
+      startCueDrag(li, ci, e.target.dataset.h || 'move', e);
+    });
+    tr.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.cue')) return;
+      addCueAt(li, tOf(clamp(localX(e), 0, trackWidth())));
+    });
+  });
+
   $('subLayerTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     state.subLayer = +b.dataset.layer; state.subCue = -1; renderSubs();

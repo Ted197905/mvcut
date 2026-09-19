@@ -218,6 +218,7 @@ $icons = [
             <label for="cueText">내용</label>
             <input class="tc-off" id="cueText" maxlength="200" autocomplete="off">
           </div>
+          <p class="hint">타임라인 아래 "자막 1 / 자막 2" 줄에서 더블클릭하면 그 자리에 문장이 생기고, 블록을 끌면 위치가, 양 끝을 끌면 길이가 바뀝니다. Del 키로 선택한 문장을 지웁니다.</p>
           <p class="hint">시간은 원본 기준입니다. 구간을 잘라내면 남은 구간에 맞춰 자동으로 당겨집니다.</p>
         </div>
       </div>
@@ -371,6 +372,12 @@ $icons = [
           <div class="strip" id="strip"></div>
           <div class="segments" id="segments"></div>
           <div class="marks" id="marks"></div>
+        </div>
+        <div class="subtrack" id="subTrack0" data-layer="0">
+          <span class="tl-label">자막 1</span><div class="cues" id="cues0"></div>
+        </div>
+        <div class="subtrack" id="subTrack1" data-layer="1">
+          <span class="tl-label">자막 2</span><div class="cues" id="cues1"></div>
         </div>
         <div class="playhead" id="playhead"><div class="head"></div></div>
       </div>
