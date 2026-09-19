@@ -572,9 +572,10 @@
     let end = Math.min(DUR, at + 2);
     sub.cues.forEach(c => { if (c.start > at && c.start < end) end = c.start; });
     if (end - at < MIN_CUE) { flash('자막을 넣을 자리가 좁습니다.'); return; }
-    sub.cues.push({ start: round3(at), end: round3(end), text: '자막' });
+    const cue = { start: round3(at), end: round3(end), text: '자막' };
+    sub.cues.push(cue);
     sub.cues.sort((a, b) => a.start - b.start);
-    selectCue(li, sub.cues.findIndex(c => Math.abs(c.start - at) < 1e-6));
+    selectCue(li, sub.cues.indexOf(cue));
     $('cueText').focus(); $('cueText').select();
   }
   function startCueDrag(li, ci, mode, e) {
