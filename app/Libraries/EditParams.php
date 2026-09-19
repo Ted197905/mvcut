@@ -8,7 +8,7 @@ namespace App\Libraries;
  * {
  *   "keep":   [[start, end], ...]        seconds, sorted, non-overlapping (segments to keep)
  *   "crop":   {"x":0,"y":0,"w":W,"h":H} | null   source pixels
- *   "masks":  [{"x","y","w","h","style":"black|blur"}]
+ *   "masks":  [{"x","y","w","h","style":"black|blur|fill|ai"}]
  *   "speed":  1.0                        0.25 .. 4
  *   "enhance": {"sharpen":"off|low|mid|high", "denoise":bool}
  *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
@@ -54,7 +54,8 @@ class EditParams
         foreach ((array) ($in['masks'] ?? []) as $m) {
             if (! is_array($m)) continue;
             $r = self::rect($m, $W, $H);
-            $r['style'] = ($m['style'] ?? 'black') === 'blur' ? 'blur' : 'black';
+            $style = (string) ($m['style'] ?? 'black');
+            $r['style'] = in_array($style, ['black', 'blur', 'fill', 'ai'], true) ? $style : 'black';
             $masks[] = $r;
         }
 

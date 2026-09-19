@@ -151,6 +151,55 @@ class JobRunner
     }
 
     /**
+     * Mask rectangles marked 'ai', mapped from source pixels into the encoded frame:
+     * the crop shifts them, an output height scales them.
+     *
+     * @return array<int,array{x:int,y:int,w:int,h:int}>
+     */
+    private function inpaintRects(array $p, array $src): array
+    {
+        $rects = array_values(array_filter($p['masks'], static fn ($m) => ($m['style'] ?? '') === 'ai'));
+        if ($rects === []) return [];
+        $ox = $p['crop']['x'] ?? 0; $oy = $p['crop']['y'] ?? 0;
+        $ch = (int) ($p['crop']['h'] ?? $src['height']);
+        $oh = (int) $p['output']['height'];
+        $s  = ($oh > 0 && $ch > 0 && $oh < $ch) ? $oh / $ch : 1.0;
+        $out = [];
+        foreach ($rects as $m) {
+            $out[] = [
+                'x' => (int) round(($m['x'] - $ox) * $s), 'y' => (int) round(($m['y'] - $oy) * $s),
+                'w' => (int) round($m['w'] * $s),         'h' => (int) round($m['h'] * $s),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Repaints the marked regions with ProPainter, which reads neighbouring frames, and
+     * replaces the encoded file. As with the other GPU passes, a failure is not fatal.
+     */
+    private function inpaint(array $job, string $out, array $rects, int $at, int $span, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/inpaint.py') || ! is_dir(ROOTPATH . 'vendor_ml/ProPainter')) {
+            $log('propainter not installed, skipping');
+            return;
+        }
+        $tmp  = preg_replace('/\.[^.]+$/', '', $out) . '.ip.mp4';
+        $args = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+                 '--rects', json_encode(array_values($rects)),
+                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+        $log('propainter ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('propainter failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            return;
+        }
+        rename($tmp, $out);
+    }
+
+    /**
      * Rebuilds detail with Real-ESRGAN and replaces the encoded file.
      * Like interpolation, a failure leaves the plain encode in place.
      */
@@ -418,7 +467,8 @@ class JobRunner
         $expected = max(0.1, EditParams::outputDuration($p));
         $smooth   = $p['smooth'] ?? 'off';
         $restore  = $p['restore']['mode'] ?? 'off';
-        $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0);
+        $aiRects  = $this->inpaintRects($p, $src);
+        $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0) + ($aiRects ? 1 : 0);
         $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         @unlink($dir . '/wm.txt');
@@ -428,7 +478,12 @@ class JobRunner
         }
         $span = $stages > 1 ? (int) floor((99 - $encMax) / ($stages - 1)) : 0;
         $at   = $encMax;
-        // restore first: RIFE then works from the cleaner frames
+        // inpainting first: it reads the frames as shot, before any generated detail
+        if ($aiRects && $fmt !== 'gif') {
+            $this->inpaint($job, $out, $aiRects, $at, $span, $log);
+            $at += $span;
+        }
+        // restore next: RIFE then works from the cleaner frames
         if ($restore !== 'off' && $fmt !== 'gif') {
             $this->restore($job, $out, $p, $at, $span, $log);
             $at += $span;
@@ -494,6 +549,21 @@ class JobRunner
         $mi = 0;
         foreach ($p['masks'] as $m) {
             $x = $m['x'] - $ox; $y = $m['y'] - $oy;
+            if ($m['style'] === 'ai') {
+                continue;   // handled after the encode, by the inpainting pass
+            }
+            if ($m['style'] === 'fill') {
+                // delogo interpolates the box from its border, so it needs one pixel of margin
+                $fw = (int) ($p['crop']['w'] ?? $srcMeta['width']);
+                $fh = (int) ($p['crop']['h'] ?? $srcMeta['height']);
+                $dx = max(1, min($fw - 3, $x));
+                $dy = max(1, min($fh - 3, $y));
+                $dw = max(1, min($fw - $dx - 1, $m['w']));
+                $dh = max(1, min($fh - $dy - 1, $m['h']));
+                $f[] = "[{$label}]delogo=x={$dx}:y={$dy}:w={$dw}:h={$dh}[vm{$mi}]";
+                $label = "vm{$mi}"; $mi++;
+                continue;
+            }
             if ($m['style'] === 'blur') {
                 $f[] = "[{$label}]split[mb{$mi}][mm{$mi}]";
                 $f[] = "[mm{$mi}]crop={$m['w']}:{$m['h']}:{$x}:{$y},boxblur=luma_radius=min(h\\,w)/12:luma_power=2[mr{$mi}]";

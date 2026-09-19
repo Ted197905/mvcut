@@ -27,6 +27,12 @@
 .rect.crop::after { top: 33.333%; bottom: 33.333%; left: 0; right: 0; border-top: 1px solid #fff; border-bottom: 1px solid #fff; }
 .rect.mask { border: 1.5px dashed var(--e-red); background: rgba(255,69,58,.22); }
 .rect.mask.blur { background: rgba(255,214,10,.18); border-color: var(--e-yellow); }
+.rect.mask.fill { background: rgba(48,209,88,.16); border-color: var(--e-green, #30d158); }
+.rect.mask.fill .rect-label { background: var(--e-green, #30d158); color: #000; }
+.rect.mask.fill i { border-color: var(--e-green, #30d158); }
+.rect.mask.ai { background: rgba(10,132,255,.18); border-color: var(--e-blue, #0a84ff); }
+.rect.mask.ai .rect-label { background: var(--e-blue, #0a84ff); }
+.rect.mask.ai i { border-color: var(--e-blue, #0a84ff); }
 .rect.mask.selected { border-style: solid; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
 .rect-label { position: absolute; left: 0; top: -20px; font-size: 10px; letter-spacing: .08em; background: var(--e-accent); color: #fff; padding: 1px 6px; border-radius: 3px; pointer-events: none; }
 .rect.mask .rect-label { background: var(--e-red); }

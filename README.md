@@ -34,7 +34,7 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 ### 편집
 - Timeline Cut / Crop: 여러 구간, 프레임 스냅, 자석 스냅, 되돌리기
 - 마우스, 키보드(Space, J/K/L, 화살표, I/O, S, Del, Ctrl+Z/Y/A/S), 타임코드 직접 입력
-- Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정/블러)
+- Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정 / 블러 / 배경 채우기 / AI 지우기)
 - 속도 0.25x ~ 4x (오디오 동반, 소스 fps 유지)
 - 워터마크: 9분할 위치 프리셋과 드래그, 크기/색/불투명도/스타일 4종, SIL OFL 폰트 7종
 - 화질: 압축 노이즈 정리 + 대비 기반 선명화 3단계 (필터, 추가 설치 없음)
@@ -67,6 +67,7 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 | PyTorch | 2.14 + CUDA 12.6 (AI 보정, 선택) |
 | RIFE | 4.25 (MIT) |
 | Real-ESRGAN | realesr-general-x4v3 / animevideov3 (BSD-3-Clause) |
+| ProPainter | 영역 인페인팅 (NTU S-Lab License 1.0, 비상업적 사용만) |
 
 프론트엔드는 HTML5 + CSS3 + Vanilla JS, Apple Human Interface Guidelines 기준. 빌드 도구 없음.
 
@@ -172,6 +173,19 @@ PYTHONPATH=../pylibs python3 -m gdown -O rife425.zip 1ZKjcbmt1hypiFprJPIKW0Tt0lr
 unzip -q rife425.zip && rm -rf __MACOSX rife425.zip && mv train_log Practical-RIFE/
 curl -sLO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth
 curl -sLO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth
+```
+
+AI 지우기(인페인팅)를 쓰려면 ProPainter도 설치한다. 라이선스가 비상업적 사용만 허용하므로
+상업적으로 쓸 계획이라면 설치하지 않는다. 설치하지 않으면 해당 옵션만 동작하지 않는다.
+
+```bash
+pip install --target ./pylibs av addict einops scipy opencv-python-headless \
+  scikit-image imageio imageio-ffmpeg pyyaml timm matplotlib
+cd vendor_ml && git clone --depth 1 https://github.com/sczhou/ProPainter.git
+cd ProPainter/weights
+for f in ProPainter.pth recurrent_flow_completion.pth raft-things.pth i3d_rgb_imagenet.pt; do
+  curl -sLO https://github.com/sczhou/ProPainter/releases/download/v0.1.0/$f
+done
 ```
 
 ### 워터마크 폰트

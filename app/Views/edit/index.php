@@ -126,6 +126,11 @@ $icons = [
             <button class="btn sm secondary" id="btnMaskBlack">검정 영역 추가</button>
             <button class="btn sm secondary" id="btnMaskBlur">블러 영역 추가</button>
           </div>
+          <div class="row2">
+            <button class="btn sm secondary" id="btnMaskFill">배경 채우기 추가</button>
+            <button class="btn sm secondary" id="btnMaskAi">AI 지우기 추가</button>
+          </div>
+          <p class="hint">배경 채우기는 주변 픽셀로 메웁니다(빠름, 작은 로고에 적합). AI 지우기는 앞뒤 프레임을 참조해 배경을 복원합니다(느림, 움직이는 배경에도 자연스러움). 본인 영상에만 사용하세요.</p>
           <div class="masklist" id="maskList"></div>
           <div class="row4" id="maskFields" hidden>
             <label>X<input type="number" id="maskX" min="0" step="2"></label>

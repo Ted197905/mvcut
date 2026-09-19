@@ -402,7 +402,7 @@
     maskLayer.innerHTML = '';
     state.masks.forEach((m, i) => {
       const el = document.createElement('div'); el.className = 'rect mask ' + m.style + (i === state.selectedMask ? ' selected' : '');
-      el.innerHTML = '<div class="rect-label">' + (m.style === 'blur' ? 'BLUR' : 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
+      el.innerHTML = '<div class="rect-label">' + ({ blur: 'BLUR', fill: 'FILL', ai: 'AI' }[m.style] || 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
       el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
     });
     renderWatermark();
@@ -573,11 +573,14 @@
   function removeMask(i) { commit(); state.masks.splice(i, 1); state.selectedMask = -1; renderOverlay(); }
   $('btnMaskBlack').addEventListener('click', () => addMask('black'));
   $('btnMaskBlur').addEventListener('click', () => addMask('blur'));
+  $('btnMaskFill').addEventListener('click', () => addMask('fill'));
+  $('btnMaskAi').addEventListener('click', () => addMask('ai'));
+  const MASK_LABEL = { black: '검정', blur: '블러', fill: '배경 채우기', ai: 'AI 지우기' };
   function renderMaskList() {
     const list = $('maskList'); list.innerHTML = '';
     state.masks.forEach((m, i) => {
       const el = document.createElement('div'); el.className = 'maskitem' + (i === state.selectedMask ? ' selected' : '');
-      el.innerHTML = `<span>${m.style === 'blur' ? '블러' : '검정'} ${m.w}x${m.h} @ ${m.x},${m.y}</span><span class="x" title="삭제">&#x2715;</span>`;
+      el.innerHTML = `<span>${MASK_LABEL[m.style] || m.style} ${m.w}x${m.h} @ ${m.x},${m.y}</span><span class="x" title="삭제">&#x2715;</span>`;
       el.addEventListener('click', (e) => { if (e.target.classList.contains('x')) removeMask(i); else { state.selectedMask = i; renderOverlay(); } });
       list.appendChild(el);
     });
