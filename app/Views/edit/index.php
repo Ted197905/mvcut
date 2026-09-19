@@ -134,6 +134,13 @@ $icons = [
             <button class="btn sm secondary" id="btnMaskTrack">대상 추적 지우기</button>
           </div>
           <p class="hint" id="trackHint" hidden></p>
+          <div class="row2">
+            <label>지우기 정밀도<select id="eraseQuality">
+              <option value="fast">빠르게 (384px)</option>
+              <option value="normal" selected>보통 (512px)</option>
+              <option value="fine">정밀 (896px, 매우 느림)</option>
+            </select></label>
+          </div>
           <p class="hint">배경 채우기는 주변 픽셀로 메웁니다(빠름, 작은 로고에 적합). AI 지우기는 지정한 사각형을 앞뒤 프레임을 참조해 복원합니다. 대상 추적 지우기는 클릭한 대상을 프레임마다 따라가며 지웁니다(움직이는 사람이나 물체에 적합, 가장 느림). 본인 영상에만 사용하세요.</p>
           <div class="masklist" id="maskList"></div>
           <div class="row4" id="maskFields" hidden>

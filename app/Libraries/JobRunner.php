@@ -182,7 +182,7 @@ class JobRunner
      * Repaints the marked regions with ProPainter, which reads neighbouring frames, and
      * replaces the encoded file. As with the other GPU passes, a failure is not fatal.
      */
-    private function inpaint(array $job, string $out, array $rects, int $at, int $span, callable $log): void
+    private function inpaint(array $job, string $out, array $rects, array $p, int $at, int $span, callable $log): void
     {
         $py = Ffmpeg::python();
         if (! $py || ! is_file(ROOTPATH . 'bin/inpaint.py') || ! is_dir(ROOTPATH . 'vendor_ml/ProPainter')) {
@@ -190,9 +190,9 @@ class JobRunner
             return;
         }
         $tmp  = preg_replace('/\.[^.]+$/', '', $out) . '.ip.mp4';
-        $args = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+        $args = array_merge([$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
                  '--rects', json_encode(array_values($rects)),
-                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'], $this->eraseArgs($p));
         $log('propainter ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
@@ -235,7 +235,7 @@ class JobRunner
     }
 
     /** Tracks the clicked object with SAM 2, then repaints it out with ProPainter. */
-    private function trackErase(array $job, string $out, array $track, int $at, int $span, callable $log): void
+    private function trackErase(array $job, string $out, array $track, array $p, int $at, int $span, callable $log): void
     {
         $py = Ffmpeg::python();
         if (! $py || ! is_file(ROOTPATH . 'bin/segment.py') || ! is_dir(ROOTPATH . 'vendor_ml/sam2')) {
@@ -263,8 +263,8 @@ class JobRunner
         }
 
         $tmp = preg_replace('/\.[^.]+$/', '', $out) . '.tr.mp4';
-        $ip  = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
-                '--mask-dir', $dir, '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+        $ip  = array_merge([$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+                '--mask-dir', $dir, '--propainter', ROOTPATH . 'vendor_ml/ProPainter'], $this->eraseArgs($p));
         $log('propainter track ' . implode(' ', array_map('escapeshellarg', array_slice($ip, 1))));
         $r = $this->runPython($ip, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + $half + (int) round($pct * ($span - $half) / 100)]));
         MediaIntake::removeDir($dir);
@@ -283,9 +283,9 @@ class JobRunner
         $py = Ffmpeg::python();
         if (! $py || ! is_dir(ROOTPATH . 'vendor_ml/ProPainter')) { $log('propainter not installed, skipping'); return; }
         $tmp  = preg_replace('/\.[^.]+$/', '', $out) . '.ex.mp4';
-        $args = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+        $args = array_merge([$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
                  '--outpaint', sprintf('%.2f,%.2f', $p['expand']['h'], $p['expand']['w']),
-                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+                 '--propainter', ROOTPATH . 'vendor_ml/ProPainter'], $this->eraseArgs($p));
         $log('propainter expand ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
@@ -547,6 +547,7 @@ class JobRunner
     /** Shared: run the edit pipeline and register the result media. */
     private function encode(array $job, array $src, array $p, string $source, string $titleSuffix, string $editParams, callable $log): int
     {
+        $this->stageTimes = [];
         $srcPath = MediaModel::dir($src) . '/' . $src['filename'];
         if (! is_file($srcPath)) throw new \RuntimeException('source file missing');
         $fmt = $p['output']['format'];
@@ -573,7 +574,9 @@ class JobRunner
         $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0)
                       + ($aiRects ? 1 : 0) + ($expand ? 1 : 0) + ($track ? 1 : 0);
         $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
+        $t0 = microtime(true);
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
+        $this->stageTimes['인코딩'] = microtime(true) - $t0;
         @unlink($dir . '/wm.txt');
         if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
             @unlink($out); $this->media->delete($resultId); @rmdir($dir);
@@ -584,31 +587,36 @@ class JobRunner
         $this->stageErrors = [];
         // tracked removal first, then boxes: both read the frames as shot
         if ($track && $fmt !== 'gif') {
-            $this->trackErase($job, $out, $track, $at, $span, $log);
+            $this->timed('대상 추적 지우기', fn () => $this->trackErase($job, $out, $track, $p, $at, $span, $log));
             $at += $span;
         }
         if ($aiRects && $fmt !== 'gif') {
-            $this->inpaint($job, $out, $aiRects, $at, $span, $log);
+            $this->timed('AI 지우기', fn () => $this->inpaint($job, $out, $aiRects, $p, $at, $span, $log));
             $at += $span;
         }
         if ($expand && $fmt !== 'gif') {
-            $this->outpaint($job, $out, $p, $at, $span, $log);
+            $this->timed('프레임 확장', fn () => $this->outpaint($job, $out, $p, $at, $span, $log));
             $at += $span;
         }
         // restore next: RIFE then works from the cleaner frames
         if ($restore !== 'off' && $fmt !== 'gif') {
-            $this->restore($job, $out, $p, $at, $span, $log);
+            $this->timed('AI 복원', fn () => $this->restore($job, $out, $p, $at, $span, $log));
             $at += $span;
         }
         if ($smooth !== 'off' && $fmt !== 'gif') {
-            $this->interpolate($job, $out, $p, $src, $smooth, $at, $span, $log);
+            $this->timed('프레임 생성', fn () => $this->interpolate($job, $out, $p, $src, $smooth, $at, $span, $log));
         }
+
+        $desc = EditParams::summary($p, $src);
         if ($this->stageErrors) {
             // a skipped GPU stage would otherwise look like it silently did nothing
-            $this->media->update($resultId, [
-                'description' => EditParams::summary($p, $src) . "\n\n[실패한 처리]\n" . implode("\n", $this->stageErrors),
-            ]);
+            $desc .= "\n\n[실패한 처리]\n" . implode("\n", $this->stageErrors);
         }
+        $parts = [];
+        foreach ($this->stageTimes as $label => $secs) $parts[] = $label . ' ' . self::secs($secs);
+        $desc .= "\n\n[처리 시간]\n" . implode(' · ', $parts)
+               . ' · 합계 ' . self::secs(array_sum($this->stageTimes));
+        $this->media->update($resultId, ['description' => $desc]);
         $this->finishMedia($resultId, $out, $dir, $log);
         return $resultId;
     }
@@ -633,6 +641,38 @@ class JobRunner
 
     /** Reasons a GPU stage was skipped, recorded on the result so the user sees them. */
     private array $stageErrors = [];
+
+    /** Wall-clock seconds per stage, reported on the result. */
+    private array $stageTimes = [];
+
+    /** Repaint quality: processing size and how much temporal context ProPainter gets. */
+    private const ERASE_QUALITY = [
+        'fast'   => ['long' => 384, 'neighbor' => 5,  'subvideo' => 24, 'raft' => 8],
+        'normal' => ['long' => 512, 'neighbor' => 6,  'subvideo' => 30, 'raft' => 12],
+        'fine'   => ['long' => 768, 'neighbor' => 8,  'subvideo' => 20, 'raft' => 16],
+    ];
+
+    /** @return string[] extra argv for bin/inpaint.py */
+    private function eraseArgs(array $p): array
+    {
+        $q = self::ERASE_QUALITY[$p['erase']['quality'] ?? 'normal'] ?? self::ERASE_QUALITY['normal'];
+        return ['--proc-long', (string) $q['long'], '--neighbor', (string) $q['neighbor'],
+                '--subvideo', (string) $q['subvideo'], '--raft_iter', (string) $q['raft']];
+    }
+
+    /** Runs $fn, recording how long it took under $label. */
+    private function timed(string $label, callable $fn): void
+    {
+        $t0 = microtime(true);
+        $fn();
+        $this->stageTimes[$label] = ($this->stageTimes[$label] ?? 0) + (microtime(true) - $t0);
+    }
+
+    private static function secs(float $s): string
+    {
+        $s = (int) round($s);
+        return $s >= 60 ? intdiv($s, 60) . '분 ' . ($s % 60) . '초' : $s . '초';
+    }
 
     /** Turns a helper's stderr into one line a person can act on. */
     private function stageError(string $label, string $stderr): void

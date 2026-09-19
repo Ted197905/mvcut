@@ -15,6 +15,7 @@ namespace App\Libraries;
  *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
  *   "restore": {"mode":"off|ai|ai2x", "model":"general|anime"}   Real-ESRGAN detail restore
  *   "expand":  {"w":1.0,"h":1.0}           ProPainter outpainting, 1.0 .. 2.0
+ *   "erase":   {"quality":"fast|normal|fine"}   how finely the repaint runs
  *   "keepAudio": true
  *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
  * }
@@ -103,6 +104,10 @@ class EditParams
         $rModel = ($in['restore']['model'] ?? 'general') === 'anime' ? 'anime' : 'general';
         $restore = ['mode' => $rMode, 'model' => $rModel];
 
+        $eq = (string) ($in['erase']['quality'] ?? 'normal');
+        if (! in_array($eq, ['fast', 'normal', 'fine'], true)) $eq = 'normal';
+        $erase = ['quality' => $eq];
+
         $ew = round(max(1.0, min(2.0, (float) ($in['expand']['w'] ?? 1))), 2);
         $eh = round(max(1.0, min(2.0, (float) ($in['expand']['h'] ?? 1))), 2);
         $expand = ['w' => $ew, 'h' => $eh];
@@ -128,6 +133,7 @@ class EditParams
             'smooth'    => $smooth,
             'restore'   => $restore,
             'expand'    => $expand,
+            'erase'     => $erase,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
@@ -192,7 +198,10 @@ class EditParams
         if ($byStyle) {
             $parts = [];
             foreach ($byStyle as $label => $cnt) $parts[] = $label . ' ' . $cnt . '개';
-            $lines[] = '가리기: ' . implode(', ', $parts);
+            $ai = isset($byStyle['AI 지우기']) || isset($byStyle['대상 추적 지우기']);
+            $q  = $p['erase']['quality'] ?? 'normal';
+            $lines[] = '가리기: ' . implode(', ', $parts)
+                     . ($ai ? ' · 정밀도 ' . match ($q) { 'fast' => '빠르게', 'fine' => '정밀', default => '보통' } : '');
         }
 
         if (! empty($p['watermark'])) {

@@ -121,7 +121,7 @@ def main() -> int:
         # memory no matter the resolution. Feed it a window at a time; each window is its own
         # process, so its memory is released when it ends.
         names = sorted(f for f in os.listdir(frames_dir) if f.endswith(".png"))
-        per = a.window if a.window > 0 else max(24, min(160, int(2.2e7 / max(1, pw * ph))))
+        per = a.window if a.window > 0 else max(16, min(160, int(2.2e7 / max(1, pw * ph))))
         mask_names = sorted(f for f in os.listdir(mask_path)) if a.mask_dir else []
 
         out_frames = os.path.join(work, "out_frames")
@@ -148,7 +148,6 @@ def main() -> int:
                    "--video", cdir,
                    "--save_fps", str(max(1, int(round(v["fps"])))),
                    "--output", out_dir,
-                   "--subvideo_length", str(min(a.subvideo, per)),
                    "--neighbor_length", str(a.neighbor),
                    "--raft_iter", str(a.raft_iter),
                    "--mask_dilation", "0",
@@ -159,13 +158,27 @@ def main() -> int:
             else:
                 cmd += ["--mask", use_mask]
 
-            proc = subprocess.Popen(cmd, cwd=a.propainter, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True, bufsize=1)
-            tail = []
-            for line in proc.stdout:
-                tail.append(line.rstrip())
-                del tail[:-40]
-            if proc.wait() != 0:
+            # if the card cannot hold this window, halve the transformer chunk and retry;
+            # the window itself stays put so the frame numbering does not shift
+            sub = min(a.subvideo, per)
+            tail, rc = [], 1
+            for attempt in range(4):
+                run = cmd + ["--subvideo_length", str(sub)]
+                proc = subprocess.Popen(run, cwd=a.propainter, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True, bufsize=1)
+                tail = []
+                for line in proc.stdout:
+                    tail.append(line.rstrip())
+                    del tail[:-40]
+                rc = proc.wait()
+                if rc == 0:
+                    break
+                if not any("out of memory" in t for t in tail) or sub <= 5:
+                    break
+                shutil.rmtree(out_dir, ignore_errors=True)
+                sub = max(5, sub // 2)
+                print(f"retrying window {start} with subvideo_length {sub}", file=sys.stderr, flush=True)
+            if rc != 0:
                 print("\n".join(tail[-20:]), file=sys.stderr)
                 return 3
 
