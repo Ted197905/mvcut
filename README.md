@@ -2,17 +2,52 @@
 
 SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 
-여러 플랫폼(Instagram, Facebook, X, Threads)에 흩어진 영상과 이미지를 라이브러리에 모으고,
-브라우저에서 타임라인과 화면 영역을 잘라내고, 원하는 포맷으로 변환해 내려받는다.
+여러 플랫폼(YouTube, X, Facebook, Instagram, Threads)에 흩어진 영상과 이미지를 라이브러리에 모으고,
+브라우저에서 타임라인과 화면 영역을 잘라내고, 워터마크를 올리고, 원하는 포맷으로 변환해 내려받는다.
 무거운 처리는 전부 서버의 FFmpeg(NVENC)가 담당하고, 브라우저는 미리보기와 편집 파라미터 지정만 한다.
+
+문서: [제작 의도](https://github.com/Ted197905/mvcut) 및 기능 설명, 설치 매뉴얼, 사용설명서는 프로젝트 문서 폴더(`docs/`)의 HTML로 관리한다.
 
 ## 기능
 
-- 계정: 회원가입, 로그인, 회원정보 수정
-- 라이브러리: 원본 업로드 또는 SNS 링크 가져오기로 등록. 편집 결과도 라이브러리에 생성
-- SNS 링크 가져오기: 링크에 포함된 이미지/영상 목록을 보여주고 선택한 것만 서버로 내려받아 자동 등록
-- 편집: Timeline Crop / Cut, Screen Crop / Cut, 슬로우 모션
-- 다운로드: 원본 포맷을 보여주고 원하는 포맷(mp4 / webm / gif)으로 변환해서 다운로드
+### 계정
+- 회원가입, 로그인
+- 설정 화면에서 이름, 이메일, 비밀번호 수정 (이메일/비밀번호 변경 시 현재 비밀번호 확인)
+
+### 라이브러리
+- 드래그 앤 드롭 업로드. 큰 파일은 청크 업로드로 나눠 전송 (최대 4GB)
+- 등록 시 ffprobe로 메타데이터를 읽고 썸네일과 타임라인 필름스트립 생성
+- 브라우저가 재생하지 못하는 코덱(HEVC, AV1)은 720p H.264 프록시를 따로 생성
+- 검색, 종류 필터, 정렬, 다중 선택 삭제
+- 정사각형 썸네일에 전체 화면을 담아 표시 (세로 영상도 잘리지 않음)
+
+### SNS 수집
+- 링크 입력창은 라이브러리 상단에 상시 노출. Paste / Del 버튼 제공
+- YouTube, X, Facebook: yt-dlp. 실패 시 헤드리스 렌더러로 재시도
+- Instagram, Threads: 페이지가 JavaScript로만 그려지므로 처음부터 헤드리스 Chromium(Playwright)으로 렌더링
+- 게시물 주소면 해당 게시물 영역만 수집 (옆 게시물, 추천 그리드 제외)
+- 캐러셀은 다음 버튼을 눌러가며 각 장 수집, CDN 크롭 변형은 하나로 합침
+- Instagram 영상은 분할 스트리밍이라 다운로드는 쿠키를 쓴 yt-dlp가 담당
+- 게시물 구조 파싱: 작성자, 본문, 좋아요/댓글/리포스트/공유 수를 분리해 저장
+- 설정 화면에서 Instagram / Threads 로그인 쿠키 업로드. 형식과 도메인, sessionid를 검증하고 만료일과 실패 사유를 표시
+
+### 편집
+- Timeline Cut / Crop: 여러 구간, 프레임 스냅, 자석 스냅, 되돌리기
+- 마우스, 키보드(Space, J/K/L, 화살표, I/O, S, Del, Ctrl+Z/Y/A/S), 타임코드 직접 입력
+- Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정/블러)
+- 속도 0.25x ~ 4x (오디오 동반, 소스 fps 유지)
+- 워터마크: 9분할 위치 프리셋과 드래그, 크기/색/불투명도/스타일 4종, SIL OFL 폰트 7종
+
+### 변환과 다운로드
+- 원본 포맷을 표시하고 MP4 / WebM / GIF, 해상도, 품질 선택
+- 이미지는 JPG / PNG / WebP
+- 결과는 라이브러리에 결과물로 등록
+
+### 서버 처리
+- 편집, 변환, 프록시, 가져오기는 잡 큐(`jobs`)에 들어가고 systemd 워커가 처리
+- FFmpeg `filter_complex` 한 번으로 구간, 크롭, 마스크, 워터마크, 속도, 스케일 처리
+- NVENC 사용 가능하면 h264_nvenc, 없으면 libx264로 자동 전환
+- 미디어는 웹 루트 밖에 저장하고 인증 후 nginx `X-Accel-Redirect`로 전송
 
 ## 스택
 
@@ -24,8 +59,10 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 | MySQL | 8.4 LTS |
 | CodeIgniter | 4.7.x |
 | FFmpeg | NVENC 지원 빌드 |
+| yt-dlp | 최신 릴리스 |
+| Playwright | Chromium (Instagram / Threads 수집) |
 
-프론트엔드는 HTML5 + CSS3 + Vanilla JS, Apple Human Interface Guidelines 기준.
+프론트엔드는 HTML5 + CSS3 + Vanilla JS, Apple Human Interface Guidelines 기준. 빌드 도구 없음.
 
 ## 설치
 
@@ -44,30 +81,35 @@ composer install --no-dev
 cp env .env
 ```
 
-`.env`에 DB 접속 정보와 `app.baseURL`을 설정한다.
+`.env` 설정:
 
 ```
-CI_ENVIRONMENT = development
-app.baseURL = 'http://localhost/'
-database.default.hostname = 127.0.0.1
-database.default.database = mvcut
-database.default.username = mvcut
+CI_ENVIRONMENT = production
+app.baseURL = 'https://example.com/'
+database.default.hostname = localhost
+database.default.database = app
+database.default.username = app
 database.default.password = ...
 database.default.DBDriver = MySQLi
 ```
 
-MySQL:
+DB:
 
 ```sql
-CREATE DATABASE mvcut CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'mvcut'@'localhost' IDENTIFIED BY '...';
-GRANT ALL PRIVILEGES ON mvcut.* TO 'mvcut'@'localhost';
+CREATE DATABASE app CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'app'@'localhost' IDENTIFIED BY '...';
+GRANT ALL PRIVILEGES ON app.* TO 'app'@'localhost';
+```
+
+```bash
+php spark migrate
 ```
 
 권한:
 
 ```bash
 sudo chown -R $USER:www-data . && sudo chmod -R 755 . && sudo chmod -R 775 writable
+sudo mkdir -p secrets && sudo chgrp www-data secrets && sudo chmod 770 secrets
 ```
 
 nginx 서버 블록 (`/etc/nginx/sites-available/mvcut`):
@@ -86,6 +128,7 @@ server {
         fastcgi_pass unix:/run/php/php8.5-fpm.sock;
         fastcgi_read_timeout 300;
     }
+    location /protected/ { internal; alias /var/www/mvcut/writable/media/; }
     location ~ /\.(?!well-known) { deny all; }
 }
 ```
@@ -97,25 +140,59 @@ sudo nginx -t && sudo systemctl reload nginx
 
 `/etc/php/8.5/fpm/php.ini`에서 `upload_max_filesize`, `post_max_size`를 2G, `max_execution_time`을 300으로 올린다.
 
+### 수집 도구
+
+```bash
+# yt-dlp (저장소 밖, 앱 디렉터리 안)
+cd bin && curl -sL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp && chmod 755 yt-dlp
+
+# Instagram / Threads용 헤드리스 Chromium
+sudo apt install -y python3-pip libnss3 libnspr4 libasound2t64
+sudo pip install --break-system-packages playwright
+sudo PLAYWRIGHT_BROWSERS_PATH=/var/www/mvcut/browsers playwright install chromium
+```
+
+### 워터마크 폰트
+
+```bash
+php spark fonts:install    # SIL OFL 폰트 7종을 fonts/ 에 설치
+php spark watermark:test   # 폰트별 렌더링 확인
+```
+
+### 워커
+
+```bash
+sudo systemctl enable --now mvcut-worker
+journalctl -u mvcut-worker -f
+```
+
 ## 사용
 
 1. 회원가입 후 로그인
-2. 라이브러리에서 업로드하거나 SNS 링크를 붙여넣어 원본 등록
-3. 항목을 선택해 편집기에서 구간/영역 지정 후 저장. 결과가 라이브러리에 생성됨
-4. 다운로드에서 포맷을 골라 내려받기
+2. 라이브러리에서 파일을 올리거나 SNS 링크를 붙여넣고 "리소스 확인" → 가져올 항목 선택
+3. 항목을 열고 편집기에서 구간과 영역, 워터마크를 지정한 뒤 저장. 결과가 라이브러리에 생성됨
+4. 상세 화면에서 포맷을 골라 변환 후 다운로드
+5. 로그인이 필요한 게시물은 설정 화면에서 해당 플랫폼 쿠키를 등록
 
-DB 마이그레이션과 워커:
+## 저장소에 없는 것
 
-```bash
-php spark migrate
-php spark worker:run   # FFmpeg 잡 워커 (구현 예정)
-```
+서버에만 존재하며 git에서 제외한다.
+
+| 경로 | 내용 |
+|---|---|
+| `.env` | DB 접속 정보 등 환경 설정 |
+| `writable/` | 업로드된 미디어, 캐시, 로그 |
+| `vendor/` | Composer 의존성 |
+| `bin/yt-dlp` | 실행 바이너리 |
+| `browsers/` | Playwright Chromium |
+| `fonts/` | 워터마크 폰트 |
+| `secrets/` | 플랫폼 로그인 쿠키 |
 
 ## 개발
 
-- 소스는 이 저장소. 배포 시 `.env`, `writable/`, `vendor/`는 서버 것을 유지
-- 커밋 전 `.env`, 키 파일, 자격증명 문자열이 포함되지 않았는지 확인 (배포 스크립트가 자동 검사)
-- 미디어 파일은 `writable/media/` 아래(웹 루트 밖)에 저장하고 컨트롤러가 인증 후 스트리밍
+- 배포 스크립트가 커밋 대상에 `.env`, 키 파일, 쿠키, 자격증명 문자열이 섞였는지 매번 검사한다
+- 미디어 파일은 `writable/media/` 아래(웹 루트 밖)에 저장하고 컨트롤러가 인증 후 스트리밍한다
+- 프론트엔드는 빌드 단계가 없다. `public/assets/` 아래 CSS와 JS를 직접 수정한다
 
 ## 라이선스
 
