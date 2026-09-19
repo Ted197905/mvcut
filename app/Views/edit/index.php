@@ -226,8 +226,8 @@ $icons = [
             <label for="cueText">내용</label>
             <input class="tc-off" id="cueText" maxlength="200" autocomplete="off">
           </div>
-          <label class="switch" id="cueOwnField" hidden><input type="checkbox" id="cueOwn"> <span>이 문장만 따로 꾸미기</span></label>
-          <p class="hint">"이 문장만 따로 꾸미기"를 켜면 그 문장만 디자인, 폰트, 크기, 색, 위치를 따로 잡습니다. 켜는 순간 레이어 설정이 복사되고, 위 "디자인"이 그 문장을 편집합니다(문장 블록은 노란 테두리로 표시). 끄면 레이어 설정으로 돌아갑니다.</p>
+          <div class="row2"><button class="btn sm ghost" id="btnStyleAll">이 디자인을 모든 문장에</button></div>
+          <p class="hint">문장마다 디자인, 폰트, 크기, 색, 위치가 따로 저장됩니다. 문장을 고르면 위 "디자인"이 그 문장을 편집하고, 아무 문장도 고르지 않았을 때는 새로 만들 문장의 기본값을 편집합니다. 전부 같게 맞추려면 "이 디자인을 모든 문장에"를 누르세요.</p>
           <p class="hint">타임라인 아래 "자막 1 / 자막 2" 줄에서 더블클릭하면 그 자리에 문장이 생기고, 블록을 끌면 위치가, 양 끝을 끌면 길이가 바뀝니다. Del 키로 선택한 문장을 지웁니다.</p>
           <p class="hint">시간은 원본 기준입니다. 구간을 잘라내면 남은 구간에 맞춰 자동으로 당겨집니다.</p>
         </div>

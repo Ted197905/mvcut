@@ -81,6 +81,7 @@
     state.watermark = D.params.watermark || null;
     state.keepAudio = D.params.keepAudio !== false;
     if (D.params.output) state.output = D.params.output;
+    if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
   }
 
   /* ---------- segment ops ---------- */
@@ -449,13 +450,22 @@
     drop:      { shadow: 0.12 },
     neon:      { color: '#ffffff', glow: 0.30, glowLayer: true },
   };
-  /** The style being edited: the selected line's own, when it has one, otherwise the layer's. */
+  const STYLE_KEYS = ['template', 'font', 'size', 'color', 'anchor', 'x', 'y'];
+  /** A copy of the style keys, so lines never share one object. */
+  function styleOf(src) {
+    const o = {}; STYLE_KEYS.forEach(k => o[k] = src[k]); return o;
+  }
+  /**
+   * What the design panel edits: the selected line, or - with nothing selected -
+   * the layer's defaults, which new lines start from.
+   */
   function styleTarget() {
     const sub = curSub(); if (!sub) return null;
     const c = sub.cues[state.subCue];
-    return c && c.style ? c.style : sub;
+    if (!c) return sub;
+    if (!c.style) c.style = styleOf(sub);   // lines saved before per-line styling
+    return c.style;
   }
-  const STYLE_KEYS = ['template', 'font', 'size', 'color', 'anchor', 'x', 'y'];
   /** The layer's look with the line's overrides applied, for drawing. */
   function cueView(sub, cue) {
     return cue && cue.style ? Object.assign({}, sub, cue.style) : sub;
@@ -513,7 +523,7 @@
     ['subFont', 'subSize', 'subColor', 'subX', 'subY', 'btnCueAdd', 'btnCueClear'].forEach(id => $(id).disabled = !sub);
     if (!sub) { $('cueList').innerHTML = ''; $('cueFields').hidden = true; $('cueTextField').hidden = true; return; }
     const st = styleTarget();
-    $('styleScope').textContent = st === sub ? '레이어 전체' : '선택한 문장';
+    $('styleScope').textContent = st === sub ? '새 문장 기본값' : '선택한 문장';
     document.querySelectorAll('#subTemplate button').forEach(b => b.classList.toggle('active', b.dataset.t === st.template));
     document.querySelectorAll('#subPos button').forEach(b => b.classList.toggle('active', b.dataset.a === st.anchor));
     $('subFont').value = st.font; $('subSize').value = st.size; $('subColor').value = st.color;
@@ -534,8 +544,8 @@
       list.appendChild(el);
     });
     const c = sub.cues[state.subCue];
-    $('cueFields').hidden = !c; $('cueTextField').hidden = !c; $('cueOwnField').hidden = !c;
-    $('cueOwn').checked = !!(c && c.style);
+    $('cueFields').hidden = !c; $('cueTextField').hidden = !c;
+    $('btnStyleAll').disabled = !c || sub.cues.length < 2;
     if (c) {
       if (document.activeElement !== $('cueStart')) $('cueStart').value = tc(c.start, false);
       if (document.activeElement !== $('cueEnd')) $('cueEnd').value = tc(c.end, false);
@@ -558,8 +568,7 @@
       if (!sub) return;
       sub.cues.forEach((c, ci) => {
         const el = document.createElement('div');
-        el.className = 'cue' + (li === state.subLayer && ci === state.subCue ? ' selected' : '')
-                             + (c.style ? ' own' : '');
+        el.className = 'cue' + (li === state.subLayer && ci === state.subCue ? ' selected' : '');
         el.style.left = xOf(c.start) + 'px';
         el.style.width = Math.max(4, xOf(c.end) - xOf(c.start)) + 'px';
         el.dataset.i = ci;
@@ -593,7 +602,7 @@
     let end = Math.min(DUR, at + 2);
     sub.cues.forEach(c => { if (c.start > at && c.start < end) end = c.start; });
     if (end - at < MIN_CUE) { flash('자막을 넣을 자리가 좁습니다.'); return; }
-    const cue = { start: round3(at), end: round3(end), text: '자막' };
+    const cue = { start: round3(at), end: round3(end), text: '자막', style: styleOf(sub) };
     sub.cues.push(cue);
     sub.cues.sort((a, b) => a.start - b.start);
     selectCue(li, sub.cues.indexOf(cue));
@@ -672,21 +681,19 @@
     const st = styleTarget(); if (!st) return; commit();
     st.x = Math.round(+$('subX').value) || 0; st.y = Math.round(+$('subY').value) || 0; renderSubs();
   }));
-  // one line can carry its own look; turning it on copies the layer's as a starting point
-  $('cueOwn').addEventListener('change', (e) => {
-    const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c) return;
+  // copy the selected line's look onto every line of the layer, and onto new ones
+  $('btnStyleAll').addEventListener('click', () => {
+    const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c || !c.style) return;
     commit();
-    if (e.target.checked) {
-      c.style = {}; STYLE_KEYS.forEach(k => c.style[k] = sub[k]);
-    } else {
-      delete c.style;
-    }
-    renderSubs(); renderCueTrack(true);
+    sub.cues.forEach(other => other.style = styleOf(c.style));
+    STYLE_KEYS.forEach(k => sub[k] = c.style[k]);
+    renderSubs(); renderCueTrack(true); flash('이 레이어의 모든 문장에 적용했습니다.');
   });
   $('btnCueAdd').addEventListener('click', () => {
     const sub = curSub(); if (!sub) return; commit();
     const t = video.currentTime || 0;
-    sub.cues.push({ start: +t.toFixed(3), end: +Math.min(D.duration, t + 2).toFixed(3), text: '자막' });
+    sub.cues.push({ start: +t.toFixed(3), end: +Math.min(D.duration, t + 2).toFixed(3), text: '자막',
+                    style: styleOf(sub) });
     sub.cues.sort((a, b) => a.start - b.start);
     state.subCue = sub.cues.findIndex(c => Math.abs(c.start - t) < 0.001);
     renderSubs(); $('cueText').focus(); $('cueText').select();

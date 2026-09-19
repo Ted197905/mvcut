@@ -137,7 +137,6 @@
 /* subtitle tracks: one row per layer, cues are dragged like clips */
 .subtrack { position: relative; height: 30px; margin-top: 2px; background: #131316; border-top: 1px solid var(--e-line); touch-action: pan-x; }
 .sec-title .scope { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--e-accent); }
-.cue.own { border-color: var(--e-yellow); }
 .subtrack.nolayer { opacity: .4; }   /* generic .off and .empty are taken by app.css */
 .subtrack .tl-label { position: sticky; left: 4px; z-index: 4; display: inline-block; font-size: 10px; color: var(--e-fg3); padding: 2px 5px; pointer-events: none; }
 .cues { position: absolute; inset: 2px 0; }
