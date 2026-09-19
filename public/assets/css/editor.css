@@ -33,6 +33,9 @@
 .rect.mask.ai { background: rgba(10,132,255,.18); border-color: var(--e-blue, #0a84ff); }
 .rect.mask.ai .rect-label { background: var(--e-blue, #0a84ff); }
 .rect.mask.ai i { border-color: var(--e-blue, #0a84ff); }
+.trackdot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--e-blue, #0a84ff); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); pointer-events: none; }
+.ed-overlay.picking { cursor: crosshair; }
 .rect.mask.selected { border-style: solid; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
 .rect-label { position: absolute; left: 0; top: -20px; font-size: 10px; letter-spacing: .08em; background: var(--e-accent); color: #fff; padding: 1px 6px; border-radius: 3px; pointer-events: none; }
 .rect.mask .rect-label { background: var(--e-red); }

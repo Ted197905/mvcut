@@ -9,6 +9,7 @@ namespace App\Libraries;
  *   "keep":   [[start, end], ...]        seconds, sorted, non-overlapping (segments to keep)
  *   "crop":   {"x":0,"y":0,"w":W,"h":H} | null   source pixels
  *   "masks":  [{"x","y","w","h","style":"black|blur|fill|ai"}]
+ *             or {"style":"track","x","y","at"}   click point, tracked by SAM 2
  *   "speed":  1.0                        0.25 .. 4
  *   "enhance": {"sharpen":"off|low|mid|high", "denoise":bool}
  *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
@@ -54,6 +55,15 @@ class EditParams
         $masks = [];
         foreach ((array) ($in['masks'] ?? []) as $m) {
             if (! is_array($m)) continue;
+            if (($m['style'] ?? '') === 'track') {
+                $masks[] = [
+                    'style' => 'track',
+                    'x'     => max(0, min($W, (int) round((float) ($m['x'] ?? 0)))),
+                    'y'     => max(0, min($H, (int) round((float) ($m['y'] ?? 0)))),
+                    'at'    => max(0.0, min($dur, round((float) ($m['at'] ?? 0), 3))),
+                ];
+                continue;
+            }
             $r = self::rect($m, $W, $H);
             $style = (string) ($m['style'] ?? 'black');
             $r['style'] = in_array($style, ['black', 'blur', 'fill', 'ai'], true) ? $style : 'black';
@@ -173,7 +183,10 @@ class EditParams
 
         $byStyle = [];
         foreach ($p['masks'] as $m) {
-            $label = match ($m['style']) { 'blur' => '블러', 'fill' => '배경 채우기', 'ai' => 'AI 지우기', default => '검정' };
+            $label = match ($m['style']) {
+                'blur' => '블러', 'fill' => '배경 채우기', 'ai' => 'AI 지우기',
+                'track' => '대상 추적 지우기', default => '검정',
+            };
             $byStyle[$label] = ($byStyle[$label] ?? 0) + 1;
         }
         if ($byStyle) {

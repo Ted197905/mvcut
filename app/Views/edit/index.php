@@ -130,7 +130,11 @@ $icons = [
             <button class="btn sm secondary" id="btnMaskFill">배경 채우기 추가</button>
             <button class="btn sm secondary" id="btnMaskAi">AI 지우기 추가</button>
           </div>
-          <p class="hint">배경 채우기는 주변 픽셀로 메웁니다(빠름, 작은 로고에 적합). AI 지우기는 앞뒤 프레임을 참조해 배경을 복원합니다(느림, 움직이는 배경에도 자연스러움). 본인 영상에만 사용하세요.</p>
+          <div class="row2">
+            <button class="btn sm secondary" id="btnMaskTrack">대상 추적 지우기</button>
+          </div>
+          <p class="hint" id="trackHint" hidden></p>
+          <p class="hint">배경 채우기는 주변 픽셀로 메웁니다(빠름, 작은 로고에 적합). AI 지우기는 지정한 사각형을 앞뒤 프레임을 참조해 복원합니다. 대상 추적 지우기는 클릭한 대상을 프레임마다 따라가며 지웁니다(움직이는 사람이나 물체에 적합, 가장 느림). 본인 영상에만 사용하세요.</p>
           <div class="masklist" id="maskList"></div>
           <div class="row4" id="maskFields" hidden>
             <label>X<input type="number" id="maskX" min="0" step="2"></label>

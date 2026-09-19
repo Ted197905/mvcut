@@ -402,6 +402,14 @@
     cropRect.style.pointerEvents = screenTab ? 'auto' : 'none';
     maskLayer.innerHTML = '';
     state.masks.forEach((m, i) => {
+      if (m.style === 'track') {
+        const dot = document.createElement('div');
+        dot.className = 'trackdot';
+        dot.style.left = m.x * scale + 'px'; dot.style.top = m.y * scale + 'px';
+        dot.title = '대상 추적 지우기';
+        maskLayer.appendChild(dot);
+        return;
+      }
       const el = document.createElement('div'); el.className = 'rect mask ' + m.style + (i === state.selectedMask ? ' selected' : '');
       el.innerHTML = '<div class="rect-label">' + ({ blur: 'BLUR', fill: 'FILL', ai: 'AI' }[m.style] || 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
       el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
@@ -576,20 +584,49 @@
   $('btnMaskBlur').addEventListener('click', () => addMask('blur'));
   $('btnMaskFill').addEventListener('click', () => addMask('fill'));
   $('btnMaskAi').addEventListener('click', () => addMask('ai'));
-  const MASK_LABEL = { black: '검정', blur: '블러', fill: '배경 채우기', ai: 'AI 지우기' };
+  let pickTrack = false;
+  const trackHint = (msg) => { const el = $('trackHint'); el.textContent = msg; el.hidden = !msg; };
+  $('btnMaskTrack').addEventListener('click', () => {
+    pickTrack = !pickTrack;
+    $('btnMaskTrack').classList.toggle('active', pickTrack);
+    overlay.classList.toggle('picking', pickTrack);
+    trackHint(pickTrack ? '지울 대상을 미리보기에서 클릭하세요. 지금 보이는 프레임이 기준입니다.' : '');
+  });
+  overlay.addEventListener('click', (e) => {
+    if (!pickTrack) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = overlay.getBoundingClientRect();
+    commit();
+    state.masks.push({
+      style: 'track',
+      x: Math.round((e.clientX - r.left) / scale),
+      y: Math.round((e.clientY - r.top) / scale),
+      at: +(video.currentTime || 0).toFixed(3),
+    });
+    pickTrack = false;
+    $('btnMaskTrack').classList.remove('active');
+    overlay.classList.remove('picking');
+    trackHint('');
+    state.selectedMask = -1; renderOverlay();
+  }, true);
+  const MASK_LABEL = { black: '검정', blur: '블러', fill: '배경 채우기', ai: 'AI 지우기', track: '대상 추적' };
   function renderMaskList() {
     const list = $('maskList'); list.innerHTML = '';
     state.masks.forEach((m, i) => {
       const el = document.createElement('div'); el.className = 'maskitem' + (i === state.selectedMask ? ' selected' : '');
-      el.innerHTML = `<span>${MASK_LABEL[m.style] || m.style} ${m.w}x${m.h} @ ${m.x},${m.y}</span><span class="x" title="삭제">&#x2715;</span>`;
+      const desc = m.style === 'track'
+        ? `${m.x},${m.y} · ${MV.fmtDur(m.at)} 지점`
+        : `${m.w}x${m.h} @ ${m.x},${m.y}`;
+      el.innerHTML = `<span>${MASK_LABEL[m.style] || m.style} ${desc}</span><span class="x" title="삭제">&#x2715;</span>`;
       el.addEventListener('click', (e) => { if (e.target.classList.contains('x')) removeMask(i); else { state.selectedMask = i; renderOverlay(); } });
       list.appendChild(el);
     });
-    const f = $('maskFields'); f.hidden = state.selectedMask < 0;
+    const f = $('maskFields');
+    f.hidden = state.selectedMask < 0 || state.masks[state.selectedMask]?.style === 'track';
     if (state.selectedMask >= 0) { const m = state.masks[state.selectedMask]; $('maskX').value = m.x; $('maskY').value = m.y; $('maskW').value = m.w; $('maskH').value = m.h; }
   }
   ['maskX', 'maskY', 'maskW', 'maskH'].forEach(id => $(id).addEventListener('change', () => {
-    const i = state.selectedMask; if (i < 0) return; commit();
+    const i = state.selectedMask; if (i < 0 || state.masks[i].style === 'track') return; commit();
     const m = state.masks[i]; state.masks[i] = normRect({ x: +$('maskX').value, y: +$('maskY').value, w: +$('maskW').value, h: +$('maskH').value, style: m.style }); renderOverlay();
   }));
 

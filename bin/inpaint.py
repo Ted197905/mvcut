@@ -43,6 +43,8 @@ def main() -> int:
     ap.add_argument("--out", dest="dst", required=True)
     ap.add_argument("--rects", default="[]", help="JSON list of {x,y,w,h} in output pixels")
     ap.add_argument("--outpaint", default="", help="SH,SW scales; generates new frame border instead")
+    ap.add_argument("--mask-dir", dest="mask_dir", default="",
+                    help="folder of per-frame PNG masks (white = repaint); overrides --rects")
     ap.add_argument("--dilate", type=int, default=6, help="grow the mask, so edges are repainted too")
     ap.add_argument("--propainter", default="/var/www/mvcut/vendor_ml/ProPainter")
     ap.add_argument("--subvideo", type=int, default=50, help="frames per chunk; lower needs less VRAM")
@@ -60,7 +62,7 @@ def main() -> int:
         if sh == 1.0 and sw == 1.0:
             print("no expansion", file=sys.stderr)
             return 2
-    elif not rects:
+    elif not rects and not a.mask_dir:
         print("no rects", file=sys.stderr)
         return 2
 
@@ -88,17 +90,29 @@ def main() -> int:
             print("frame extraction failed", file=sys.stderr)
             return 6
 
-        mask_path = os.path.join(work, "mask.png")
-        img = Image.new("L", (pw, ph), 0)
-        d = ImageDraw.Draw(img)
-        sx, sy = pw / v["w"], ph / v["h"]
-        for r in rects:
-            x0 = max(0, int((int(r["x"]) - a.dilate) * sx))
-            y0 = max(0, int((int(r["y"]) - a.dilate) * sy))
-            x1 = min(pw, int((int(r["x"]) + int(r["w"]) + a.dilate) * sx))
-            y1 = min(ph, int((int(r["y"]) + int(r["h"]) + a.dilate) * sy))
-            d.rectangle([x0, y0, max(x0, x1 - 1), max(y0, y1 - 1)], fill=255)
-        img.save(mask_path)
+        if a.mask_dir:
+            # per-frame masks come from the tracker at its own size; match the frames
+            mask_path = os.path.join(work, "masks")
+            os.makedirs(mask_path)
+            names = sorted(f for f in os.listdir(a.mask_dir) if f.endswith(".png"))
+            for nm in names:
+                Image.open(os.path.join(a.mask_dir, nm)).convert("L") \
+                     .resize((pw, ph), Image.NEAREST).save(os.path.join(mask_path, nm))
+            if not names:
+                print("mask folder is empty", file=sys.stderr)
+                return 7
+        else:
+            mask_path = os.path.join(work, "mask.png")
+            img = Image.new("L", (pw, ph), 0)
+            d = ImageDraw.Draw(img)
+            sx, sy = pw / v["w"], ph / v["h"]
+            for r in rects:
+                x0 = max(0, int((int(r["x"]) - a.dilate) * sx))
+                y0 = max(0, int((int(r["y"]) - a.dilate) * sy))
+                x1 = min(pw, int((int(r["x"]) + int(r["w"]) + a.dilate) * sx))
+                y1 = min(ph, int((int(r["y"]) + int(r["h"]) + a.dilate) * sy))
+                d.rectangle([x0, y0, max(x0, x1 - 1), max(y0, y1 - 1)], fill=255)
+            img.save(mask_path)
 
         out_dir = os.path.join(work, "results")
         cmd = [sys.executable, "inference_propainter.py",
@@ -147,6 +161,29 @@ def main() -> int:
                    "-filter_complex",
                    f"[0:v]scale={fw}:{fh}:flags=bicubic[bg];[bg][1:v]overlay={x0}:{y0}[vout]",
                    "-map", "[vout]", "-map", "1:a?", "-c:a", "copy",
+                   "-c:v", "libx264", "-preset", "medium", "-crf", a.crf,
+                   "-pix_fmt", "yuv420p", "-movflags", "+faststart", os.path.abspath(a.dst)]
+            if subprocess.run(mux).returncode != 0:
+                return 5
+            print("progress 100", file=sys.stderr, flush=True)
+            return 0
+
+        if a.mask_dir:
+            # keep the original everywhere the tracker did not mark, so only the removed
+            # object comes from the (smaller) repainted video
+            mask_vid = os.path.join(work, "mask.mp4")
+            mk = subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", f"{v['fps']:.6f}",
+                                 "-i", os.path.join(mask_path, "%06d.png"),
+                                 "-vf", f"scale={v['w']}:{v['h']}:flags=bilinear,"
+                                        f"dilation,dilation,dilation,boxblur=4:1,format=gray",
+                                 "-c:v", "ffv1", mask_vid])
+            if mk.returncode != 0:
+                return 8
+            mux = ["ffmpeg", "-v", "error", "-y", "-i", os.path.abspath(a.src), "-i", made,
+                   "-i", mask_vid, "-filter_complex",
+                   f"[1:v]scale={v['w']}:{v['h']}:flags=bicubic,format=yuv420p[up];"
+                   f"[0:v]format=yuv420p[base];[base][up][2:v]maskedmerge[vout]",
+                   "-map", "[vout]", "-map", "0:a?", "-c:a", "copy",
                    "-c:v", "libx264", "-preset", "medium", "-crf", a.crf,
                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", os.path.abspath(a.dst)]
             if subprocess.run(mux).returncode != 0:

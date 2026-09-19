@@ -34,7 +34,8 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 ### 편집
 - Timeline Cut / Crop: 여러 구간, 프레임 스냅, 자석 스냅, 되돌리기
 - 마우스, 키보드(Space, J/K/L, 화살표, I/O, S, Del, Ctrl+Z/Y/A/S), 타임코드 직접 입력
-- Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정 / 블러 / 배경 채우기 / AI 지우기)
+- Screen Crop (9:16, 1:1, 4:5 프리셋), 마스크(검정 / 블러 / 배경 채우기 / AI 지우기 / 대상 추적 지우기)
+- 프레임 확장: 화면 바깥을 생성해 화각을 넓힘 (ProPainter outpainting)
 - 속도 0.25x ~ 4x (오디오 동반, 소스 fps 유지)
 - 워터마크: 9분할 위치 프리셋과 드래그, 크기/색/불투명도/스타일 4종, SIL OFL 폰트 7종
 - 화질: 압축 노이즈 정리 + 대비 기반 선명화 3단계 (필터, 추가 설치 없음)
@@ -67,7 +68,8 @@ SNS 게시용 영상을 모으고, 자르고, 변환하는 웹 서비스.
 | PyTorch | 2.14 + CUDA 12.6 (AI 보정, 선택) |
 | RIFE | 4.25 (MIT) |
 | Real-ESRGAN | realesr-general-x4v3 / animevideov3 (BSD-3-Clause) |
-| ProPainter | 영역 인페인팅 (NTU S-Lab License 1.0, 비상업적 사용만) |
+| ProPainter | 영역 인페인팅 / 프레임 확장 (NTU S-Lab License 1.0, 비상업적 사용만) |
+| SAM 2 | 클릭 대상 추적 마스크 (Apache-2.0) |
 
 프론트엔드는 HTML5 + CSS3 + Vanilla JS, Apple Human Interface Guidelines 기준. 빌드 도구 없음.
 
@@ -186,6 +188,11 @@ cd ProPainter/weights
 for f in ProPainter.pth recurrent_flow_completion.pth raft-things.pth i3d_rgb_imagenet.pt; do
   curl -sLO https://github.com/sczhou/ProPainter/releases/download/v0.1.0/$f
 done
+
+# 대상 추적 지우기용 SAM 2 (Apache-2.0)
+pip install --target ../../pylibs "sam2==1.1.0" hydra-core iopath
+mkdir -p ../sam2 && cd ../sam2
+curl -sLO https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt
 ```
 
 ### 워터마크 폰트
@@ -223,7 +230,7 @@ journalctl -u mvcut-worker -f
 | `browsers/` | Playwright Chromium |
 | `fonts/` | 워터마크 폰트 |
 | `pylibs/` | PyTorch 등 AI 보정 라이브러리 |
-| `vendor_ml/` | RIFE / Real-ESRGAN 모델 |
+| `vendor_ml/` | RIFE / Real-ESRGAN / ProPainter / SAM 2 모델 |
 | `secrets/` | 플랫폼 로그인 쿠키 |
 
 ## 개발

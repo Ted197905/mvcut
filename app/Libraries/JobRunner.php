@@ -202,6 +202,77 @@ class JobRunner
         rename($tmp, $out);
     }
 
+    /**
+     * Click points for tracked removal, mapped into the encoded frame: crop shifts them,
+     * the output height scales them, and the source time becomes the output time.
+     *
+     * @return array{points:array<int,array{x:int,y:int,label:int}>,at:float}|null
+     */
+    private function trackPoints(array $p, array $src): ?array
+    {
+        $pts = array_values(array_filter($p['masks'], static fn ($m) => ($m['style'] ?? '') === 'track'));
+        if ($pts === []) return null;
+        $ox = $p['crop']['x'] ?? 0; $oy = $p['crop']['y'] ?? 0;
+        $ch = (int) ($p['crop']['h'] ?? $src['height']);
+        $oh = (int) $p['output']['height'];
+        $s  = ($oh > 0 && $ch > 0 && $oh < $ch) ? $oh / $ch : 1.0;
+
+        $out = [];
+        foreach ($pts as $m) {
+            $out[] = ['x' => (int) round(($m['x'] - $ox) * $s), 'y' => (int) round(($m['y'] - $oy) * $s), 'label' => 1];
+        }
+        // source seconds -> output seconds: the cut segments shift everything before it
+        $t = (float) ($pts[0]['at'] ?? 0);
+        $elapsed = 0.0;
+        foreach ($p['keep'] as [$ks, $ke]) {
+            if ($t < $ks) break;
+            $elapsed += ($t <= $ke ? $t - $ks : $ke - $ks);
+            if ($t <= $ke) break;
+        }
+        return ['points' => $out, 'at' => $elapsed / max(0.01, (float) $p['speed'])];
+    }
+
+    /** Tracks the clicked object with SAM 2, then repaints it out with ProPainter. */
+    private function trackErase(array $job, string $out, array $track, int $at, int $span, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/segment.py') || ! is_dir(ROOTPATH . 'vendor_ml/sam2')) {
+            $log('sam2 not installed, skipping');
+            return;
+        }
+        $meta = Ffmpeg::probe($out);
+        $fps  = (float) ($meta['fps'] ?? 30);
+        $frame = (int) max(0, round($track['at'] * $fps));
+        $dir   = dirname($out) . '/masks';
+        MediaIntake::removeDir($dir);
+        @mkdir($dir, 0775, true);
+
+        $seg = [$py, ROOTPATH . 'bin/segment.py', '--in', $out, '--out-dir', $dir,
+                '--points', json_encode($track['points']), '--frame', (string) $frame,
+                '--weights-dir', ROOTPATH . 'vendor_ml/sam2'];
+        $log('sam2 ' . implode(' ', array_map('escapeshellarg', array_slice($seg, 1))));
+        $half = max(1, (int) round($span / 3));
+        $r = $this->runPython($seg, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $half / 100)]));
+        if ($r['code'] !== 0) {
+            $log('sam2 failed, skipping tracked removal: ' . mb_substr(trim($r['stderr']), -600));
+            MediaIntake::removeDir($dir);
+            return;
+        }
+
+        $tmp = preg_replace('/\.[^.]+$/', '', $out) . '.tr.mp4';
+        $ip  = [$py, ROOTPATH . 'bin/inpaint.py', '--in', $out, '--out', $tmp,
+                '--mask-dir', $dir, '--propainter', ROOTPATH . 'vendor_ml/ProPainter'];
+        $log('propainter track ' . implode(' ', array_map('escapeshellarg', array_slice($ip, 1))));
+        $r = $this->runPython($ip, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + $half + (int) round($pct * ($span - $half) / 100)]));
+        MediaIntake::removeDir($dir);
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('propainter track failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            return;
+        }
+        rename($tmp, $out);
+    }
+
     /** Grows the frame and lets ProPainter generate the new border. */
     private function outpaint(array $job, string $out, array $p, int $at, int $span, callable $log): void
     {
@@ -491,9 +562,10 @@ class JobRunner
         $smooth   = $p['smooth'] ?? 'off';
         $restore  = $p['restore']['mode'] ?? 'off';
         $aiRects  = $this->inpaintRects($p, $src);
+        $track    = $this->trackPoints($p, $src);
         $expand   = ($p['expand']['w'] ?? 1) > 1 || ($p['expand']['h'] ?? 1) > 1;
         $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0)
-                      + ($aiRects ? 1 : 0) + ($expand ? 1 : 0);
+                      + ($aiRects ? 1 : 0) + ($expand ? 1 : 0) + ($track ? 1 : 0);
         $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         @unlink($dir . '/wm.txt');
@@ -503,7 +575,11 @@ class JobRunner
         }
         $span = $stages > 1 ? (int) floor((99 - $encMax) / ($stages - 1)) : 0;
         $at   = $encMax;
-        // inpainting first: it reads the frames as shot, before any generated detail
+        // tracked removal first, then boxes: both read the frames as shot
+        if ($track && $fmt !== 'gif') {
+            $this->trackErase($job, $out, $track, $at, $span, $log);
+            $at += $span;
+        }
         if ($aiRects && $fmt !== 'gif') {
             $this->inpaint($job, $out, $aiRects, $at, $span, $log);
             $at += $span;
@@ -577,6 +653,9 @@ class JobRunner
         }
         $mi = 0;
         foreach ($p['masks'] as $m) {
+            if ($m['style'] === 'track') {
+                continue;   // handled after the encode, by the tracker + inpainting pass
+            }
             $x = $m['x'] - $ox; $y = $m['y'] - $oy;
             if ($m['style'] === 'ai') {
                 continue;   // handled after the encode, by the inpainting pass
