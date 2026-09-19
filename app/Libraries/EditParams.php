@@ -30,6 +30,31 @@ class EditParams
         'heavy', 'blackbox', 'grayline', 'glow', 'softglow',
     ];
 
+    /**
+     * Validates a watermark the user wants kept for next time. It has no video to
+     * belong to, so the size is stored as a fraction of the frame height and the
+     * position as an anchor; both are turned back into pixels by the editor.
+     */
+    public static function watermarkPreset(array $in): ?array
+    {
+        $text = trim(preg_replace('/[\r\n\t]+/u', ' ', (string) ($in['text'] ?? '')));
+        if ($text === '') return null;
+        $font = (string) ($in['font'] ?? '');
+        if (! \App\Libraries\Fonts::has($font)) $font = \App\Libraries\Fonts::default();
+
+        return [
+            'text'      => mb_substr($text, 0, 120),
+            'font'      => $font,
+            'sizeRatio' => round(max(0.005, min(0.5, (float) ($in['sizeRatio'] ?? 0.05))), 5),
+            'color'     => self::color($in['color'] ?? '#ffffff'),
+            'opacity'   => round(max(0.05, min(1.0, (float) ($in['opacity'] ?? 0.85))), 3),
+            'anchor'    => in_array($in['anchor'] ?? 'se', ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'], true)
+                           ? $in['anchor'] : 'se',
+            'style'     => in_array($in['style'] ?? 'shadow', ['none', 'shadow', 'outline', 'box'], true)
+                           ? $in['style'] : 'shadow',
+        ];
+    }
+
     public static function normalize(array $in, array $media): array
     {
         $dur = (float) $media['duration'];

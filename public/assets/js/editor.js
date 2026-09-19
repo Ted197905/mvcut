@@ -682,8 +682,34 @@
   const wmBox = () => state.crop || { x: 0, y: 0, w: D.width, h: D.height };
   function defaultWatermark() {
     const b = wmBox(), pad = Math.round(Math.min(b.w, b.h) * 0.04);
-    return { text: '', font: Object.keys(window.FONTS)[0] || 'pretendard', size: Math.max(12, Math.round(b.h * 0.05)),
+    const base = { text: '', font: Object.keys(window.FONTS)[0] || 'pretendard', size: Math.max(12, Math.round(b.h * 0.05)),
       color: '#ffffff', opacity: 0.85, x: b.w - pad, y: b.h - pad, anchor: 'se', style: 'shadow' };
+    // the watermark kept from last time: the size came as a fraction of the frame and
+    // the position as an anchor, so it lands sensibly whatever this video's size is
+    const pre = D.wmPreset;
+    if (!pre || !pre.text) return base;
+    const w = Object.assign(base, { text: pre.text, font: window.FONTS[pre.font] ? pre.font : base.font,
+      size: clamp(Math.round(pre.sizeRatio * b.h), 8, 400), color: pre.color, opacity: pre.opacity,
+      anchor: pre.anchor, style: pre.style });
+    return Object.assign(w, anchorPoint(w.anchor));
+  }
+  // keep the watermark for next time; debounced, because dragging fires constantly
+  let wmSaveTimer = 0, wmSaved = '';
+  function saveWmPreset() {
+    const w = state.watermark, b = wmBox();
+    const pre = w && w.text.trim() !== ''
+      ? { text: w.text, font: w.font, sizeRatio: +(w.size / b.h).toFixed(5),
+          color: w.color, opacity: w.opacity, anchor: w.anchor, style: w.style }
+      : null;
+    const sig = JSON.stringify(pre);
+    if (sig === wmSaved) return;
+    clearTimeout(wmSaveTimer);
+    wmSaveTimer = setTimeout(() => {
+      wmSaved = sig;
+      D.wmPreset = pre;
+      fetch(D.wmPrefUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify(pre || {}) }).catch(() => {});
+    }, 800);
   }
   const loadedFonts = new Set();
   function ensureFont(key) {
@@ -716,7 +742,7 @@
     if (w.style === 'shadow') wmText.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)';
     else if (w.style === 'outline') { wmText.style.webkitTextStroke = Math.max(1, w.size * scale * 0.06) + 'px #000'; wmText.style.paintOrder = 'stroke fill'; }
     else if (w.style === 'box') { wmText.style.background = 'rgba(0,0,0,.55)'; wmText.style.padding = Math.max(2, w.size * scale * 0.2) + 'px ' + Math.max(3, w.size * scale * 0.28) + 'px'; }
-    syncWmFields();
+    syncWmFields(); saveWmPreset();
   }
   function syncWmFields() {
     const w = state.watermark;

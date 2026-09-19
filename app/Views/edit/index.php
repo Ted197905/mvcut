@@ -401,6 +401,8 @@ window.EDITOR_DATA = <?= json_encode([
     'jobsUrl'  => site_url('api/jobs'),
     'libraryUrl' => site_url('library'),
     'params'   => $params,
+    'wmPreset' => $wmPreset,
+    'wmPrefUrl'=> site_url('api/prefs/watermark'),
 ], JSON_UNESCAPED_SLASHES) ?>;
 </script>
 <script src="<?= asset_url('assets/js/app.js') ?>"></script>
