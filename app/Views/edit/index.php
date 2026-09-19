@@ -131,8 +131,10 @@ $icons = [
           </div>
           <div class="row2">
             <button class="btn sm secondary" id="btnMaskFill">배경 채우기 추가</button>
-            <button class="btn sm secondary" id="btnMaskAi">AI 지우기 추가</button>
+            <button class="btn sm secondary" id="btnMaskAi" <?= $aiEnabled ? '' : 'hidden' ?>>AI 지우기 추가</button>
           </div>
+          <?php if (! $aiEnabled): ?><p class="hint">AI 기능(GPU)은 관리자가 계정에 허용해야 쓸 수 있습니다. 서버 부하 때문에 신규 계정은 기본으로 꺼져 있습니다.</p><?php endif ?>
+          <div <?= $aiEnabled ? '' : 'hidden' ?>>
           <div class="row2">
             <button class="btn sm secondary" id="btnMaskTrack">대상 추적 지우기</button>
           </div>
@@ -143,6 +145,7 @@ $icons = [
               <option value="normal" selected>보통 (512px)</option>
               <option value="fine">정밀 (896px, 매우 느림)</option>
             </select></label>
+          </div>
           </div>
           <p class="hint">배경 채우기는 주변 픽셀로 메웁니다(빠름, 작은 로고에 적합). AI 지우기는 지정한 사각형을 앞뒤 프레임을 참조해 복원합니다. 대상 추적 지우기는 클릭한 대상을 프레임마다 따라가며 지웁니다(움직이는 사람이나 물체에 적합, 가장 느림). 본인 영상에만 사용하세요.</p>
           <div class="masklist" id="maskList"></div>
@@ -288,6 +291,7 @@ $icons = [
             <button data-speed="1" class="active">1x</button><button data-speed="1.5">1.5x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
           </div>
           <label class="switch"><input type="checkbox" id="keepAudio" checked> <span>오디오 유지 (속도에 맞춰 피치 보정)</span></label>
+          <div <?= $aiEnabled ? '' : 'hidden' ?>>
           <div class="sec-title" style="margin-top:14px">프레임 생성 (GPU)</div>
           <div class="presets" id="smoothPresets">
             <button data-smooth="off" class="active">끄기</button>
@@ -305,6 +309,8 @@ $icons = [
             <button data-w="1.2" data-h="1.2">전체 1.2배</button>
           </div>
           <p class="hint">화면 바깥을 AI로 만들어 화각을 넓힙니다. 검은 띠 대신 배경을 채울 때 씁니다. 1.5배를 넘으면 생성 영역이 부자연스러워집니다.</p>
+          </div>
+          <?php if (! $aiEnabled): ?><p class="hint">AI 기능(GPU)은 관리자가 계정에 허용해야 쓸 수 있습니다. 서버 부하 때문에 신규 계정은 기본으로 꺼져 있습니다.</p><?php endif ?>
         </div>
         <div class="sec">
           <div class="sec-title">화질</div>
@@ -316,6 +322,7 @@ $icons = [
           </div>
           <label class="switch"><input type="checkbox" id="denoise" checked> <span>압축 노이즈 정리 후 선명화</span></label>
           <p class="hint">SNS에서 가져온 영상처럼 압축으로 뭉개진 화면에 효과가 큽니다. 강하게는 윤곽에 테두리가 생길 수 있습니다.</p>
+          <div <?= $aiEnabled ? '' : 'hidden' ?>>
           <div class="sec-title" style="margin-top:14px">AI 복원 (GPU)</div>
           <div class="presets" id="restorePresets">
             <button data-restore="off" class="active">끄기</button>
@@ -326,6 +333,7 @@ $icons = [
             <label>모델<select id="restoreModel"><option value="general">실사</option><option value="anime">애니메이션 · 그래픽</option></select></label>
           </div>
           <p class="hint">프레임마다 신경망을 돌려 디테일을 다시 만듭니다. 처리 시간이 길고(720p 기준 실시간의 5배 안팎), 얼굴이 작게 나오면 이목구비가 달라 보일 수 있습니다.</p>
+          </div>
         </div>
         <div class="sec">
           <div class="sec-title">출력</div>
@@ -411,6 +419,7 @@ window.EDITOR_DATA = <?= json_encode([
     'params'   => $params,
     'wmPreset' => $wmPreset,
     'wmPrefUrl'=> site_url('api/prefs/watermark'),
+    'aiEnabled'=> (bool) $aiEnabled,
 ], JSON_UNESCAPED_SLASHES) ?>;
 </script>
 <script src="<?= asset_url('assets/js/app.js') ?>"></script>

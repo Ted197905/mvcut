@@ -23,6 +23,7 @@ class Edit extends BaseController
             'item'     => $item,
             'params'   => $params,
             'wmPreset' => $prefs['watermark'] ?? null,
+            'aiEnabled' => (bool) session()->get('ai_enabled'),
             'fonts'    => \App\Libraries\Fonts::available(),
         ]);
     }
@@ -44,6 +45,11 @@ class Edit extends BaseController
             $params = EditParams::normalize($raw, $item);
         } catch (\InvalidArgumentException $e) {
             return $this->response->setStatusCode(422)->setJSON(['error' => $e->getMessage()]);
+        }
+        // the GPU features run only for accounts an admin has allowed
+        if (! session()->get('ai_enabled') && EditParams::usesAi($params)) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'error' => 'AI 기능은 관리자 승인이 필요합니다. 관리자에게 문의하세요.']);
         }
         $jobs  = new JobModel();
         $jobId = $jobs->insert([

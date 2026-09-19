@@ -59,6 +59,18 @@ class EditParams
         ];
     }
 
+    /** True when the job would run one of the GPU models (RIFE, Real-ESRGAN, ProPainter, SAM 2). */
+    public static function usesAi(array $p): bool
+    {
+        if (($p['smooth'] ?? 'off') !== 'off') return true;
+        if (($p['restore']['mode'] ?? 'off') !== 'off') return true;
+        if (($p['expand']['w'] ?? 1) > 1 || ($p['expand']['h'] ?? 1) > 1) return true;
+        foreach ($p['masks'] ?? [] as $m) {
+            if (in_array($m['style'] ?? '', ['ai', 'track'], true)) return true;
+        }
+        return false;
+    }
+
     /** One subtitle line's own look; only the keys the editor actually set are kept. */
     private static function cueStyle(array $in, int $W, int $H): array
     {

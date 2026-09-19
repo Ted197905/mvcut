@@ -14,6 +14,9 @@
   <?php if (session()->get('user_id')): ?>
     <a href="<?= site_url('library') ?>" class="<?= uri_string() === 'library' ? 'active' : '' ?>">라이브러리</a>
     <span class="spacer"></span>
+    <?php if (session()->get('role') === 'admin'): ?>
+      <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
+    <?php endif ?>
     <a href="<?= site_url('settings') ?>" class="<?= str_starts_with(uri_string(), 'settings') || uri_string() === 'account' ? 'active' : '' ?>">설정</a>
     <span class="nav-user"><?= esc(session()->get('display_name')) ?></span>
     <form method="post" action="<?= site_url('logout') ?>"><?= csrf_field() ?><button class="linkbtn" type="submit">로그아웃</button></form>

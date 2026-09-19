@@ -333,6 +333,19 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .set-card label { display: block; font-size: 13px; color: var(--label2); margin-bottom: 6px; }
 .ck { background: var(--bg-elev); border-radius: var(--r-group); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
 .ck-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+/* admin account list */
+.adm-list { display: flex; flex-direction: column; gap: 10px; }
+.adm-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.adm-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.adm-who b { font-size: 15px; }
+.adm-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.adm-acts { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.adm-acts form { margin: 0; }
+@media (min-width: 720px) {
+  .adm-row { grid-template-columns: 1fr auto auto; }
+  .adm-acts { grid-column: auto; justify-content: flex-end; }
+}
 .ck-badge { font-size: 12px; font-weight: 600; border-radius: 7px; padding: 3px 9px; background: var(--fill3); color: var(--label2); }
 .ck-badge.ok { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
 .ck-badge.warn { background: color-mix(in srgb, #ff9f0a 18%, transparent); color: #b26a00; }

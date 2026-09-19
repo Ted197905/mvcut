@@ -28,6 +28,11 @@ class Auth extends BaseController
         if (! $user || ! password_verify($this->request->getPost('password'), $user['password_hash'])) {
             return redirect()->back()->withInput()->with('errors', ['auth' => '이메일 또는 비밀번호가 올바르지 않습니다.']);
         }
+        if (($user['status'] ?? 'active') !== 'active') {
+            return redirect()->back()->withInput()->with('errors', ['auth' => $user['status'] === 'blocked'
+                ? '사용이 중지된 계정입니다. 관리자에게 문의하세요.'
+                : '관리자 승인 대기 중인 계정입니다. 승인 후 로그인할 수 있습니다.']);
+        }
         $this->startSession($user);
         $to = session()->get('redirect_after_login') ?: '/library';
         session()->remove('redirect_after_login');
@@ -62,13 +67,17 @@ class Auth extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
         $users = new UserModel();
-        $id = $users->insert([
+        // sign-ups wait for an admin, and AI stays off until one turns it on
+        $users->insert([
             'email'         => strtolower(trim($this->request->getPost('email'))),
             'password_hash' => UserModel::hash($this->request->getPost('password')),
             'display_name'  => trim($this->request->getPost('display_name')),
+            'role'          => 'user',
+            'status'        => 'pending',
+            'ai_enabled'    => 0,
         ]);
-        $this->startSession($users->find($id));
-        return redirect()->to('/library')->with('flash', '가입이 완료되었습니다.');
+        return redirect()->to('/login')->with('flash',
+            '가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.');
     }
 
     public function logout()
@@ -84,6 +93,8 @@ class Auth extends BaseController
             'user_id'      => $user['id'],
             'user_email'   => $user['email'],
             'display_name' => $user['display_name'],
+            'role'         => $user['role'] ?? 'user',
+            'ai_enabled'   => (bool) ($user['ai_enabled'] ?? false),
         ]);
     }
 }

@@ -9,12 +9,19 @@ class UserModel extends Model
     protected $table         = 'users';
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
-    protected $allowedFields = ['email', 'password_hash', 'display_name', 'prefs'];
+    protected $allowedFields = ['email', 'password_hash', 'display_name', 'prefs', 'role', 'status', 'ai_enabled'];
     protected $useTimestamps = true;
 
     public function findByEmail(string $email): ?array
     {
         return $this->where('email', strtolower(trim($email)))->first();
+    }
+
+    public const STATUSES = ['pending', 'active', 'blocked'];
+
+    public function isAdmin(?array $user): bool
+    {
+        return ($user['role'] ?? '') === 'admin';
     }
 
     /** Editor settings the user wants kept between videos (e.g. their watermark). */
