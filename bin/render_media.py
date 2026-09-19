@@ -92,13 +92,35 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
                     pass
         page = ctx.new_page()
         page.on("response", lambda r: note(r.url))
+        seen_urls: list[str] = []
+        page.on("framenavigated", lambda f: seen_urls.append(f.url) if f is page.main_frame else None)
+        landed = ""
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+            landed = page.url  # the app strips ?injected_media_ids a moment later
         except Exception as e:  # noqa: BLE001
             browser.close()
             return {"ok": False, "error": f"page load failed: {type(e).__name__}"}
 
         page.wait_for_timeout(4000)
+
+        # Logged in, Threads answers a post permalink with the feed and the post injected on
+        # top (?injected_media_ids=...). Without that marker a bare feed URL means the post
+        # was not viewable, and reporting the feed's media would be plainly wrong.
+        want = re.search(r"/(?:post|p|reel)/([A-Za-z0-9_-]+)", url)
+        trail = " ".join(seen_urls + [landed, page.url])
+        injected = "injected_media_ids" in trail
+        if want and not injected and want.group(1) not in trail.replace(url, ""):
+            landed = page.url
+            body = ""
+            try:
+                body = page.evaluate("() => (document.body.innerText || '').slice(0, 800)")
+            except Exception:  # noqa: BLE001
+                pass
+            browser.close()
+            return {"ok": False, "error": "redirected", "landed": landed, "text": body,
+                    "title": None, "description": None, "videos": [], "images": [], "links": []}
+
         try:
             page.mouse.wheel(0, 600)
             page.wait_for_timeout(1500)
@@ -116,24 +138,35 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         except Exception:  # noqa: BLE001
             pass
 
-        data = page.evaluate("""() => {
+        # In injected-feed mode only the first post is ours, so read that subtree alone and
+        # drop everything the network listener picked up for the rest of the feed.
+        net_first = videos[:1]  # the injected post loads before the rest of the feed
+        if injected:
+            videos.clear()
+            images.clear()
+
+        data = page.evaluate("""(scoped) => {
+            const root = scoped
+                ? (document.querySelector('[data-pressable-container]')?.closest('div[class]')?.parentElement
+                   || document.querySelector('[data-pressable-container]') || document)
+                : document;
             const meta = (p) => { const m = document.querySelector(`meta[property="${p}"], meta[name="${p}"]`); return m ? m.content : null; };
             const vids = [];
-            document.querySelectorAll('video').forEach(v => {
+            root.querySelectorAll('video').forEach(v => {
                 [v.currentSrc, v.src, ...[...v.querySelectorAll('source')].map(s => s.src)].forEach(s => { if (s) vids.push(s); });
                 if (v.poster) vids.push('POSTER:' + v.poster);
             });
-            const imgs = [...document.querySelectorAll('img')].filter(i => i.naturalWidth >= 200).map(i => i.currentSrc || i.src);
+            const imgs = [...root.querySelectorAll('img')].filter(i => i.naturalWidth >= 200).map(i => i.currentSrc || i.src);
             return {
                 title: meta('og:title') || document.title || null,
                 desc: meta('og:description') || null,
                 ogvideo: meta('og:video') || meta('og:video:url') || meta('og:video:secure_url') || null,
                 ogimage: meta('og:image') || null,
                 vids, imgs,
-                bodyText: (document.body.innerText || '').slice(0, 1200),
-                links: [...new Set([...document.querySelectorAll('a[href*="/post/"], a[href*="/p/"], a[href*="/reel/"]')].map(a => a.href))].slice(0, 20),
+                bodyText: ((scoped ? root.innerText : document.body.innerText) || '').slice(0, 1200),
+                links: [...new Set([...root.querySelectorAll('a[href*="/post/"], a[href*="/p/"], a[href*="/reel/"]')].map(a => a.href))].slice(0, 20),
             };
-        }""")
+        }""", injected)
         browser.close()
 
     posters = []
@@ -149,11 +182,16 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         if u:
             note(u)
 
+    # a feed <video> often plays from a blob: URL, so fall back to the first network hit
+    if injected and not videos:
+        videos.extend(net_first)
+
     return {
         "links": data.get("links") or [],
         "ok": bool(videos or images),
         "title": data.get("title"),
-        "description": data.get("desc"),
+        # og:title/og:description describe the site, not the injected post; the scoped text is the post
+        "description": None if injected else data.get("desc"),
         "text": data.get("bodyText"),
         "videos": videos[:10],
         "images": images[:20],

@@ -305,7 +305,7 @@ class MediaSupport
      * Renders a JavaScript-only post in headless Chromium and returns the media it exposes.
      * Returns null when the renderer is missing or produced no usable JSON.
      *
-     * @return array{ok:bool,title:string,description:string,text:string,videos:string[],images:string[]}|null
+     * @return array{ok:bool,redirected:bool,title:string,description:string,text:string,videos:string[],images:string[]}|null
      */
     public static function render(string $url, int $timeout = 40): ?array
     {
@@ -326,6 +326,7 @@ class MediaSupport
         ));
         return [
             'ok'          => (bool) ($j['ok'] ?? false),
+            'redirected'  => ($j['error'] ?? '') === 'redirected',
             'title'       => (string) ($j['title'] ?? ''),
             'description' => (string) ($j['description'] ?? ''),
             'text'        => (string) ($j['text'] ?? ''),
