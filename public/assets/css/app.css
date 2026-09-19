@@ -230,14 +230,15 @@ select.input { appearance: none; padding-right: 34px;
 .progress-item.done .bar i { background: var(--green); }
 .progress-item.fail { color: var(--red); }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)); gap: 20px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 20px; }
 .card-wrap { position: relative; }
 .card { display: block; color: var(--label); border-radius: var(--r-card); transition: transform .18s cubic-bezier(.2,.7,.3,1); }
 .card:hover { text-decoration: none; transform: translateY(-3px); }
-.card .thumb { position: relative; aspect-ratio: 16 / 10; border-radius: var(--r-card); overflow: hidden; background: var(--bg-grouped);
+.card .thumb { position: relative; aspect-ratio: 1 / 1; border-radius: var(--r-card); overflow: hidden; background: var(--bg-grouped);
   display: flex; align-items: center; justify-content: center; color: var(--label3); font-size: 12px; box-shadow: var(--shadow-sm); transition: box-shadow .18s; }
 .card:hover .thumb { box-shadow: var(--shadow-md); }
-.card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* whole frame visible in a square tile: the long side fits, the short side letterboxes */
+.card .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .card .dur { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.62); color: #fff; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
 .card .badge { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.5); color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .05em; padding: 3px 7px; border-radius: 6px; text-transform: uppercase; backdrop-filter: blur(6px); }
 .card .body { padding: 11px 3px 0; }
@@ -267,14 +268,18 @@ select.input { appearance: none; padding-right: 34px;
 .import-panel[open] summary::after { transform: rotate(-135deg); }
 .import-panel summary .muted { font-weight: 400; }
 .import-panel[open] summary { margin-bottom: 16px; }
-.import-row { display: flex; gap: 8px; }
-.import-row .input { flex: 1; }
-.import-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 14px; }
+.import-head { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.import-head .muted { font-weight: 400; }
+.import-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.import-row .input { flex: 1 1 260px; min-width: 0; }
+.import-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-top: 14px; }
 .import-item { display: flex; gap: 11px; align-items: center; background: var(--bg-elev); border: 1.5px solid transparent; box-shadow: var(--shadow-sm); border-radius: 12px; padding: 8px; cursor: pointer; font-size: 13px; transition: border-color .15s; }
 .import-item.on { border-color: var(--blue); }
-.import-item img { width: 68px; height: 50px; object-fit: cover; border-radius: 7px; background: var(--fill3); flex: none; }
+/* square box, whole frame visible: long side fits, short side letterboxes */
+.import-item img { width: 96px; height: 96px; object-fit: contain; border-radius: 9px; background: var(--fill2); flex: none; }
 .import-item .t { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .import-item .m { color: var(--label2); font-size: 11px; }
+.import-more { align-self: center; justify-self: start; }
 .import-status { margin-top: 12px; font-size: 13px; color: var(--label2); }
 .import-status.error { color: var(--red); }
 

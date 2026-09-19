@@ -29,7 +29,9 @@ class Import extends BaseController
             // the image scraper is still worth a try for platforms that expose og:image
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
-                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $this->imageEntries($images), 'notice' => $reason]);
+                $e = $this->imageEntries($images);
+                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e,
+                                                 'collapse' => count($e) > 1, 'notice' => $reason]);
             }
             return $this->response->setStatusCode(422)->setJSON(['error' => $reason]);
         }
@@ -48,11 +50,14 @@ class Import extends BaseController
             }
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
-                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $this->imageEntries($images)]);
+                $e = $this->imageEntries($images);
+                return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $e, 'collapse' => count($e) > 1]);
             }
             $msg = trim(preg_replace('/^ERROR:\s*/m', '', $out['stderr'])) ?: '리소스를 찾을 수 없습니다.';
             if (stripos($msg, 'empty media response') !== false || stripos($msg, 'login') !== false || stripos($msg, 'cookies') !== false) {
                 $msg = '이 게시물은 로그인해야 볼 수 있어 가져올 수 없습니다. 비공개 계정이거나 플랫폼이 비로그인 접근을 막은 경우입니다.';
+            } elseif (stripos($msg, 'No video formats found') !== false) {
+                $msg = '영상이 없는 게시물입니다. 이미지만 있는 글은 로그인 쿠키를 등록해야 가져올 수 있습니다.';
             } elseif (stripos($msg, 'Unsupported URL') !== false) {
                 $msg = '지원하지 않는 주소입니다. 게시물(영상) 링크가 맞는지 확인해 주세요.';
             } else {
@@ -133,7 +138,8 @@ class Import extends BaseController
         $notice = MediaSupport::cookieFile((string) MediaSupport::platformOf($url))
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
             : '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
-        return ['ok' => true, 'entries' => $entries, 'title' => $title,
+        // one post can expose many frames (carousel pages, poster images): show the main one first
+        return ['ok' => true, 'entries' => $entries, 'title' => $title, 'collapse' => count($entries) > 1,
                 'desc' => mb_substr($body, 0, 5000), 'notice' => $notice];
     }
 

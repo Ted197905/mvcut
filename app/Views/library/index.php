@@ -16,10 +16,12 @@
   </div>
   <div class="progress-list" id="progressList"></div>
 
-  <details class="import-panel" id="importPanel">
-    <summary><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook</span></summary>
+  <section class="import-panel" id="importPanel">
+    <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram</span></div>
     <div class="import-row">
-      <input class="input" type="url" id="importUrl" placeholder="YouTube · X · Facebook 게시물 링크" autocomplete="off">
+      <input class="input" type="url" id="importUrl" placeholder="게시물 링크를 붙여 넣으세요" autocomplete="off">
+      <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">Paste</button>
+      <button class="btn ghost" type="button" id="btnClearUrl" title="링크 지우기">Del</button>
       <button class="btn" type="button" id="btnInspect">리소스 확인</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
@@ -30,7 +32,7 @@
       <button class="btn secondary sm" type="button" id="btnSelectAll">전체 선택</button>
       <button class="btn sm" type="button" id="btnImport">선택한 리소스 가져오기</button>
     </div>
-  </details>
+  </section>
 
   <form class="lib-toolbar" method="get" action="<?= site_url('library') ?>" id="filterForm">
     <input class="input search" type="search" name="q" id="q" value="<?= esc($q) ?>" placeholder="제목으로 검색" autocomplete="off">
@@ -232,6 +234,21 @@
   let inspected = null;
   function istatus(msg, cls) { st.hidden = !msg; st.className = 'import-status ' + (cls || ''); st.textContent = msg || ''; }
   $('btnInspect').addEventListener('click', inspect);
+  $('btnPaste').addEventListener('click', async () => {
+    const el = $('importUrl');
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (t) { el.value = t; istatus(''); el.focus(); return; }
+      istatus('클립보드가 비어 있습니다.', 'error');
+    } catch (e) {
+      el.focus();
+      istatus('브라우저가 붙여넣기를 막았습니다. 입력창에서 Ctrl+V를 눌러 주세요.', 'error');
+    }
+  });
+  $('btnClearUrl').addEventListener('click', () => {
+    $('importUrl').value = ''; $('importUrl').focus();
+    il.hidden = ia.hidden = true; il.innerHTML = ''; inspected = null; istatus('');
+  });
   $('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inspect(); } });
   async function inspect() {
     const url = $('importUrl').value.trim(); if (!url) return;
@@ -240,10 +257,13 @@
     try {
       const j = await post(base + 'api/import/inspect', { url });
       inspected = { url, entries: j.entries, desc: j.desc || '' };
+      const collapse = !!j.collapse;
       if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
-      j.entries.forEach(e => {
+      j.entries.forEach((e, i) => {
+        const extra = collapse && i > 0;
         const el = document.createElement('div');
-        el.className = 'import-item on'; el.dataset.index = e.index;
+        el.className = 'import-item' + (extra ? '' : ' on'); el.dataset.index = e.index;
+        if (extra) el.hidden = true;
         el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
           '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' +
           esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') +
@@ -251,6 +271,16 @@
         el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
         il.appendChild(el);
       });
+      if (collapse && j.entries.length > 1) {
+        const more = document.createElement('button');
+        more.type = 'button'; more.className = 'btn ghost sm import-more';
+        more.textContent = '나머지 ' + (j.entries.length - 1) + '개 보기';
+        more.addEventListener('click', () => {
+          il.querySelectorAll('.import-item[hidden]').forEach(x => { x.hidden = false; });
+          more.remove();
+        });
+        il.appendChild(more);
+      }
       il.hidden = ia.hidden = false;
       istatus(j.notice ? j.notice : ((j.platform || '') + ' · ' + j.entries.length + '개 항목. 가져올 항목을 선택하세요.'), j.notice ? 'warn' : '');
       count();

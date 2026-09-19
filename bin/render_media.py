@@ -140,16 +140,23 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
 
         # In injected-feed mode only the first post is ours, so read that subtree alone and
         # drop everything the network listener picked up for the rest of the feed.
-        net_first = videos[:1]  # the injected post loads before the rest of the feed
-        if injected:
+        net_first = videos[:1]  # the post's own media loads before the rest of the page
+        net_img_first = images[:1]
+
+        # A post page also renders neighbours (carousel of other posts, "more from" grid), so
+        # read only the post's own subtree whenever the URL points at one.
+        scope = "injected" if injected else ("post" if want else "")
+        if scope:
             videos.clear()
             images.clear()
-
-        data = page.evaluate("""(scoped) => {
-            const root = scoped
+        data = page.evaluate("""(scope) => {
+            const root = scope === 'injected'
                 ? (document.querySelector('[data-pressable-container]')?.closest('div[class]')?.parentElement
                    || document.querySelector('[data-pressable-container]') || document)
-                : document;
+                : (scope === 'post'
+                    ? (document.querySelector('main article') || document.querySelector('article') || document)
+                    : document);
+            const scoped = scope !== '';
             const meta = (p) => { const m = document.querySelector(`meta[property="${p}"], meta[name="${p}"]`); return m ? m.content : null; };
             const vids = [];
             root.querySelectorAll('video').forEach(v => {
@@ -166,7 +173,7 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
                 bodyText: ((scoped ? root.innerText : document.body.innerText) || '').slice(0, 1200),
                 links: [...new Set([...root.querySelectorAll('a[href*="/post/"], a[href*="/p/"], a[href*="/reel/"]')].map(a => a.href))].slice(0, 20),
             };
-        }""", injected)
+        }""", scope)
         browser.close()
 
     posters = []
@@ -183,15 +190,17 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
             note(u)
 
     # a feed <video> often plays from a blob: URL, so fall back to the first network hit
-    if injected and not videos:
+    if scope and not videos:
         videos.extend(net_first)
+    if scope and not images:
+        images.extend(net_img_first)
 
     return {
         "links": data.get("links") or [],
         "ok": bool(videos or images),
         "title": data.get("title"),
         # og:title/og:description describe the site, not the injected post; the scoped text is the post
-        "description": None if injected else data.get("desc"),
+        "description": None if scope else data.get("desc"),
         "text": data.get("bodyText"),
         "videos": videos[:10],
         "images": images[:20],
