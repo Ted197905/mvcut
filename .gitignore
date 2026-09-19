@@ -132,3 +132,5 @@ _modules/*
 /fonts/
 /browsers/
 /secrets/
+/pylibs/
+/vendor_ml/

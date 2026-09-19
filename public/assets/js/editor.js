@@ -50,6 +50,7 @@
     watermark: null,          // {text,font,size,color,opacity,x,y,anchor,style}
     speed: 1, keepAudio: true,
     enhance: { sharpen: 'off', denoise: true },
+    smooth: 'off',
     output: { format: 'mp4', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
@@ -636,8 +637,14 @@
     state.enhance.sharpen = b.dataset.sharpen;
     document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x === b));
     $('denoise').disabled = state.enhance.sharpen === 'off';
+    document.querySelectorAll('#smoothPresets button').forEach(x => x.classList.toggle('active', x.dataset.smooth === state.smooth));
   });
   $('denoise').addEventListener('change', (e) => state.enhance.denoise = e.target.checked);
+  $('smoothPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.smooth = b.dataset.smooth;
+    document.querySelectorAll('#smoothPresets button').forEach(x => x.classList.toggle('active', x === b));
+  });
   $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; $('keepAudio').disabled = e.target.value === 'gif'; });
   $('outHeight').addEventListener('change', (e) => state.output.height = +e.target.value);
   $('outQuality').addEventListener('change', (e) => state.output.quality = e.target.value);
@@ -652,7 +659,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, smooth: state.smooth, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

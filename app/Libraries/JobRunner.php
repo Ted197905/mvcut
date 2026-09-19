@@ -113,6 +113,78 @@ class JobRunner
         return $resultId;
     }
 
+    /**
+     * Generates intermediate frames with RIFE and replaces the encoded file.
+     * A failure here is not fatal: the un-smoothed result is still a valid export.
+     */
+    private function interpolate(array $job, string $out, array $p, array $src, string $smooth, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/interpolate.py')) { $log('rife not installed, skipping'); return; }
+        $meta = Ffmpeg::probe($out);
+        $fps  = (float) ($meta['fps'] ?? 0);
+        if ($fps <= 0) { $log('no fps on the encoded file, skipping'); return; }
+
+        if ($smooth === 'slow') {
+            // restore the frame rate the slowdown thinned out
+            $target = min(60.0, (float) ($src['fps'] ?: 30));
+            $factor = (int) max(2, min(8, round($target / max(1.0, $fps))));
+        } else {
+            $factor = $smooth === 'x4' ? 4 : 2;
+        }
+
+        $tmp  = preg_replace('/\.[^.]+$/', '', $out) . '.rife.mp4';
+        $args = [$py, ROOTPATH . 'bin/interpolate.py', '--in', $out, '--out', $tmp,
+                 '--factor', (string) $factor, '--rife', ROOTPATH . 'vendor_ml/Practical-RIFE'];
+        // 1080p and above needs the half-scale flow estimate to fit in 10GB
+        if ((int) ($meta['height'] ?? 0) >= 1080 || (int) ($meta['width'] ?? 0) >= 1080) {
+            array_push($args, '--scale', '0.5');
+        }
+        $log('rife x' . $factor . ' ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => 45 + (int) round($pct * 0.54)]));
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('rife failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            return;
+        }
+        rename($tmp, $out);
+    }
+
+    /** Runs a bin/*.py helper, reporting its "progress N" lines. */
+    private function runPython(array $args, callable $onProgress): array
+    {
+        $env = [
+            'PATH'            => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
+            'PYTHONPATH'      => rtrim(ROOTPATH, '/') . '/pylibs',
+            'LD_LIBRARY_PATH' => '/usr/lib/wsl/lib',
+            'HOME'            => rtrim(WRITEPATH, '/'),
+        ];
+        $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $proc = proc_open($args, $spec, $pipes, null, $env);
+        if (! is_resource($proc)) return ['code' => -1, 'stderr' => 'proc_open failed'];
+        fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $err = ''; $buf = '';
+        while (true) {
+            $buf .= (string) stream_get_contents($pipes[2]);
+            while (($nl = strpos($buf, "\n")) !== false) {
+                $line = trim(substr($buf, 0, $nl)); $buf = substr($buf, $nl + 1);
+                if (preg_match('/^progress (\d+)$/', $line, $m)) $onProgress((int) $m[1]);
+                else $err .= $line . "\n";
+            }
+            stream_get_contents($pipes[1]);
+            $st = proc_get_status($proc);
+            if (! $st['running']) break;
+            usleep(200000);
+        }
+        $err .= (string) stream_get_contents($pipes[2]) . $buf;
+        fclose($pipes[1]); fclose($pipes[2]);
+        $code = proc_close($proc);
+        if (isset($st) && ! $st['running']) $code = $st['exitcode'];
+        return ['code' => $code, 'stderr' => $err];
+    }
+
     /** Build a browser-friendly 720p H.264 proxy next to the original. Returns the media id. */
     private function runProxy(array $job, callable $log): int
     {
@@ -318,11 +390,16 @@ class JobRunner
         $cmd = $this->buildEditCommand($srcPath, $out, $p, $src);
         $log('ffmpeg ' . implode(' ', array_map('escapeshellarg', array_slice($cmd, 1))));
         $expected = max(0.1, EditParams::outputDuration($p));
-        $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $pct]));
+        $smooth   = $p['smooth'] ?? 'off';
+        $encMax   = $smooth === 'off' ? 100 : 45;   // leave room for the interpolation pass
+        $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         @unlink($dir . '/wm.txt');
         if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
             @unlink($out); $this->media->delete($resultId); @rmdir($dir);
             throw new \RuntimeException('ffmpeg failed (' . $r['code'] . '): ' . mb_substr(trim($r['stderr']), -1500));
+        }
+        if ($smooth !== 'off' && $fmt !== 'gif') {
+            $this->interpolate($job, $out, $p, $src, $smooth, $log);
         }
         $this->finishMedia($resultId, $out, $dir, $log);
         return $resultId;
@@ -405,8 +482,12 @@ class JobRunner
         }
         if ($p['speed'] != 1.0) {
             $post[] = sprintf('setpts=PTS/%.4f', $p['speed']);
-            // keep the source frame rate (duplicate/drop frames) instead of a fractional output rate
-            if (! empty($srcMeta['fps'])) $post[] = sprintf('fps=%.3f', min(60, (float) $srcMeta['fps']));
+            // keep the source frame rate (duplicate/drop frames) instead of a fractional output rate.
+            // With slow-motion smoothing the missing frames are generated afterwards, so leave the
+            // stream thin here rather than filling it with duplicates RIFE would then blend.
+            if (! empty($srcMeta['fps']) && ($p['smooth'] ?? 'off') !== 'slow') {
+                $post[] = sprintf('fps=%.3f', min(60, (float) $srcMeta['fps']));
+            }
         }
         if ($p['output']['height'] > 0) $post[] = "scale=-2:'min(ih,{$p['output']['height']})'";
         if ($fmt === 'gif') {

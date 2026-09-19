@@ -194,6 +194,14 @@ $icons = [
             <button data-speed="1" class="active">1x</button><button data-speed="1.5">1.5x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
           </div>
           <label class="switch"><input type="checkbox" id="keepAudio" checked> <span>오디오 유지 (속도에 맞춰 피치 보정)</span></label>
+          <div class="sec-title" style="margin-top:14px">프레임 생성 (GPU)</div>
+          <div class="presets" id="smoothPresets">
+            <button data-smooth="off" class="active">끄기</button>
+            <button data-smooth="x2">2배 부드럽게</button>
+            <button data-smooth="x4">4배 부드럽게</button>
+            <button data-smooth="slow">슬로우 보정</button>
+          </div>
+          <p class="hint">중간 프레임을 AI로 만들어 채웁니다. 슬로우 보정은 느리게 만든 영상의 끊김을 없앱니다. 처리 시간이 크게 늘어납니다.</p>
         </div>
         <div class="sec">
           <div class="sec-title">화질</div>

@@ -11,6 +11,7 @@ namespace App\Libraries;
  *   "masks":  [{"x","y","w","h","style":"black|blur"}]
  *   "speed":  1.0                        0.25 .. 4
  *   "enhance": {"sharpen":"off|low|mid|high", "denoise":bool}
+ *   "smooth":  "off|x2|x4|slow"          RIFE frame generation
  *   "keepAudio": true
  *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
  * }
@@ -84,6 +85,9 @@ class EditParams
         if (! in_array($sharpen, ['off', 'low', 'mid', 'high'], true)) $sharpen = 'off';
         $enhance = ['sharpen' => $sharpen, 'denoise' => (bool) ($in['enhance']['denoise'] ?? ($sharpen !== 'off'))];
 
+        $smooth = (string) ($in['smooth'] ?? 'off');
+        if (! in_array($smooth, ['off', 'x2', 'x4', 'slow'], true)) $smooth = 'off';
+
         $speed = (float) ($in['speed'] ?? 1);
         if ($speed < 0.25 || $speed > 4) throw new \InvalidArgumentException('속도는 0.25x~4x 사이여야 합니다.');
 
@@ -99,6 +103,7 @@ class EditParams
             'masks'     => $masks,
             'watermark' => $wm,
             'enhance'   => $enhance,
+            'smooth'    => $smooth,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],

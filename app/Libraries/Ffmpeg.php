@@ -110,6 +110,16 @@ class Ffmpeg
         return $ok;
     }
 
+    /** Python interpreter for the bin/*.py helpers, or null when the ML libs are missing. */
+    public static function python(): ?string
+    {
+        if (! is_dir(ROOTPATH . 'pylibs')) return null;
+        foreach (['/usr/bin/python3', '/usr/local/bin/python3'] as $p) {
+            if (is_executable($p)) return $p;
+        }
+        return null;
+    }
+
     public static function run(array $args, int $timeout = 30, array $env = []): array
     {
         $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
