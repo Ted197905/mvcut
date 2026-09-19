@@ -269,6 +269,7 @@ $icons = [
             <button data-s="outline">외곽선</button>
             <button data-s="box">박스</button>
           </div>
+          <p class="hint">워터마크 내용과 설정은 계정에 저장됩니다. 다음 영상에서는 "워터마크 사용"만 켜면 그대로 적용되고, 크기는 영상 높이에 맞춰 조정됩니다. 내용을 비우면 저장된 설정도 지워집니다.</p>
         </div>
       </div>
 
