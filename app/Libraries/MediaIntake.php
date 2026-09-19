@@ -50,6 +50,30 @@ class MediaIntake
         return [(int) $id, $dir, $dir . '/original.' . $ext];
     }
 
+    /**
+     * Animated WebP is a video, but ffmpeg cannot read it, so it is converted to MP4 on the
+     * way in and everything downstream treats it as an ordinary video.
+     * Returns the new file name, or null when nothing was converted.
+     */
+    public static function toVideo(string $dir, string $filename): ?string
+    {
+        $path = rtrim($dir, '/') . '/' . $filename;
+        if (self::extOf($filename) !== 'webp' || ! Ffmpeg::webpAnimated($path)) return null;
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/webp_anim.py')) return null;
+
+        $out = preg_replace('/\.[^.]+$/', '', $path) . '.mp4';
+        $r = Ffmpeg::run([$py, ROOTPATH . 'bin/webp_anim.py', '--in', $path, '--out', $out], 600,
+                         ['PYTHONPATH' => rtrim(ROOTPATH, '/') . '/pylibs', 'HOME' => rtrim(WRITEPATH, '/')]);
+        if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
+            @unlink($out);
+            return null;
+        }
+        @unlink($path);
+        self::relax($out);
+        return basename($out);
+    }
+
     /** Probes the placed file, generates thumbnail/filmstrip, queues a proxy job when needed. */
     public static function finish(int $id): array
     {
@@ -60,6 +84,11 @@ class MediaIntake
         if (! is_file($path)) {
             $media->delete($id);
             throw new \RuntimeException('업로드된 파일을 찾을 수 없습니다.');
+        }
+        if ($converted = self::toVideo($dir, $row['filename'])) {
+            $media->update($id, ['filename' => $converted]);
+            $row['filename'] = $converted;
+            $path = $dir . '/' . $converted;
         }
         $update = ['status' => 'ready', 'size' => filesize($path), 'mime' => mime_content_type($path) ?: $row['mime']];
         if ($meta = Ffmpeg::probe($path)) {

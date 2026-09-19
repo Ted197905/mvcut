@@ -23,6 +23,20 @@ class Ffmpeg
         return $cache[$name];
     }
 
+    /**
+     * True for an animated WebP. ffprobe reports these as a still image, so the container
+     * is read directly: an extended (VP8X) file carrying an ANIM chunk is animated.
+     */
+    public static function webpAnimated(string $path): bool
+    {
+        $fh = @fopen($path, 'rb');
+        if (! $fh) return false;
+        $head = (string) fread($fh, 1024);
+        fclose($fh);
+        return str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WEBP'
+            && substr($head, 12, 4) === 'VP8X' && str_contains($head, 'ANIM');
+    }
+
     /** Returns normalized metadata, or null if ffprobe is unavailable/failed. */
     public static function probe(string $path): ?array
     {

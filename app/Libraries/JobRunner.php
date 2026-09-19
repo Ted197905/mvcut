@@ -603,6 +603,11 @@ class JobRunner
     /** Probe + thumbnail + filmstrip, mark ready. */
     private function finishMedia(int $id, string $file, string $dir, callable $log): void
     {
+        if ($converted = MediaIntake::toVideo($dir, basename($file))) {
+            $log('animated webp converted to ' . $converted);
+            $this->media->update($id, ['filename' => $converted]);
+            $file = $dir . '/' . $converted;
+        }
         $update = ['status' => 'ready', 'size' => filesize($file), 'mime' => mime_content_type($file) ?: null];
         if ($meta = Ffmpeg::probe($file)) {
             $update += $meta;
