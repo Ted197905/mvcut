@@ -11,7 +11,7 @@
 </head>
 <body>
 <nav class="nav"><div class="in">
-  <a class="brand" href="<?= site_url('/') ?>">MV Cut</a>
+  <a class="brand" href="<?= site_url('/') ?>"><img src="<?= base_url('favicon/android-chrome-192x192.png') ?>" alt="" width="26" height="26"><span>MV Cut</span></a>
   <?php if (session()->get('user_id')): ?>
     <a href="<?= site_url('library') ?>" class="<?= uri_string() === 'library' ? 'active' : '' ?>">라이브러리</a>
     <span class="spacer"></span>
