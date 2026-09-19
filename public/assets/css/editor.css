@@ -33,6 +33,15 @@
 .rect.mask.ai { background: rgba(10,132,255,.18); border-color: var(--e-blue, #0a84ff); }
 .rect.mask.ai .rect-label { background: var(--e-blue, #0a84ff); }
 .rect.mask.ai i { border-color: var(--e-blue, #0a84ff); }
+.cuelist { display: grid; gap: 4px; margin: 8px 0; max-height: 220px; overflow: auto; }
+.cueitem { display: flex; gap: 8px; align-items: center; background: var(--e-bg3, rgba(255,255,255,.06)); border-radius: 7px; padding: 6px 9px; font-size: 12px; cursor: pointer; }
+.cueitem.selected { outline: 1.5px solid var(--e-blue, #0a84ff); }
+.cueitem .t { color: var(--e-fg3); font-variant-numeric: tabular-nums; flex: none; }
+.cueitem .x2 { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cueitem .x { flex: none; color: var(--e-fg3); }
+.cueitem .x:hover { color: var(--e-red); }
+.wm.sub span { display: inline-block; white-space: pre; }
+.off { opacity: .45; pointer-events: none; }
 .trackdot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
   background: var(--e-blue, #0a84ff); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); pointer-events: none; }
 .ed-overlay.picking { cursor: crosshair; }

@@ -3,8 +3,12 @@
 namespace App\Libraries;
 
 /**
- * Watermark fonts. All entries are SIL Open Font License 1.1, which permits
- * commercial use; the licence text ships next to each file in fonts/.
+ * Fonts for watermarks and subtitles.
+ *
+ * The Google-hosted entries are SIL Open Font License 1.1. The noonnu-hosted Korean
+ * fonts are free for commercial use and embedding but forbid modifying or
+ * redistributing the file, so they are used as published (woff/woff2, which both
+ * FreeType and the browser read) and never converted. 'terms' records each one.
  */
 class Fonts
 {
@@ -71,6 +75,68 @@ class Fonts
             'licUrl'  => 'https://github.com/google/fonts/raw/main/ofl/inter/OFL.txt',
             'license' => 'SIL OFL 1.1',
             'by'      => 'Rasmus Andersson',
+        ],
+        'mulmaru' => [
+            'label'   => '물마루',
+            'note'    => '부드러운 손글씨풍',
+            'file'    => 'Mulmaru.woff2',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/2601-4@1.1/Mulmaru.woff2',
+            'license' => 'SIL OFL 1.1',
+            'by'      => 'Mushsooni',
+        ],
+        'omyupretty' => [
+            'label'   => '오뮤 다예쁨체',
+            'note'    => '동글동글한 자막용',
+            'file'    => 'omyu_pretty.woff2',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-01@1.0/omyu_pretty.woff2',
+            'license' => '무료 (상업적 사용/임베딩 허용, 파일 수정·재배포 금지)',
+            'terms'   => 'https://noonnu.cc/font_page/1136',
+            'by'      => '오뮤(OMYU)',
+        ],
+        'wiseelist' => [
+            'label'   => '온글잎 위씨리스트',
+            'note'    => '또박또박한 손글씨',
+            'file'    => 'Ownglyph_wiseelist-Rg.woff2',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/2501-1@1.1/Ownglyph_wiseelist-Rg.woff2',
+            'license' => '무료 (상업적 사용/임베딩 허용, 파일 수정·재배포 금지)',
+            'terms'   => 'https://noonnu.cc/font_page/1547',
+            'by'      => '온글잎',
+        ],
+        'chosungu' => [
+            'label'   => '조선굴림체',
+            'note'    => '둥근 고딕 · 자막 기본',
+            'file'    => 'ChosunGu.woff',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@1.0/ChosunGu.woff',
+            'license' => '무료 (상업적 사용/임베딩 허용, 파일 수정·유료 배포 금지)',
+            'terms'   => 'https://noonnu.cc/font_page/415',
+            'by'      => '조선일보',
+        ],
+        'chosun100' => [
+            'label'   => '조선100년체',
+            'note'    => '또렷한 제목용',
+            'file'    => 'ChosunCentennial.woff2',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2206-02@1.0/ChosunCentennial.woff2',
+            'license' => '무료 (상업적 사용/임베딩 허용, 파일 수정·유료 배포 금지, BI/CI 사용 불가)',
+            'terms'   => 'https://noonnu.cc/font_page/937',
+            'by'      => '조선일보',
+        ],
+        'gangwonedu' => [
+            'label'   => '강원교육튼튼체',
+            'note'    => '굵고 튼튼한 자막용',
+            'file'    => 'GangwonEduPowerExtraBoldA.woff',
+            'url'     => 'https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2201-2@1.0/GangwonEduPowerExtraBoldA.woff',
+            'license' => '무료 (상업적 사용/임베딩 허용, 파일 수정·유료 배포 금지)',
+            'terms'   => 'https://noonnu.cc/font_page/805',
+            'by'      => '강원특별자치도교육청',
+        ],
+        'mplusrounded' => [
+            'label'   => 'M PLUS Rounded 1c',
+            'note'    => '둥근 고딕 · 일문/영문',
+            'file'    => 'MPLUSRounded1c-Bold.ttf',
+            'url'     => 'https://github.com/google/fonts/raw/main/ofl/mplusrounded1c/MPLUSRounded1c-Bold.ttf',
+            'licUrl'  => 'https://github.com/google/fonts/raw/main/ofl/mplusrounded1c/OFL.txt',
+            'license' => 'SIL OFL 1.1',
+            'by'      => 'Coji Morishita',
         ],
     ];
 

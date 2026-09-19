@@ -51,6 +51,8 @@ $icons = [
           </div>
           <div id="maskLayer"></div>
           <div class="wm" id="wmPreview" hidden><span id="wmPreviewText"></span></div>
+          <div class="wm sub" id="subPreview0" hidden><span></span></div>
+          <div class="wm sub" id="subPreview1" hidden><span></span></div>
         </div>
       </div>
     </div>
@@ -59,6 +61,7 @@ $icons = [
       <div class="tabs" id="tabs">
         <button class="tab active" data-tab="segments">구간</button>
         <button class="tab" data-tab="screen">화면</button>
+        <button class="tab" data-tab="subtitle">자막</button>
         <button class="tab" data-tab="watermark">워터마크</button>
         <button class="tab" data-tab="output">출력</button>
       </div>
@@ -152,6 +155,67 @@ $icons = [
         </div>
       </div>
 
+
+      <div class="panel" data-panel="subtitle">
+        <div class="sec">
+          <div class="presets" id="subLayerTabs">
+            <button data-layer="0" class="active">자막 1</button>
+            <button data-layer="1">자막 2</button>
+          </div>
+          <label class="switch" style="margin-top:10px"><input type="checkbox" id="subOn"> <span>이 레이어 사용</span></label>
+        </div>
+
+        <div class="sec" id="subBody">
+          <div class="sec-title">디자인</div>
+          <div class="presets" id="subTemplate">
+            <button data-t="outline" class="active">외곽선</button>
+            <button data-t="plain">그림자</button>
+            <button data-t="box">반투명 박스</button>
+            <button data-t="whitebox">흰 박스</button>
+            <button data-t="highlight">노란 강조</button>
+          </div>
+          <div class="field-lite" style="margin-top:10px">
+            <label for="subFont">폰트</label>
+            <select id="subFont">
+              <?php foreach ($fonts as $key => $f): ?>
+                <option value="<?= esc($key, 'attr') ?>"><?= esc($f['label']) ?> · <?= esc($f['note']) ?></option>
+              <?php endforeach ?>
+            </select>
+          </div>
+          <div class="row2">
+            <label>크기(px)<input type="number" id="subSize" min="8" max="400" step="1"></label>
+            <label>색<input type="color" id="subColor" value="#ffffff"></label>
+          </div>
+          <div class="sec-title" style="margin-top:14px">위치 <span class="hint">미리보기에서 드래그</span></div>
+          <div class="pos-grid" id="subPos">
+            <button data-a="nw"></button><button data-a="n"></button><button data-a="ne"></button>
+            <button data-a="w"></button><button data-a="c"></button><button data-a="e"></button>
+            <button data-a="sw"></button><button data-a="s" class="active"></button><button data-a="se"></button>
+          </div>
+          <div class="row2">
+            <label>X<input type="number" id="subX" step="1"></label>
+            <label>Y<input type="number" id="subY" step="1"></label>
+          </div>
+        </div>
+
+        <div class="sec" id="subCueSec">
+          <div class="sec-title">문장</div>
+          <div class="row2">
+            <button class="btn sm secondary" id="btnCueAdd">현재 위치에 추가</button>
+            <button class="btn sm ghost" id="btnCueClear">모두 지우기</button>
+          </div>
+          <div class="cuelist" id="cueList"></div>
+          <div class="row4" id="cueFields" hidden>
+            <label>시작<input class="tc-off" id="cueStart"></label>
+            <label>끝<input class="tc-off" id="cueEnd"></label>
+          </div>
+          <div class="field-lite" id="cueTextField" hidden>
+            <label for="cueText">내용</label>
+            <input class="tc-off" id="cueText" maxlength="200" autocomplete="off">
+          </div>
+          <p class="hint">시간은 원본 기준입니다. 구간을 잘라내면 남은 구간에 맞춰 자동으로 당겨집니다.</p>
+        </div>
+      </div>
 
       <div class="panel" data-panel="watermark">
         <div class="sec">

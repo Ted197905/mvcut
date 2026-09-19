@@ -16,6 +16,8 @@ namespace App\Libraries;
  *   "restore": {"mode":"off|ai|ai2x", "model":"general|anime"}   Real-ESRGAN detail restore
  *   "expand":  {"w":1.0,"h":1.0}           ProPainter outpainting, 1.0 .. 2.0
  *   "erase":   {"quality":"fast|normal|fine"}   how finely the repaint runs
+ *   "subtitles": [{"template","font","size","color","anchor","x","y",
+ *                  "cues":[{"start","end","text"}]}]   up to 2 layers, times in source seconds
  *   "keepAudio": true
  *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
  * }
@@ -112,6 +114,42 @@ class EditParams
         $eh = round(max(1.0, min(2.0, (float) ($in['expand']['h'] ?? 1))), 2);
         $expand = ['w' => $ew, 'h' => $eh];
 
+        // subtitles: at most two layers, each a styled list of timed cues
+        $subs = [];
+        foreach (array_slice((array) ($in['subtitles'] ?? []), 0, 2) as $layer) {
+            if (! is_array($layer)) continue;
+            $cues = [];
+            foreach (array_slice((array) ($layer['cues'] ?? []), 0, 200) as $c) {
+                $text = trim(preg_replace('/[\r\t]+/u', ' ', (string) ($c['text'] ?? '')));
+                if ($text === '') continue;
+                $cs = max(0.0, min($dur, (float) ($c['start'] ?? 0)));
+                $ce = max(0.0, min($dur, (float) ($c['end'] ?? 0)));
+                if ($ce - $cs < 0.05) continue;
+                $cues[] = ['start' => round($cs, 3), 'end' => round($ce, 3),
+                           'text' => mb_substr($text, 0, 200)];
+            }
+            if ($cues === []) continue;
+            usort($cues, static fn ($a, $b) => $a['start'] <=> $b['start']);
+
+            $font = (string) ($layer['font'] ?? '');
+            if (! \App\Libraries\Fonts::has($font)) $font = \App\Libraries\Fonts::default();
+            $size = (int) round((float) ($layer['size'] ?? 0));
+            if ($size < 8) $size = max(20, (int) round($H * 0.045));
+            $subs[] = [
+                'template' => in_array($layer['template'] ?? 'outline',
+                                       ['plain', 'outline', 'box', 'whitebox', 'highlight'], true)
+                              ? $layer['template'] : 'outline',
+                'font'   => $font,
+                'size'   => max(8, min(400, $size)),
+                'color'  => self::color($layer['color'] ?? '#ffffff'),
+                'anchor' => in_array($layer['anchor'] ?? 's', ['nw', 'n', 'ne', 'w', 'c', 'e', 'sw', 's', 'se'], true)
+                            ? $layer['anchor'] : 's',
+                'x'      => max(0, min($W, (int) round((float) ($layer['x'] ?? $W / 2)))),
+                'y'      => max(0, min($H, (int) round((float) ($layer['y'] ?? $H * 0.85)))),
+                'cues'   => $cues,
+            ];
+        }
+
         $smooth = (string) ($in['smooth'] ?? 'off');
         if (! in_array($smooth, ['off', 'x2', 'x4', 'slow'], true)) $smooth = 'off';
 
@@ -134,6 +172,7 @@ class EditParams
             'restore'   => $restore,
             'expand'    => $expand,
             'erase'     => $erase,
+            'subtitles' => $subs,
             'speed'     => round($speed, 3),
             'keepAudio' => (bool) ($in['keepAudio'] ?? true),
             'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
@@ -209,6 +248,15 @@ class EditParams
             $font = \App\Libraries\Fonts::label($w['font']);
             $lines[] = '워터마크: "' . $w['text'] . '" · ' . $font . ' ' . $w['size'] . 'px · '
                      . $w['color'] . ' · 불투명도 ' . (int) round($w['opacity'] * 100) . '%';
+        }
+
+        foreach ($p['subtitles'] ?? [] as $i => $sub) {
+            $tpl = match ($sub['template']) {
+                'plain' => '기본', 'box' => '반투명 박스', 'whitebox' => '흰 박스',
+                'highlight' => '노란 강조', default => '외곽선',
+            };
+            $lines[] = '자막 ' . ($i + 1) . ': ' . count($sub['cues']) . '개 · ' . $tpl . ' · '
+                     . \App\Libraries\Fonts::label($sub['font']) . ' ' . $sub['size'] . 'px · ' . $sub['color'];
         }
 
         if ($p['speed'] != 1.0) {

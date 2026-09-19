@@ -53,8 +53,9 @@ class Media extends BaseController
             throw PageNotFoundException::forPageNotFound();
         }
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $type = match ($ext) { 'otf' => 'font/otf', 'woff' => 'font/woff', 'woff2' => 'font/woff2', default => 'font/ttf' };
         return $this->response
-            ->setHeader('Content-Type', $ext === 'otf' ? 'font/otf' : 'font/ttf')
+            ->setHeader('Content-Type', $type)
             ->setHeader('Cache-Control', 'private, max-age=604800, immutable')
             ->setBody(file_get_contents($path));
     }

@@ -4,6 +4,7 @@
   const D = window.EDITOR_DATA;
   const $ = (id) => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const escHtml = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const FPS = D.fps > 0 ? D.fps : 30;
   const FRAME = 1 / FPS;
   const DUR = D.duration;
@@ -54,12 +55,15 @@
     restore: { mode: 'off', model: 'general' },
     expand: { w: 1, h: 1 },
     erase: { quality: 'normal' },
+    subtitles: [null, null],   // up to two layers: {template,font,size,color,anchor,x,y,cues:[]}
+    subLayer: 0,
+    subCue: -1,
     output: { format: 'mp4', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
-  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark }); }
+  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles }); }
   function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
-  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.subtitles) state.subtitles = s.subtitles; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
@@ -147,12 +151,13 @@
   video.addEventListener('pause', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; cancelAnimationFrame(rafId); seek(video.currentTime, true); });
   video.addEventListener('ended', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; });
   video.addEventListener('loadedmetadata', () => layoutStage());
+  video.addEventListener('seeked', () => renderSubs());
   function loop() {
     if (!playing) return;
     playhead = video.currentTime;
     const i = segAt(playhead);
     if (state.segments[i].removed) { if (!jumpToNextKept()) return; }
-    renderPlayhead(); keepPlayheadVisible();
+    renderPlayhead(); keepPlayheadVisible(); renderSubs();
     rafId = requestAnimationFrame(loop);
   }
   function stepFrames(n) { pause(); seek(snapFrame(playhead + n * FRAME)); }
@@ -415,9 +420,149 @@
       el.innerHTML = '<div class="rect-label">' + ({ blur: 'BLUR', fill: 'FILL', ai: 'AI' }[m.style] || 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
       el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
     });
-    renderWatermark();
+    renderWatermark(); renderSubs();
     syncCropFields(); renderMaskList();
   }
+
+  /* ---------- subtitles ---------- */
+  const subEls = [$('subPreview0'), $('subPreview1')];
+  const TPL = {
+    outline:   { color: null, stroke: 0.06, shadow: 0, box: null },
+    plain:     { color: null, stroke: 0,    shadow: 0.05, box: null },
+    box:       { color: null, stroke: 0,    shadow: 0, box: 'rgba(0,0,0,.55)' },
+    whitebox:  { color: '#111111', stroke: 0, shadow: 0, box: '#ffffff' },
+    highlight: { color: '#ffd60a', stroke: 0.06, shadow: 0, box: null },
+  };
+  function defaultSub() {
+    const b = wmBox();
+    return { template: 'outline', font: Object.keys(window.FONTS)[0] || 'pretendard',
+      size: Math.max(16, Math.round(b.h * 0.045)), color: '#ffffff',
+      anchor: 's', x: Math.round(b.w / 2), y: Math.round(b.h * 0.88), cues: [] };
+  }
+  const curSub = () => state.subtitles[state.subLayer];
+  function cueAt(sub, t) {
+    if (!sub) return null;
+    return sub.cues.find(c => t >= c.start && t <= c.end) || null;
+  }
+  function renderSubs() {
+    const t = video.currentTime || 0;
+    state.subtitles.forEach((sub, i) => {
+      const el = subEls[i], span = el.firstElementChild;
+      const editing = activeTab() === 'subtitle' && i === state.subLayer;
+      // while editing the layer, show the selected line so styling is visible even when paused
+      const cue = sub ? (cueAt(sub, t) || (editing ? sub.cues[state.subCue] : null)) : null;
+      el.hidden = !sub || !cue;
+      if (!sub || !cue) return;
+      ensureFont(sub.font);
+      const b = wmBox(), tpl = TPL[sub.template] || TPL.outline;
+      span.textContent = cue.text;
+      el.style.left = (b.x + sub.x) * scale + 'px';
+      el.style.top = (b.y + sub.y) * scale + 'px';
+      const tx = sub.anchor.includes('e') ? '-100%' : (['n', 's', 'c'].includes(sub.anchor) ? '-50%' : '0');
+      const ty = sub.anchor.startsWith('s') ? '-100%' : (['w', 'e', 'c'].includes(sub.anchor) ? '-50%' : '0');
+      el.style.transform = 'translate(' + tx + ',' + ty + ')';
+      el.style.fontFamily = '"wm-' + sub.font + '", sans-serif';
+      el.style.fontSize = (sub.size * scale) + 'px';
+      el.style.color = tpl.color || sub.color;
+      el.style.pointerEvents = editing ? 'auto' : 'none';
+      el.classList.toggle('sel', editing);
+      span.style.cssText = '';
+      if (tpl.stroke) { span.style.webkitTextStroke = Math.max(1, sub.size * scale * tpl.stroke) + 'px #000'; span.style.paintOrder = 'stroke fill'; }
+      if (tpl.shadow) { const sw = Math.max(1, sub.size * scale * tpl.shadow); span.style.textShadow = sw + 'px ' + sw + 'px 0 rgba(0,0,0,.7)'; }
+      if (tpl.box) { span.style.background = tpl.box; span.style.padding = Math.max(2, sub.size * scale * 0.18) + 'px ' + Math.max(3, sub.size * scale * 0.3) + 'px'; }
+    });
+    syncSubFields();
+  }
+  function syncSubFields() {
+    const sub = curSub();
+    document.querySelectorAll('#subLayerTabs button').forEach(b => b.classList.toggle('active', +b.dataset.layer === state.subLayer));
+    $('subOn').checked = !!sub;
+    ['subTemplate', 'subFont', 'subSize', 'subColor', 'subPos', 'subX', 'subY'].forEach(id => {
+      const el = $(id); if (el) el.classList.toggle('off', !sub);
+    });
+    ['subFont', 'subSize', 'subColor', 'subX', 'subY', 'btnCueAdd', 'btnCueClear'].forEach(id => $(id).disabled = !sub);
+    if (!sub) { $('cueList').innerHTML = ''; $('cueFields').hidden = true; $('cueTextField').hidden = true; return; }
+    document.querySelectorAll('#subTemplate button').forEach(b => b.classList.toggle('active', b.dataset.t === sub.template));
+    document.querySelectorAll('#subPos button').forEach(b => b.classList.toggle('active', b.dataset.a === sub.anchor));
+    $('subFont').value = sub.font; $('subSize').value = sub.size; $('subColor').value = sub.color;
+    $('subX').value = Math.round(sub.x); $('subY').value = Math.round(sub.y);
+    renderCueList();
+  }
+  function renderCueList() {
+    const sub = curSub(), list = $('cueList'); list.innerHTML = '';
+    if (!sub) return;
+    sub.cues.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'cueitem' + (i === state.subCue ? ' selected' : '');
+      el.innerHTML = `<span class="t">${tc(c.start, false)}</span><span class="x2">${escHtml(c.text)}</span><span class="x" title="삭제">&#x2715;</span>`;
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('x')) { commit(); sub.cues.splice(i, 1); state.subCue = -1; renderSubs(); return; }
+        state.subCue = i; video.currentTime = c.start; renderSubs();
+      });
+      list.appendChild(el);
+    });
+    const c = sub.cues[state.subCue];
+    $('cueFields').hidden = !c; $('cueTextField').hidden = !c;
+    if (c) {
+      if (document.activeElement !== $('cueStart')) $('cueStart').value = tc(c.start, false);
+      if (document.activeElement !== $('cueEnd')) $('cueEnd').value = tc(c.end, false);
+      if (document.activeElement !== $('cueText')) $('cueText').value = c.text;
+    }
+  }
+  $('subLayerTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.subLayer = +b.dataset.layer; state.subCue = -1; renderSubs();
+  });
+  $('subOn').addEventListener('change', (e) => {
+    commit();
+    state.subtitles[state.subLayer] = e.target.checked ? (curSub() || defaultSub()) : null;
+    state.subCue = -1; renderSubs();
+  });
+  $('subTemplate').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !curSub()) return;
+    commit(); curSub().template = b.dataset.t; renderSubs();
+  });
+  $('subPos').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b || !curSub()) return;
+    commit();
+    const sub = curSub(), box = wmBox(), pad = Math.round(Math.min(box.w, box.h) * 0.06);
+    sub.anchor = b.dataset.a;
+    sub.x = sub.anchor.includes('w') ? pad : (sub.anchor.includes('e') ? box.w - pad : Math.round(box.w / 2));
+    sub.y = sub.anchor.startsWith('n') ? pad : (sub.anchor.startsWith('s') ? box.h - pad : Math.round(box.h / 2));
+    renderSubs();
+  });
+  $('subFont').addEventListener('change', (e) => { if (!curSub()) return; commit(); curSub().font = e.target.value; renderSubs(); });
+  $('subSize').addEventListener('input', (e) => { if (!curSub()) return; curSub().size = clamp(+e.target.value || 20, 8, 400); renderSubs(); });
+  $('subColor').addEventListener('input', (e) => { if (!curSub()) return; curSub().color = e.target.value; renderSubs(); });
+  ['subX', 'subY'].forEach(id => $(id).addEventListener('change', () => {
+    const sub = curSub(); if (!sub) return; commit();
+    sub.x = Math.round(+$('subX').value) || 0; sub.y = Math.round(+$('subY').value) || 0; renderSubs();
+  }));
+  $('btnCueAdd').addEventListener('click', () => {
+    const sub = curSub(); if (!sub) return; commit();
+    const t = video.currentTime || 0;
+    sub.cues.push({ start: +t.toFixed(3), end: +Math.min(D.duration, t + 2).toFixed(3), text: '자막' });
+    sub.cues.sort((a, b) => a.start - b.start);
+    state.subCue = sub.cues.findIndex(c => Math.abs(c.start - t) < 0.001);
+    renderSubs(); $('cueText').focus(); $('cueText').select();
+  });
+  $('btnCueClear').addEventListener('click', () => {
+    const sub = curSub(); if (!sub || !sub.cues.length) return;
+    commit(); sub.cues = []; state.subCue = -1; renderSubs();
+  });
+  $('cueText').addEventListener('input', (e) => {
+    const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c) return;
+    c.text = e.target.value; renderSubs();
+  });
+  ['cueStart', 'cueEnd'].forEach(id => $(id).addEventListener('change', () => {
+    const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c) return; commit();
+    const s = parseTc($('cueStart').value), e2 = parseTc($('cueEnd').value);
+    if (s !== null) c.start = clamp(s, 0, D.duration);
+    if (e2 !== null) c.end = clamp(e2, c.start + 0.1, D.duration);
+    sub.cues.sort((a, b) => a.start - b.start);
+    state.subCue = sub.cues.indexOf(c);
+    renderSubs();
+  }));
 
   /* ---------- watermark ---------- */
   const wmEl = $('wmPreview'), wmText = $('wmPreviewText');
@@ -524,6 +669,21 @@
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   });
+  subEls.forEach((el, i) => el.addEventListener('pointerdown', (e) => {
+    const sub = state.subtitles[i];
+    if (!sub || e.button !== 0 || activeTab() !== 'subtitle' || i !== state.subLayer) return;
+    e.preventDefault(); e.stopPropagation();
+    commit();
+    const sx = e.clientX, sy = e.clientY, ox = sub.x, oy = sub.y, b = wmBox();
+    const move = (ev) => {
+      sub.x = clamp(Math.round(ox + (ev.clientX - sx) / scale), 0, b.w);
+      sub.y = clamp(Math.round(oy + (ev.clientY - sy) / scale), 0, b.h);
+      renderSubs();
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }));
+
   function syncCropFields() {
     $('cropOn').checked = !!state.crop;
     const c = state.crop || { x: 0, y: 0, w: D.width, h: D.height };
@@ -720,7 +880,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

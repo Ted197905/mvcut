@@ -577,7 +577,7 @@ class JobRunner
         $t0 = microtime(true);
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
         $this->stageTimes['인코딩'] = microtime(true) - $t0;
-        @unlink($dir . '/wm.txt');
+        foreach (glob($dir . '/{wm,sub*}.txt', GLOB_BRACE) ?: [] as $t) @unlink($t);
         if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
             @unlink($out); $this->media->delete($resultId); @rmdir($dir);
             throw new \RuntimeException('ffmpeg failed (' . $r['code'] . '): ' . mb_substr(trim($r['stderr']), -1500));
@@ -760,6 +760,23 @@ class JobRunner
             $f[] = '[' . $label . ']' . $this->drawtext($p['watermark'], $p['crop'], dirname($out)) . '[vw]';
             $label = 'vw';
         }
+        // subtitles sit in the same place in the chain; their times follow the kept segments,
+        // because by this point the cut pieces are already concatenated
+        $si = 0;
+        foreach ($p['subtitles'] ?? [] as $li => $sub) {
+            foreach ($sub['cues'] as $ci => $cue) {
+                $draw = $this->drawtext(
+                    $this->subtitleStyle($sub, $cue['text']),
+                    $p['crop'],
+                    dirname($out),
+                    sprintf('sub%d_%d.txt', $li, $ci),
+                    [$this->timelinePos($p, $cue['start']), $this->timelinePos($p, $cue['end'])]
+                );
+                if ($draw === 'null') continue;
+                $f[] = '[' . $label . ']' . $draw . '[vs' . $si . ']';
+                $label = 'vs' . $si; $si++;
+            }
+        }
         $post = [];
         // clean up compression noise first, then sharpen: the other order amplifies the noise
         $sharpen = $p['enhance']['sharpen'] ?? 'off';
@@ -826,12 +843,38 @@ class JobRunner
      * (textfile=) so Korean, quotes, colons and % never hit filtergraph escaping.
      * Coordinates are in cropped-frame pixels.
      */
-    private function drawtext(array $w, ?array $crop, string $workDir): string
+    /** Source seconds -> seconds on the concatenated (pre-speed) timeline. */
+    private function timelinePos(array $p, float $t): float
+    {
+        $elapsed = 0.0;
+        foreach ($p['keep'] as [$ks, $ke]) {
+            if ($t < $ks) break;
+            $elapsed += ($t <= $ke ? $t - $ks : $ke - $ks);
+            if ($t <= $ke) break;
+        }
+        return round($elapsed, 3);
+    }
+
+    /** Turns a subtitle layer's template into the drawtext options the watermark path uses. */
+    private function subtitleStyle(array $sub, string $text): array
+    {
+        [$style, $color, $opacity] = match ($sub['template']) {
+            'plain'     => ['shadow', $sub['color'], 1.0],
+            'box'       => ['box', $sub['color'], 1.0],
+            'whitebox'  => ['whitebox', '#111111', 1.0],
+            'highlight' => ['outline', '#ffd60a', 1.0],
+            default     => ['outline', $sub['color'], 1.0],
+        };
+        // array_merge, not +: the template's colour has to win over the layer's own
+        return array_merge($sub, ['text' => $text, 'style' => $style, 'color' => $color, 'opacity' => $opacity]);
+    }
+
+    private function drawtext(array $w, ?array $crop, string $workDir, string $file = 'wm.txt', ?array $span = null): string
     {
         $font = \App\Libraries\Fonts::path($w['font']) ?? \App\Libraries\Fonts::path(\App\Libraries\Fonts::default());
         if (! $font) return 'null';
 
-        $txt = rtrim($workDir, '/') . '/wm.txt';
+        $txt = rtrim($workDir, '/') . '/' . $file;
         if (@file_put_contents($txt, $w['text']) === false) return 'null';
         @chmod($txt, 0664);
 
@@ -869,6 +912,14 @@ class JobRunner
                 $args[] = 'shadowx=' . max(1, (int) round($w['size'] * 0.05));
                 $args[] = 'shadowy=' . max(1, (int) round($w['size'] * 0.05));
                 break;
+            case 'whitebox':
+                $args[] = 'box=1';
+                $args[] = 'boxcolor=white@' . $op;
+                $args[] = 'boxborderw=' . max(6, (int) round($w['size'] * 0.35));
+                break;
+        }
+        if ($span !== null) {
+            $args[] = sprintf('enable=between(t\\,%.3f\\,%.3f)', $span[0], $span[1]);
         }
         return 'drawtext=' . implode(':', $args);
     }
