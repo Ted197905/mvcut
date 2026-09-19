@@ -87,6 +87,12 @@ class Fonts
         return is_file($p) ? $p : null;
     }
 
+    /** Human-readable font name for the key, or the key itself when unknown. */
+    public static function label(string $key): string
+    {
+        return self::LIST[$key]['label'] ?? $key;
+    }
+
     public static function has(string $key): bool
     {
         return self::path($key) !== null;

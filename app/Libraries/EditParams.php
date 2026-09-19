@@ -138,6 +138,83 @@ class EditParams
         return ['x' => $x, 'y' => $y, 'w' => $w, 'h' => $h];
     }
 
+    /**
+     * Plain-language list of what was applied, stored as the result's description so the
+     * library shows how a file was made without reading the parameter JSON.
+     */
+    public static function summary(array $p, array $src): string
+    {
+        $fmtTime = static function (float $t): string {
+            $m = (int) floor($t / 60); $sec = $t - $m * 60;
+            return $m > 0 ? sprintf('%d:%05.2f', $m, $sec) : sprintf('%.2f초', $sec);
+        };
+        $lines = [];
+
+        $n = count($p['keep']);
+        $kept = array_sum(array_map(static fn ($seg) => $seg[1] - $seg[0], $p['keep']));
+        $whole = $n === 1 && $p['keep'][0][0] <= 0.05 && abs($p['keep'][0][1] - (float) $src['duration']) <= 0.05;
+        if (! $whole) {
+            $parts = array_map(static fn ($seg) => $fmtTime($seg[0]) . ' ~ ' . $fmtTime($seg[1]), $p['keep']);
+            $lines[] = '구간: ' . $n . '개 남김 (' . implode(', ', array_slice($parts, 0, 4))
+                     . ($n > 4 ? ' 외 ' . ($n - 4) . '개' : '') . ') · 합계 ' . $fmtTime($kept);
+        }
+
+        if ($p['crop']) {
+            $c = $p['crop'];
+            $lines[] = '화면 자르기: ' . $c['w'] . '×' . $c['h'] . ' (원본 ' . $src['width'] . '×' . $src['height']
+                     . ' 중 ' . $c['x'] . ',' . $c['y'] . ' 위치)';
+        }
+
+        $byStyle = [];
+        foreach ($p['masks'] as $m) {
+            $label = match ($m['style']) { 'blur' => '블러', 'fill' => '배경 채우기', 'ai' => 'AI 지우기', default => '검정' };
+            $byStyle[$label] = ($byStyle[$label] ?? 0) + 1;
+        }
+        if ($byStyle) {
+            $parts = [];
+            foreach ($byStyle as $label => $cnt) $parts[] = $label . ' ' . $cnt . '개';
+            $lines[] = '가리기: ' . implode(', ', $parts);
+        }
+
+        if (! empty($p['watermark'])) {
+            $w = $p['watermark'];
+            $font = \App\Libraries\Fonts::label($w['font']);
+            $lines[] = '워터마크: "' . $w['text'] . '" · ' . $font . ' ' . $w['size'] . 'px · '
+                     . $w['color'] . ' · 불투명도 ' . (int) round($w['opacity'] * 100) . '%';
+        }
+
+        if ($p['speed'] != 1.0) {
+            $lines[] = '속도: ' . rtrim(rtrim(number_format($p['speed'], 2), '0'), '.') . '배'
+                     . ($p['speed'] < 1 ? ' (슬로우)' : '') . ' · ' . ($p['keepAudio'] ? '오디오 유지' : '오디오 제거');
+        }
+
+        $sharpen = $p['enhance']['sharpen'] ?? 'off';
+        if ($sharpen !== 'off') {
+            $lines[] = '화질: ' . match ($sharpen) { 'low' => '약하게', 'high' => '강하게', default => '보통' }
+                     . ' 선명화' . (! empty($p['enhance']['denoise']) ? ' · 압축 노이즈 정리' : '');
+        }
+
+        $mode = $p['restore']['mode'] ?? 'off';
+        if ($mode !== 'off') {
+            $lines[] = 'AI 복원: ' . ($mode === 'ai2x' ? '2배 확대' : '디테일 복원')
+                     . ' · ' . (($p['restore']['model'] ?? 'general') === 'anime' ? '애니메이션 모델' : '실사 모델');
+        }
+
+        $smooth = $p['smooth'] ?? 'off';
+        if ($smooth !== 'off') {
+            $lines[] = '프레임 생성: ' . match ($smooth) {
+                'x2' => '2배 (부드럽게)', 'x4' => '4배 (부드럽게)', default => '슬로우 보정',
+            };
+        }
+
+        $o = $p['output'];
+        $lines[] = '출력: ' . strtoupper($o['format'])
+                 . ' · ' . ($o['height'] > 0 ? $o['height'] . 'p' : '원본 해상도')
+                 . ' · ' . ($o['quality'] === 'medium' ? '작은 용량' : '높은 품질');
+
+        return "[적용한 처리]\n" . implode("\n", $lines);
+    }
+
     /** Total output duration in seconds. */
     public static function outputDuration(array $p): float
     {

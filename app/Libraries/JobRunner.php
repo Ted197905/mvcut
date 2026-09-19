@@ -85,6 +85,9 @@ class JobRunner
             'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => 'convert',
             'title' => mb_substr($src['title'] . $suffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'image', 'edit_params' => $key, 'status' => 'processing',
+            'description' => "[적용한 처리]\n출력: " . strtoupper($fmt)
+                . ' · ' . ($long ? '긴 방향 ' . $long . 'px' : '원본 크기')
+                . ($fmt === 'jpg' ? ' · 압축률 ' . max(10, min(100, (int) ($c['quality'] ?? 60))) . '%' : ''),
         ]);
         $row = $this->media->find($resultId); $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
@@ -455,6 +458,7 @@ class JobRunner
             'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => $source,
             'title' => mb_substr($src['title'] . $titleSuffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'video', 'edit_params' => $editParams, 'status' => 'processing',
+            'description' => EditParams::summary($p, $src),
         ]);
         $row = $this->media->find($resultId);
         $dir = MediaModel::dir($row);
