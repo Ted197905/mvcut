@@ -47,10 +47,13 @@ def main() -> int:
                     help="folder of per-frame PNG masks (white = repaint); overrides --rects")
     ap.add_argument("--dilate", type=int, default=6, help="grow the mask, so edges are repainted too")
     ap.add_argument("--propainter", default="/var/www/mvcut/vendor_ml/ProPainter")
-    ap.add_argument("--subvideo", type=int, default=50, help="frames per chunk; lower needs less VRAM")
-    ap.add_argument("--neighbor", type=int, default=8)
+    ap.add_argument("--subvideo", type=int, default=30, help="frames per chunk; lower needs less VRAM")
+    ap.add_argument("--neighbor", type=int, default=6)
+    ap.add_argument("--window", type=int, default=0,
+                    help="frames handed to ProPainter at once; 0 picks it from the frame size")
+    ap.add_argument("--raft_iter", type=int, default=12)
     ap.add_argument("--crf", default="18")
-    ap.add_argument("--proc-long", type=int, default=640,
+    ap.add_argument("--proc-long", type=int, default=512,
                     help="long edge ProPainter works at; the repainted area is composited back")
     a = ap.parse_args()
 
@@ -114,41 +117,78 @@ def main() -> int:
                 d.rectangle([x0, y0, max(x0, x1 - 1), max(y0, y1 - 1)], fill=255)
             img.save(mask_path)
 
-        out_dir = os.path.join(work, "results")
-        cmd = [sys.executable, "inference_propainter.py",
-               "--video", frames_dir,
-               "--save_fps", str(max(1, int(round(v["fps"])))),
-               "--output", out_dir,
-               "--subvideo_length", str(a.subvideo),
-               "--neighbor_length", str(a.neighbor),
-               "--mask_dilation", "0",
-               "--fp16"]
-        if a.outpaint:
-            cmd += ["--mode", "video_outpainting", "--scale_h", str(sh), "--scale_w", str(sw)]
-        else:
-            cmd += ["--mask", mask_path]
-        print("progress 5", file=sys.stderr, flush=True)
-        proc = subprocess.Popen(cmd, cwd=a.propainter, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, bufsize=1)
-        tail = []
-        for line in proc.stdout:
-            tail.append(line.rstrip())
-            del tail[:-40]
-            m = re.search(r"(\d+)\s*%", line)
-            if m:
-                print(f"progress {min(95, 5 + int(int(m.group(1)) * 0.9))}", file=sys.stderr, flush=True)
-        rc = proc.wait()
-        if rc != 0:
-            print("\n".join(tail[-20:]), file=sys.stderr)
-            return 3
+        # ProPainter holds every frame of the clip on the GPU, so a long video runs out of
+        # memory no matter the resolution. Feed it a window at a time; each window is its own
+        # process, so its memory is released when it ends.
+        names = sorted(f for f in os.listdir(frames_dir) if f.endswith(".png"))
+        per = a.window if a.window > 0 else max(24, min(160, int(2.2e7 / max(1, pw * ph))))
+        mask_names = sorted(f for f in os.listdir(mask_path)) if a.mask_dir else []
 
-        made = None
-        for root, _dirs, files in os.walk(out_dir):
-            for f in files:
-                if f.endswith(".mp4") and "inpaint" in f:
-                    made = os.path.join(root, f)
-        if not made:
-            print("propainter produced no video\n" + "\n".join(tail[-20:]), file=sys.stderr)
+        out_frames = os.path.join(work, "out_frames")
+        os.makedirs(out_frames)
+        print("progress 5", file=sys.stderr, flush=True)
+
+        for start in range(0, len(names), per):
+            part = names[start:start + per]
+            cdir = os.path.join(work, f"chunk{start:06d}")
+            os.makedirs(cdir)
+            for i, nm in enumerate(part):
+                os.link(os.path.join(frames_dir, nm), os.path.join(cdir, f"{i:06d}.png"))
+            if a.mask_dir:
+                mdir = os.path.join(work, f"cmask{start:06d}")
+                os.makedirs(mdir)
+                for i, nm in enumerate(mask_names[start:start + per]):
+                    os.link(os.path.join(mask_path, nm), os.path.join(mdir, f"{i:06d}.png"))
+                use_mask = mdir
+            else:
+                use_mask = mask_path
+
+            out_dir = os.path.join(work, f"res{start:06d}")
+            cmd = [sys.executable, "inference_propainter.py",
+                   "--video", cdir,
+                   "--save_fps", str(max(1, int(round(v["fps"])))),
+                   "--output", out_dir,
+                   "--subvideo_length", str(min(a.subvideo, per)),
+                   "--neighbor_length", str(a.neighbor),
+                   "--raft_iter", str(a.raft_iter),
+                   "--mask_dilation", "0",
+                   "--save_frames",
+                   "--fp16"]
+            if a.outpaint:
+                cmd += ["--mode", "video_outpainting", "--scale_h", str(sh), "--scale_w", str(sw)]
+            else:
+                cmd += ["--mask", use_mask]
+
+            proc = subprocess.Popen(cmd, cwd=a.propainter, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, bufsize=1)
+            tail = []
+            for line in proc.stdout:
+                tail.append(line.rstrip())
+                del tail[:-40]
+            if proc.wait() != 0:
+                print("\n".join(tail[-20:]), file=sys.stderr)
+                return 3
+
+            got = os.path.join(out_dir, os.path.basename(cdir), "frames")
+            produced = sorted(f for f in os.listdir(got)) if os.path.isdir(got) else []
+            if len(produced) != len(part):
+                print(f"chunk {start}: expected {len(part)} frames, got {len(produced)}\n"
+                      + "\n".join(tail[-10:]), file=sys.stderr)
+                return 4
+            for i, nm in enumerate(produced):
+                os.rename(os.path.join(got, nm), os.path.join(out_frames, f"{start + i:06d}.png"))
+            shutil.rmtree(cdir, ignore_errors=True)
+            shutil.rmtree(out_dir, ignore_errors=True)
+            print(f"progress {min(95, 5 + int((start + len(part)) * 90 / max(1, len(names))))}",
+                  file=sys.stderr, flush=True)
+
+        made = os.path.join(work, "painted.mp4")
+        enc = subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", f"{v['fps']:.6f}",
+                              "-i", os.path.join(out_frames, "%06d.png"),
+                              "-c:v", "libx264", "-preset", "veryfast", "-crf", "14",
+                              "-pix_fmt", "yuv420p", made])
+        if enc.returncode != 0 or not os.path.exists(made):
+            print("could not encode the repainted frames", file=sys.stderr)
             return 4
 
         if a.outpaint:

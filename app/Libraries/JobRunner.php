@@ -148,6 +148,7 @@ class JobRunner
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('rife failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('프레임 생성', $r['stderr']);
             return;
         }
         rename($tmp, $out);
@@ -197,6 +198,7 @@ class JobRunner
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('propainter failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('AI 지우기', $r['stderr']);
             return;
         }
         rename($tmp, $out);
@@ -255,6 +257,7 @@ class JobRunner
         $r = $this->runPython($seg, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $half / 100)]));
         if ($r['code'] !== 0) {
             $log('sam2 failed, skipping tracked removal: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('대상 추적', $r['stderr']);
             MediaIntake::removeDir($dir);
             return;
         }
@@ -268,6 +271,7 @@ class JobRunner
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('propainter track failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('대상 추적 지우기', $r['stderr']);
             return;
         }
         rename($tmp, $out);
@@ -287,6 +291,7 @@ class JobRunner
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('propainter expand failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('프레임 확장', $r['stderr']);
             return;
         }
         rename($tmp, $out);
@@ -313,6 +318,7 @@ class JobRunner
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
             @unlink($tmp);
             $log('real-esrgan failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('AI 복원', $r['stderr']);
             return;
         }
         rename($tmp, $out);
@@ -575,6 +581,7 @@ class JobRunner
         }
         $span = $stages > 1 ? (int) floor((99 - $encMax) / ($stages - 1)) : 0;
         $at   = $encMax;
+        $this->stageErrors = [];
         // tracked removal first, then boxes: both read the frames as shot
         if ($track && $fmt !== 'gif') {
             $this->trackErase($job, $out, $track, $at, $span, $log);
@@ -596,6 +603,12 @@ class JobRunner
         if ($smooth !== 'off' && $fmt !== 'gif') {
             $this->interpolate($job, $out, $p, $src, $smooth, $at, $span, $log);
         }
+        if ($this->stageErrors) {
+            // a skipped GPU stage would otherwise look like it silently did nothing
+            $this->media->update($resultId, [
+                'description' => EditParams::summary($p, $src) . "\n\n[실패한 처리]\n" . implode("\n", $this->stageErrors),
+            ]);
+        }
         $this->finishMedia($resultId, $out, $dir, $log);
         return $resultId;
     }
@@ -616,6 +629,21 @@ class JobRunner
         }
         $this->media->update($id, $update);
         MediaIntake::relax($dir);
+    }
+
+    /** Reasons a GPU stage was skipped, recorded on the result so the user sees them. */
+    private array $stageErrors = [];
+
+    /** Turns a helper's stderr into one line a person can act on. */
+    private function stageError(string $label, string $stderr): void
+    {
+        $why = match (true) {
+            str_contains($stderr, 'out of memory')        => 'GPU 메모리가 부족했습니다. 해상도를 낮추거나 구간을 짧게 잘라 다시 시도해 주세요.',
+            str_contains($stderr, 'cuda not available')   => 'GPU를 사용할 수 없습니다.',
+            str_contains($stderr, 'not installed')        => '서버에 모델이 설치되어 있지 않습니다.',
+            default                                       => '처리 중 오류가 났습니다.',
+        };
+        $this->stageErrors[] = $label . ': ' . $why;
     }
 
     /** @return string[] argv */
