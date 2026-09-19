@@ -44,6 +44,18 @@ class Admin extends BaseController
             return redirect()->to('/admin')->with('flash', '마지막 관리자는 해제할 수 없습니다.');
         }
 
+        // rejecting a sign-up removes it, but only while the account owns nothing
+        if ($action === 'delete') {
+            $db = db_connect();
+            $has = $db->table('media')->where('user_id', $id)->countAllResults()
+                 + $db->table('jobs')->where('user_id', $id)->countAllResults();
+            if ($id === $me || $user['status'] === 'active' || $has > 0) {
+                return redirect()->to('/admin')->with('flash', '사용한 적이 있거나 사용 중인 계정은 삭제할 수 없습니다. 사용 중지를 쓰세요.');
+            }
+            $users->delete($id);
+            return redirect()->to('/admin')->with('flash', $user['email'] . ' - 가입을 거절하고 삭제했습니다.');
+        }
+
         $set = match ($action) {
             'approve'    => ['status' => 'active'],
             'activate'   => ['status' => 'active'],

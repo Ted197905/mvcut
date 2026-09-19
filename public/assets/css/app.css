@@ -343,7 +343,7 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .adm-acts { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
 .adm-acts form { margin: 0; }
 @media (min-width: 720px) {
-  .adm-row { grid-template-columns: 1fr auto auto; }
+  .adm-row { grid-template-columns: minmax(240px, 1fr) auto auto; }
   .adm-acts { grid-column: auto; justify-content: flex-end; }
 }
 .ck-badge { font-size: 12px; font-weight: 600; border-radius: 7px; padding: 3px 9px; background: var(--fill3); color: var(--label2); }

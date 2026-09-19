@@ -32,6 +32,8 @@
             <?php if ($u['status'] === 'pending'): ?>
               <form method="post" action="<?= site_url('admin/users/' . $u['id']) ?>"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="approve"><button class="btn sm" type="submit">승인</button></form>
+              <form method="post" action="<?= site_url('admin/users/' . $u['id']) ?>" onsubmit="return confirm('가입을 거절하고 계정을 삭제합니다. 계속할까요?')"><?= csrf_field() ?>
+                <input type="hidden" name="action" value="delete"><button class="btn sm ghost" type="submit">거절 (삭제)</button></form>
             <?php elseif ($u['status'] === 'blocked'): ?>
               <form method="post" action="<?= site_url('admin/users/' . $u['id']) ?>"><?= csrf_field() ?>
                 <input type="hidden" name="action" value="activate"><button class="btn sm" type="submit">사용 재개</button></form>
