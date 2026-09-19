@@ -707,8 +707,10 @@
     wmSaveTimer = setTimeout(() => {
       wmSaved = sig;
       D.wmPreset = pre;
-      fetch(D.wmPrefUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                           body: JSON.stringify(pre || {}) }).catch(() => {});
+      const t = MV.csrf();
+      fetch(D.wmPrefUrl, { method: 'POST', body: JSON.stringify(pre || {}),
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                   'X-CSRF-TOKEN': t ? t.hash : '' } }).catch(() => {});
     }, 800);
   }
   const loadedFonts = new Set();
