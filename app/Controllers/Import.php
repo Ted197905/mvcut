@@ -112,8 +112,9 @@ class Import extends BaseController
             return null;
         }
         // the rendered page title is the site chrome ("Threads"), so build one from the post itself
-        $handle = preg_match('#/@([A-Za-z0-9._]+)#', $url, $m) ? $m[1] : '';
-        $body = $this->postBody($r, $handle);
+        $post   = $r['post'] ?? null;
+        $handle = preg_match('#/@([A-Za-z0-9._]+)#', $url, $m) ? $m[1] : (string) ($post['author'] ?? '');
+        $body   = trim((string) ($post['body'] ?? '')) !== '' ? (string) $post['body'] : $this->postBody($r, $handle);
         $lead = $body !== '' ? mb_substr(trim(explode("\n", $body)[0]), 0, 60) : '';
         $title = MediaSupport::tidyTitle(
             trim(($handle !== '' ? '@' . $handle : '') . ($lead !== '' ? ' ' . $lead : '')),
@@ -152,7 +153,8 @@ class Import extends BaseController
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
             : '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
         return ['ok' => true, 'entries' => $entries, 'title' => $title,
-                'desc' => mb_substr($body, 0, 5000), 'notice' => $notice];
+                'desc' => mb_substr($body, 0, 5000), 'notice' => $notice,
+                'post' => ['uploader' => $handle, 'stats' => $this->postStats($post)]];
     }
 
     /**
@@ -168,6 +170,19 @@ class Import extends BaseController
         if (! Cookies::path($platform) || ! is_file((string) Cookies::path($platform))) return $message;
         Cookies::markFailure($platform, $message);
         return $message . ' 등록된 쿠키가 만료되었을 수 있습니다. 설정 화면에서 쿠키를 다시 등록해 주세요.';
+    }
+
+    /** Threads prints like / reply / repost / share counts under a post, in that order. */
+    private function postStats(?array $post): array
+    {
+        $keys = ['like_count', 'comment_count', 'repost_count', 'share_count'];
+        $out  = [];
+        foreach (array_values((array) ($post['counts'] ?? [])) as $i => $v) {
+            if (! isset($keys[$i])) break;
+            $n = MediaSupport::parseCountKo((string) $v);
+            if ($n !== null) $out[$keys[$i]] = $n;
+        }
+        return $out;
     }
 
     /** Drops the author handle and the relative timestamp the feed renders above the post text. */
@@ -214,6 +229,13 @@ class Import extends BaseController
         $images = (array) ($in['images'] ?? []);
         $media  = (array) ($in['media'] ?? []);
         $desc   = mb_substr(trim((string) ($in['desc'] ?? '')), 0, 5000);
+        $post   = is_array($in['post'] ?? null) ? $in['post'] : [];
+        $uploader = mb_substr(trim((string) ($post['uploader'] ?? '')), 0, 190);
+        $stats  = [];
+        foreach (['like_count', 'comment_count', 'repost_count', 'share_count', 'view_count'] as $k) {
+            $v = $post['stats'][$k] ?? null;
+            if (is_numeric($v) && $v >= 0 && $v < 1e12) $stats[$k] = (int) $v;
+        }
         $jobs = new JobModel(); $ids = [];
         foreach ($items as $idx) {
             $params = ['url' => $url, 'platform' => $platform, 'index' => $idx, 'title' => (string) ($in['titles'][$idx] ?? '')];
@@ -222,10 +244,15 @@ class Import extends BaseController
             if ($img !== '') {
                 if (! MediaSupport::imageUrlAllowed($img)) continue;
                 $params['image_url'] = $img;
+                if ($desc !== '') $params['description'] = $desc;
+                if ($uploader !== '') $params['uploader'] = $uploader;
+                if ($stats !== []) $params['stats'] = $stats;
             } elseif ($vid !== '') {
                 if (! MediaSupport::imageUrlAllowed($vid)) continue;
                 $params['video_url'] = $vid;
                 if ($desc !== '') $params['description'] = $desc;
+                if ($uploader !== '') $params['uploader'] = $uploader;
+                if ($stats !== []) $params['stats'] = $stats;
             }
             $ids[] = $jobs->insert([
                 'user_id' => (int) session()->get('user_id'),

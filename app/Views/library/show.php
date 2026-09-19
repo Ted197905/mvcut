@@ -98,6 +98,12 @@ $srcSum = array_filter([$ext, $item['vcodec'], $item['acodec'], $item['width'] ?
             <?php if (isset($stats['comment_count'])): ?>
               <div class="stat"><b title="<?= number_format($stats['comment_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['comment_count'])) ?></b><span>댓글</span></div>
             <?php endif ?>
+            <?php if (isset($stats['repost_count'])): ?>
+              <div class="stat"><b title="<?= number_format($stats['repost_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['repost_count'])) ?></b><span>리포스트</span></div>
+            <?php endif ?>
+            <?php if (isset($stats['share_count'])): ?>
+              <div class="stat"><b title="<?= number_format($stats['share_count']) ?>"><?= esc(\App\Libraries\MediaSupport::countKo((int) $stats['share_count'])) ?></b><span>공유</span></div>
+            <?php endif ?>
             <?php if ($dateKo && preg_match('/^(\d+)년 (.+)$/u', $dateKo, $dm)): ?>
               <div class="stat"><b><?= esc($dm[2]) ?></b><span><?= esc($dm[1]) ?>년</span></div>
             <?php endif ?>

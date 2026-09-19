@@ -221,6 +221,22 @@ class MediaSupport
         return $found ?: null;
     }
 
+    /** "1.7천" -> 1700, "1.2만" -> 12000, "35" -> 35. Returns null when it is not a count. */
+    public static function parseCountKo(string $v): ?int
+    {
+        $v = trim(str_replace(',', '', $v));
+        if (! preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*(천|만|억|K|M|B)?$/iu', $v, $m)) return null;
+        $mul = match (strtoupper($m[2] ?? '')) {
+            '천', 'K' => 1000,
+            '만'      => 10000,
+            '억'      => 100000000,
+            'M'       => 1000000,
+            'B'       => 1000000000,
+            default   => 1,
+        };
+        return (int) round(((float) $m[1]) * $mul);
+    }
+
     public static function countKo(int $n): string
     {
         if ($n < 1000) return number_format($n);
@@ -305,7 +321,7 @@ class MediaSupport
      * Renders a JavaScript-only post in headless Chromium and returns the media it exposes.
      * Returns null when the renderer is missing or produced no usable JSON.
      *
-     * @return array{ok:bool,redirected:bool,title:string,description:string,text:string,videos:string[],images:string[]}|null
+     * @return array{ok:bool,redirected:bool,post:?array,title:string,description:string,text:string,videos:string[],images:string[]}|null
      */
     public static function render(string $url, int $timeout = 40): ?array
     {
@@ -324,9 +340,11 @@ class MediaSupport
             array_map('strval', $list),
             static fn (string $u) => self::imageUrlAllowed($u)
         ));
+        $post = is_array($j['post'] ?? null) ? $j['post'] : null;
         return [
             'ok'          => (bool) ($j['ok'] ?? false),
             'redirected'  => ($j['error'] ?? '') === 'redirected',
+            'post'        => $post,
             'title'       => (string) ($j['title'] ?? ''),
             'description' => (string) ($j['description'] ?? ''),
             'text'        => (string) ($j['text'] ?? ''),

@@ -53,6 +53,34 @@ def load_cookies(path: str) -> list[dict]:
     return out
 
 
+HANDLE = re.compile(r"^[A-Za-z0-9._]{2,30}$")
+AGE = re.compile(r"^\d+\s*(초|분|시간|일|주|개월|년|[smhdw])$")
+COUNT = re.compile(r"^[\d][\d.,]*\s*(천|만|억|K|M|B)?$", re.I)
+UI_LINES = {"번역하기", "답글 보기", "더 보기", "좋아요", "답글", "리포스트", "공유",
+            "팔로우", "팔로잉", "Translate", "Follow", "Following", "•"}
+
+
+def parse_post(text: str) -> dict:
+    """Splits a rendered Threads post into author, age, body and the four counters."""
+    lines = [l.strip() for l in (text or "").split("\n")]
+    lines = [l for l in lines if l and l not in UI_LINES]
+    out: dict = {"author": None, "age": None, "body": "", "counts": []}
+    if lines and HANDLE.match(lines[0]):
+        out["author"] = lines.pop(0)
+    if lines and AGE.match(lines[0]):
+        out["age"] = lines.pop(0)
+    # Threads prints like / reply / repost / share under the post, in that order
+    counts = []
+    while lines and COUNT.match(lines[-1]) and len(counts) < 4:
+        counts.insert(0, lines.pop())
+    out["counts"] = counts
+    # an embedded post leaves its author's handle on its own line at the end
+    while lines and HANDLE.match(lines[-1]):
+        lines.pop()
+    out["body"] = "\n".join(lines).strip()
+    return out
+
+
 CROPPED = re.compile(r"(stp=c|_s\d{2,4}x\d{2,4})", re.I)
 
 
@@ -266,6 +294,7 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         # og:title/og:description describe the site, not the injected post; the scoped text is the post
         "description": None if scope else data.get("desc"),
         "text": data.get("bodyText"),
+        "post": parse_post(data.get("bodyText") or "") if scope else None,
         "videos": videos[:10],
         "images": images[:20],
     }

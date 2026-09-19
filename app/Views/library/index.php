@@ -256,7 +256,7 @@
     $('btnInspect').disabled = true;
     try {
       const j = await post(base + 'api/import/inspect', { url });
-      inspected = { url, entries: j.entries, desc: j.desc || '' };
+      inspected = { url, entries: j.entries, desc: j.desc || '', post: j.post || null };
       if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
       j.entries.forEach(e => {
         const el = document.createElement('div');
@@ -295,7 +295,7 @@
     });
     istatus('가져오기 요청 중...'); $('btnImport').disabled = true;
     try {
-      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images, media, desc: inspected.desc });
+      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images, media, desc: inspected.desc, post: inspected.post });
       il.hidden = ia.hidden = true;
       istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
       j.job_ids.forEach(id => pollImport(id));

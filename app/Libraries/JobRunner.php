@@ -230,9 +230,21 @@ class JobRunner
         $ext  = match ($meta['container'] ?? '') { 'png_pipe' => 'png', 'webp_pipe' => 'webp', 'gif' => 'gif', default => 'jpg' };
         $file = $dir . '/original.' . $ext;
         rename($tmp, $file);
-        $this->media->update($mediaId, ['filename' => 'original.' . $ext]);
+        $this->media->update($mediaId, ['filename' => 'original.' . $ext] + $this->postFields($p));
         $this->finishMedia($mediaId, $file, $dir, $log);
         return $mediaId;
+    }
+
+    /** Description, author and counters the renderer read off the post page. */
+    private function postFields(array $p): array
+    {
+        $out = [];
+        if (! empty($p['description'])) $out['description'] = mb_substr((string) $p['description'], 0, 20000);
+        if (! empty($p['uploader']))    $out['uploader']    = mb_substr((string) $p['uploader'], 0, 190);
+        if (! empty($p['stats']) && is_array($p['stats'])) {
+            $out['stats'] = json_encode($p['stats'], JSON_UNESCAPED_UNICODE);
+        }
+        return $out;
     }
 
     /**
@@ -262,9 +274,7 @@ class JobRunner
         $ext  = match ($meta['container'] ?? '') { 'matroska,webm' => 'webm', 'mov,mp4,m4a,3gp,3g2,mj2' => 'mp4', default => 'mp4' };
         $file = $dir . '/original.' . $ext;
         rename($tmp, $file);
-        $upd = ['filename' => 'original.' . $ext];
-        if (! empty($p['description'])) $upd['description'] = mb_substr((string) $p['description'], 0, 20000);
-        $this->media->update($mediaId, $upd);
+        $this->media->update($mediaId, ['filename' => 'original.' . $ext] + $this->postFields($p));
         $this->jobs->update($job['id'], ['progress' => 80]);
         $this->finishMedia($mediaId, $file, $dir, $log);
         $m = $this->media->find($mediaId);
