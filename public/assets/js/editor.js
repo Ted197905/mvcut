@@ -138,7 +138,9 @@
   function seek(t, fromVideo) {
     playhead = clamp(t, 0, DUR);
     if (!fromVideo && Math.abs(video.currentTime - playhead) > 0.001) video.currentTime = playhead;
-    renderPlayhead();
+    // the subtitle preview follows the playhead, not the video's seeked event, which
+    // does not fire while the media is still loading
+    renderPlayhead(); renderSubs();
   }
   function play() { if (playing) return; const i = segAt(playhead); if (state.segments[i].removed) jumpToNextKept(); video.play().catch(() => {}); }
   function pause() { video.pause(); }
@@ -454,7 +456,7 @@
     return sub.cues.find(c => t >= c.start && t <= c.end) || null;
   }
   function renderSubs() {
-    const t = video.currentTime || 0;
+    const t = playhead;
     state.subtitles.forEach((sub, i) => {
       const el = subEls[i], span = el.firstElementChild;
       const editing = activeTab() === 'subtitle' && i === state.subLayer;
