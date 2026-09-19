@@ -124,3 +124,10 @@ _modules/*
 
 /results/
 /phpunit.xml
+
+#-------------------------
+# MV Cut runtime assets (installed on the server)
+#-------------------------
+/bin/yt-dlp
+/fonts/
+/browsers/

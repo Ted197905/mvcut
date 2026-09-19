@@ -110,10 +110,11 @@ class Ffmpeg
         return $ok;
     }
 
-    public static function run(array $args, int $timeout = 30): array
+    public static function run(array $args, int $timeout = 30, array $env = []): array
     {
         $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
-        $p = proc_open($args, $spec, $pipes, null, ['PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin']);
+        $env = array_merge(['PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin'], $env);
+        $p = proc_open($args, $spec, $pipes, null, $env);
         if (! is_resource($p)) {
             return ['code' => -1, 'stdout' => '', 'stderr' => 'proc_open failed'];
         }

@@ -129,8 +129,9 @@ class JobRunner
     private function runImport(array $job, callable $log): int
     {
         $p = json_decode($job['params'], true) ?: [];
+        $direct = ! empty($p['image_url']) || ! empty($p['video_url']);
         $bin = MediaSupport::ytdlp();
-        if (! $bin) throw new \RuntimeException('yt-dlp not installed');
+        if (! $bin && ! $direct) throw new \RuntimeException('yt-dlp not installed');
         $platform = MediaSupport::platformOf($p['url'] ?? '');
         if (! $platform) throw new \RuntimeException('url not allowed');
         $idx = max(1, (int) ($p['index'] ?? 1));
@@ -144,6 +145,9 @@ class JobRunner
         MediaIntake::relax(dirname($dir)); MediaIntake::relax($dir);
         if (! empty($p['image_url'])) {
             return $this->importImage($job, $mediaId, $dir, $p, $log);
+        }
+        if (! empty($p['video_url'])) {
+            return $this->importVideo($job, $mediaId, $dir, $p, $log);
         }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
                  '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
@@ -226,6 +230,44 @@ class JobRunner
         rename($tmp, $file);
         $this->media->update($mediaId, ['filename' => 'original.' . $ext]);
         $this->finishMedia($mediaId, $file, $dir, $log);
+        return $mediaId;
+    }
+
+    /**
+     * Downloads a single media URL found by the headless renderer (already host-validated).
+     * Used for platforms yt-dlp cannot read (Threads, logged-out Instagram).
+     */
+    private function importVideo(array $job, int $mediaId, string $dir, array $p, callable $log): int
+    {
+        $url = (string) $p['video_url'];
+        $tmp = $dir . '/download.bin';
+        $log('curl video ' . $url);
+        $this->jobs->update($job['id'], ['progress' => 10]);
+        $r = Ffmpeg::run(['curl', '-sL', '--max-redirs', '3', '--max-time', '600', '--max-filesize', '2147483648',
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+            '-w', '%{url_effective}', '-o', $tmp, $url], 620);
+        $effective = trim($r['stdout']);
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0 || ($effective !== '' && ! MediaSupport::imageUrlAllowed($effective))) {
+            @unlink($tmp); $this->media->delete($mediaId); @rmdir($dir);
+            throw new \RuntimeException('영상을 내려받지 못했습니다.');
+        }
+        $meta = Ffmpeg::probe($tmp);
+        if (empty($meta['vcodec']) && empty($meta['acodec'])) {
+            @unlink($tmp); $this->media->delete($mediaId); @rmdir($dir);
+            throw new \RuntimeException('내려받은 파일이 재생 가능한 영상이 아닙니다.');
+        }
+        $ext  = match ($meta['container'] ?? '') { 'matroska,webm' => 'webm', 'mov,mp4,m4a,3gp,3g2,mj2' => 'mp4', default => 'mp4' };
+        $file = $dir . '/original.' . $ext;
+        rename($tmp, $file);
+        $upd = ['filename' => 'original.' . $ext];
+        if (! empty($p['description'])) $upd['description'] = mb_substr((string) $p['description'], 0, 20000);
+        $this->media->update($mediaId, $upd);
+        $this->jobs->update($job['id'], ['progress' => 80]);
+        $this->finishMedia($mediaId, $file, $dir, $log);
+        $m = $this->media->find($mediaId);
+        if (MediaSupport::needsProxy($m)) {
+            $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
+        }
         return $mediaId;
     }
 

@@ -48,6 +48,12 @@ class MediaSupport
         'threads'   => ['label' => 'Threads',   'level' => 'none'],
     ];
 
+    /** Support level for a platform: full | login | none. */
+    public static function supportLevel(string $platform): string
+    {
+        return (string) (self::PLATFORM_SUPPORT[$platform]['level'] ?? 'full');
+    }
+
     /** User-facing explanation when a platform cannot be imported. */
     public static function unsupportedReason(string $platform): ?string
     {
@@ -274,5 +280,42 @@ class MediaSupport
             if (is_executable($p)) return $p;
         }
         return null;
+    }
+
+    /** True when the headless renderer is installed on this server. */
+    public static function rendererReady(): bool
+    {
+        return is_file(ROOTPATH . 'bin/render_media.py') && is_dir(ROOTPATH . 'browsers');
+    }
+
+    /**
+     * Renders a JavaScript-only post in headless Chromium and returns the media it exposes.
+     * Returns null when the renderer is missing or produced no usable JSON.
+     *
+     * @return array{ok:bool,title:string,description:string,text:string,videos:string[],images:string[]}|null
+     */
+    public static function render(string $url, int $timeout = 40): ?array
+    {
+        if (! self::rendererReady()) return null;
+        $env = [
+            'PLAYWRIGHT_BROWSERS_PATH' => rtrim(ROOTPATH, '/') . '/browsers',
+            'HOME'                     => rtrim(WRITEPATH, '/'),
+            'LANG'                     => 'C.UTF-8',
+        ];
+        $r = Ffmpeg::run(['python3', ROOTPATH . 'bin/render_media.py', $url, '--timeout', (string) $timeout], $timeout + 25, $env);
+        $j = json_decode(trim($r['stdout']), true);
+        if (! is_array($j)) return null;
+        $keep = static fn (array $list): array => array_values(array_filter(
+            array_map('strval', $list),
+            static fn (string $u) => self::imageUrlAllowed($u)
+        ));
+        return [
+            'ok'          => (bool) ($j['ok'] ?? false),
+            'title'       => (string) ($j['title'] ?? ''),
+            'description' => (string) ($j['description'] ?? ''),
+            'text'        => (string) ($j['text'] ?? ''),
+            'videos'      => $keep((array) ($j['videos'] ?? [])),
+            'images'      => $keep((array) ($j['images'] ?? [])),
+        ];
     }
 }

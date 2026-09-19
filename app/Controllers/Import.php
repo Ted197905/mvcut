@@ -16,6 +16,15 @@ class Import extends BaseController
         $platform = MediaSupport::platformOf($url);
         if (! $platform) return $this->response->setStatusCode(422)->setJSON(['error' => 'Instagram, Facebook, X, Threads, YouTube 링크만 지원합니다.']);
         if ($reason = MediaSupport::unsupportedReason($platform)) {
+            // JS-only pages: render the post in headless Chromium and read the media it exposes.
+            // Instagram still hides post media behind login even when rendered, so skip the wait there.
+            if (MediaSupport::supportLevel($platform) === 'none') {
+                $why = null;
+                if ($r = $this->renderEntries($url, $why)) {
+                    return $this->response->setJSON($r + ['platform' => $platform]);
+                }
+                if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $why]);
+            }
             // the image scraper is still worth a try for platforms that expose og:image
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
@@ -29,7 +38,10 @@ class Import extends BaseController
         $out = Ffmpeg::run([$bin, '-J', '--no-warnings', '--flat-playlist', '--no-playlist', '--socket-timeout', '20', $url], 90);
         $j = trim($out['stdout']) !== '' ? json_decode($out['stdout'], true) : null;
         if ($out['code'] !== 0 || ! is_array($j)) {
-            // no video: the post may be images only -> read og:image / twitter:image
+            // no video: try the renderer, then fall back to og:image / twitter:image
+            if ($r = $this->renderEntries($url)) {
+                return $this->response->setJSON($r + ['platform' => $platform]);
+            }
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
                 return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'entries' => $this->imageEntries($images)]);
@@ -69,6 +81,47 @@ class Import extends BaseController
         return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'title' => $j['title'] ?? null, 'entries' => $entries]);
     }
 
+    /**
+     * Headless-browser fallback: render the page and turn its media into import entries.
+     * Returns null when the renderer is unavailable or found nothing.
+     */
+    private function renderEntries(string $url, ?string &$why = null): ?array
+    {
+        $r = MediaSupport::render($url);
+        if (! $r) return null;
+        if ($r['videos'] === [] && $r['images'] === []) {
+            $t = $r['text'];
+            if (str_contains($t, '일부 사용자만') || str_contains($t, 'Limited') || str_contains($t, '볼 수 없습니다')) {
+                $why = '작성자가 공개 대상을 제한한 게시물이라 가져올 수 없습니다. 게시물 공개 범위를 전체 공개로 바꾸거나, 영상을 직접 저장한 뒤 업로드해 주세요.';
+            } elseif (str_contains($t, '로그인') && mb_strlen($t) < 400) {
+                $why = '로그인해야 볼 수 있는 게시물이라 가져올 수 없습니다.';
+            }
+            return null;
+        }
+        $title = MediaSupport::tidyTitle($r['title'], '가져온 게시물');
+        $entries = []; $i = 0;
+        foreach (array_slice($r['videos'], 0, 10) as $u) {
+            $i++;
+            $entries[] = [
+                'index' => $i, 'id' => (string) $i, 'title' => $title . ($i > 1 ? ' ' . $i : ''),
+                'duration' => null, 'thumbnail' => $r['images'][0] ?? null, 'width' => null, 'height' => null,
+                'kind' => 'video', 'url' => $url, 'media_url' => $u,
+            ];
+        }
+        foreach (array_slice($r['images'], 0, 20) as $u) {
+            $i++;
+            $entries[] = [
+                'index' => $i, 'id' => (string) $i, 'title' => '이미지 ' . $i,
+                'duration' => null, 'thumbnail' => $u, 'width' => null, 'height' => null,
+                'kind' => 'image', 'url' => $u, 'image_url' => $u,
+            ];
+        }
+        $notice = '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
+        return ['ok' => true, 'entries' => $entries, 'title' => $title,
+                'desc' => mb_substr($r['description'] !== '' ? $r['description'] : $r['text'], 0, 5000),
+                'notice' => $notice];
+    }
+
     /** @param string[] $urls */
     private function imageEntries(array $urls): array
     {
@@ -95,13 +148,20 @@ class Import extends BaseController
         $items = array_filter($items, static fn ($i) => $i >= 1 && $i <= 100);
         if ($items === []) return $this->response->setStatusCode(422)->setJSON(['error' => '선택된 항목이 없습니다.']);
         $images = (array) ($in['images'] ?? []);
+        $media  = (array) ($in['media'] ?? []);
+        $desc   = mb_substr(trim((string) ($in['desc'] ?? '')), 0, 5000);
         $jobs = new JobModel(); $ids = [];
         foreach ($items as $idx) {
             $params = ['url' => $url, 'platform' => $platform, 'index' => $idx, 'title' => (string) ($in['titles'][$idx] ?? '')];
             $img = (string) ($images[$idx] ?? '');
+            $vid = (string) ($media[$idx] ?? '');
             if ($img !== '') {
                 if (! MediaSupport::imageUrlAllowed($img)) continue;
                 $params['image_url'] = $img;
+            } elseif ($vid !== '') {
+                if (! MediaSupport::imageUrlAllowed($vid)) continue;
+                $params['video_url'] = $vid;
+                if ($desc !== '') $params['description'] = $desc;
             }
             $ids[] = $jobs->insert([
                 'user_id' => (int) session()->get('user_id'),

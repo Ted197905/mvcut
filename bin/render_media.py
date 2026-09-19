@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""
+Renders a social post in headless Chromium and reports the media it exposes.
+
+Used as a fallback for platforms whose pages are JavaScript-only (Threads,
+Instagram), where a plain HTTP fetch returns an empty shell.
+
+Usage:  render_media.py <url> [--timeout 45]
+Output: one JSON object on stdout:
+  {"ok": true, "title": "...", "author": "...", "videos": [...], "images": [...], "text": "..."}
+  {"ok": false, "error": "..."}
+Media URLs are returned as-is; the caller must still validate the host.
+"""
+import json
+import re
+import sys
+
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+MEDIA_HOST = re.compile(r"(cdninstagram|fbcdn)\.(com|net)", re.I)
+IMG_EXT = re.compile(r"\.(jpe?g|png|webp|heic|gif)(\?|$)", re.I)
+VID_EXT = re.compile(r"\.(mp4|m4v|webm|mov)(\?|$)", re.I)
+VID_PATH = re.compile(r"video_dashinit|bytestart|/o1/v/|\.mp4", re.I)
+JUNK_IMG = re.compile(r"rsrc\.php|/static/|\.svg(\?|$)|/s\d{2}x\d{2}/", re.I)
+# Profile pictures live under the -19 CDN buckets and are served at tiny sizes.
+PROFILE_IMG = re.compile(r"/t51\.[0-9.]+-19/|_s(?:[1-9]\d|1\d\d|2[0-4]\d)x(?:[1-9]\d|1\d\d|2[0-4]\d)", re.I)
+
+
+def run(url: str, timeout: float) -> dict:
+    from playwright.sync_api import sync_playwright
+
+    videos: list[str] = []
+    images: list[str] = []
+
+    def note(u: str) -> None:
+        """Classify by file extension first; path hints only decide extension-less URLs."""
+        if not u or u.startswith("blob:") or not MEDIA_HOST.search(u):
+            return
+        if IMG_EXT.search(u):
+            if not JUNK_IMG.search(u) and not PROFILE_IMG.search(u) and u not in images:
+                images.append(u)
+            return
+        if VID_EXT.search(u) or VID_PATH.search(u):
+            if u not in videos:
+                videos.append(u)
+            return
+        if not JUNK_IMG.search(u) and not PROFILE_IMG.search(u) and u not in images:
+            images.append(u)
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(args=[
+            "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+            "--autoplay-policy=no-user-gesture-required",
+        ])
+        ctx = browser.new_context(
+            user_agent=UA, locale="ko-KR", viewport={"width": 1280, "height": 1600},
+            ignore_https_errors=True,
+        )
+        page = ctx.new_page()
+        page.on("response", lambda r: note(r.url))
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+        except Exception as e:  # noqa: BLE001
+            browser.close()
+            return {"ok": False, "error": f"page load failed: {type(e).__name__}"}
+
+        page.wait_for_timeout(4000)
+        try:
+            page.mouse.wheel(0, 600)
+            page.wait_for_timeout(1500)
+        except Exception:  # noqa: BLE001
+            pass
+
+        # a paused <video> often has no real src until playback starts
+        try:
+            page.evaluate("""() => {
+                document.querySelectorAll('video').forEach(v => {
+                    try { v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+                });
+            }""")
+            page.wait_for_timeout(3500)
+        except Exception:  # noqa: BLE001
+            pass
+
+        data = page.evaluate("""() => {
+            const meta = (p) => { const m = document.querySelector(`meta[property="${p}"], meta[name="${p}"]`); return m ? m.content : null; };
+            const vids = [];
+            document.querySelectorAll('video').forEach(v => {
+                [v.currentSrc, v.src, ...[...v.querySelectorAll('source')].map(s => s.src)].forEach(s => { if (s) vids.push(s); });
+                if (v.poster) vids.push('POSTER:' + v.poster);
+            });
+            const imgs = [...document.querySelectorAll('img')].filter(i => i.naturalWidth >= 200).map(i => i.currentSrc || i.src);
+            return {
+                title: meta('og:title') || document.title || null,
+                desc: meta('og:description') || null,
+                ogvideo: meta('og:video') || meta('og:video:url') || meta('og:video:secure_url') || null,
+                ogimage: meta('og:image') || null,
+                vids, imgs,
+                bodyText: (document.body.innerText || '').slice(0, 1200),
+                links: [...new Set([...document.querySelectorAll('a[href*="/post/"], a[href*="/p/"], a[href*="/reel/"]')].map(a => a.href))].slice(0, 20),
+            };
+        }""")
+        browser.close()
+
+    posters = []
+    for v in data.get("vids") or []:
+        if v.startswith("POSTER:"):
+            posters.append(v[7:])
+        else:
+            note(v)
+    for u in (data.get("ogvideo"),):
+        if u:
+            note(u)
+    for u in (data.get("imgs") or []) + posters + [data.get("ogimage")]:
+        if u:
+            note(u)
+
+    return {
+        "links": data.get("links") or [],
+        "ok": bool(videos or images),
+        "title": data.get("title"),
+        "description": data.get("desc"),
+        "text": data.get("bodyText"),
+        "videos": videos[:10],
+        "images": images[:20],
+    }
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print(json.dumps({"ok": False, "error": "usage: render_media.py <url>"}))
+        return 2
+    url = sys.argv[1]
+    timeout = 45.0
+    if "--timeout" in sys.argv:
+        try:
+            timeout = float(sys.argv[sys.argv.index("--timeout") + 1])
+        except (ValueError, IndexError):
+            pass
+    if not re.match(r"^https://", url):
+        print(json.dumps({"ok": False, "error": "https url required"}))
+        return 2
+    try:
+        out = run(url, timeout)
+    except Exception as e:  # noqa: BLE001
+        out = {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
