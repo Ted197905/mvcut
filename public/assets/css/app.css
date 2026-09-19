@@ -315,3 +315,31 @@ select.input { appearance: none; padding-right: 34px;
   .nav .in { padding: 0 18px; gap: 16px; }
 }
 .import-status.warn { color: var(--label); background: var(--fill3); border-radius: 10px; padding: 10px 12px; line-height: 1.55; }
+
+/* ---- settings ---- */
+main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; }
+.settings h1 { font-size: 34px; letter-spacing: -0.02em; margin: 0 0 26px; }
+.set-card { background: var(--bg-grouped); border-radius: 22px; padding: 26px 26px 28px; margin-bottom: 22px; }
+.set-card h2 { font-size: 20px; margin: 0 0 18px; }
+.set-card label { display: block; font-size: 13px; color: var(--label2); margin-bottom: 6px; }
+.ck { background: var(--bg-elev); border-radius: var(--r-group); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
+.ck-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ck-badge { font-size: 12px; font-weight: 600; border-radius: 7px; padding: 3px 9px; background: var(--fill3); color: var(--label2); }
+.ck-badge.ok { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.ck-badge.warn { background: color-mix(in srgb, #ff9f0a 18%, transparent); color: #b26a00; }
+.ck-badge.bad { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+.ck .list { background: var(--bg-grouped); }
+.ck-alert { font-size: 13px; color: var(--red); margin: 12px 0 0; }
+.ck-alert.warn { color: #b26a00; }
+.ck-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.ck-actions form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ck-actions .input[type=file] { font-size: 13px; padding: 7px 10px; max-width: 260px; }
+.ck-help { margin-top: 6px; font-size: 14px; color: var(--label2); }
+.ck-help summary { cursor: pointer; }
+.ck-help ol { margin: 12px 0 8px 18px; display: grid; gap: 6px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ck-badge.warn { color: #ffb340; }
+  :root:not([data-theme="light"]) .ck-alert.warn { color: #ffb340; }
+}
+:root[data-theme="dark"] .ck-badge.warn, :root[data-theme="dark"] .ck-alert.warn { color: #ffb340; }
+.nav-user { color: var(--label2); font-size: 14px; }

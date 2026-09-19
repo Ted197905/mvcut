@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Cookies;
 use App\Libraries\Ffmpeg;
 use App\Libraries\MediaSupport;
 use App\Models\JobModel;
@@ -23,7 +24,7 @@ class Import extends BaseController
                 if ($r = $this->renderEntries($url, $why)) {
                     return $this->response->setJSON($r + ['platform' => $platform]);
                 }
-                if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $why]);
+                if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, $why)]);
             }
             // the image scraper is still worth a try for platforms that expose og:image
             $images = MediaSupport::scrapeImages($url);
@@ -57,7 +58,7 @@ class Import extends BaseController
             } else {
                 $msg = mb_substr($msg, 0, 240);
             }
-            return $this->response->setStatusCode(422)->setJSON(['error' => '가져올 수 없습니다. ' . $msg]);
+            return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, '가져올 수 없습니다. ' . $msg)]);
         }
 
         $entries = [];
@@ -128,11 +129,27 @@ class Import extends BaseController
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];
         }
+        Cookies::clearFailure((string) MediaSupport::platformOf($url));
         $notice = MediaSupport::cookieFile((string) MediaSupport::platformOf($url))
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
             : '로그인 없이 읽을 수 있는 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.';
         return ['ok' => true, 'entries' => $entries, 'title' => $title,
                 'desc' => mb_substr($body, 0, 5000), 'notice' => $notice];
+    }
+
+    /**
+     * Records the failure against the platform's cookies and appends the renewal hint,
+     * so the settings page and this message both say the same thing.
+     */
+    private function cookieHint(string $platform, string $message): string
+    {
+        // an audience-restricted post is the author's setting, not a stale session
+        if (str_contains($message, '공개 대상')) return $message;
+        $login = str_contains($message, '로그인') || str_contains($message, 'cookies') || str_contains($message, 'empty media response');
+        if (! $login || ! Cookies::known($platform)) return $message;
+        if (! Cookies::path($platform) || ! is_file((string) Cookies::path($platform))) return $message;
+        Cookies::markFailure($platform, $message);
+        return $message . ' 등록된 쿠키가 만료되었을 수 있습니다. 설정 화면에서 쿠키를 다시 등록해 주세요.';
     }
 
     /** Drops the author handle and the relative timestamp the feed renders above the post text. */

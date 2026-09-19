@@ -14,8 +14,11 @@ $routes->post('register', 'Auth::attemptRegister');
 $routes->post('logout', 'Auth::logout');
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
-    $routes->get('account', 'Account::edit');
-    $routes->post('account', 'Account::update');
+    $routes->get('account', 'Settings::index');
+    $routes->get('settings', 'Settings::index');
+    $routes->post('settings/account', 'Settings::account');
+    $routes->post('settings/cookies/([a-z]+)', 'Settings::uploadCookie/$1');
+    $routes->post('settings/cookies/([a-z]+)/delete', 'Settings::deleteCookie/$1');
 
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
