@@ -539,7 +539,7 @@
       el.innerHTML = `<span class="t">${tc(c.start, false)}</span><span class="x2">${escHtml(c.text)}</span><span class="x" title="삭제">&#x2715;</span>`;
       el.addEventListener('click', (e) => {
         if (e.target.classList.contains('x')) { commit(); sub.cues.splice(i, 1); state.subCue = -1; renderSubs(); return; }
-        state.subCue = i; video.currentTime = c.start; renderSubs();
+        state.subCue = i; pause(); seek(c.start); renderSubs();
       });
       list.appendChild(el);
     });
