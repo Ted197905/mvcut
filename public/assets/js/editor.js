@@ -458,8 +458,8 @@
     state.subtitles.forEach((sub, i) => {
       const el = subEls[i], span = el.firstElementChild;
       const editing = activeTab() === 'subtitle' && i === state.subLayer;
-      // while editing the layer, show the selected line so styling is visible even when paused
-      const cue = sub ? (cueAt(sub, t) || (editing ? sub.cues[state.subCue] : null)) : null;
+      // the preview follows the playhead, so what is on screen is what the cue block says
+      const cue = sub ? cueAt(sub, t) : null;
       el.hidden = !sub || !cue;
       if (!sub || !cue) return;
       ensureFont(sub.font);
@@ -554,6 +554,9 @@
     state.subLayer = li; state.subCue = ci;
     const tab = document.querySelector('.tab[data-tab=subtitle]');
     if (tab && activeTab() !== 'subtitle') tab.click();
+    // move into the cue, otherwise its styling would not be on screen to look at
+    const c = state.subtitles[li] && state.subtitles[li].cues[ci];
+    if (c && (playhead < c.start || playhead > c.end)) { pause(); seek(c.start); }
     renderSubs(); renderCueTrack(true);
   }
   function addCueAt(li, t) {
