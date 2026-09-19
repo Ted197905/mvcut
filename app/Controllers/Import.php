@@ -9,6 +9,9 @@ use App\Models\JobModel;
 
 class Import extends BaseController
 {
+    /** Platforms whose pages only exist after JavaScript runs. */
+    private const RENDER_FIRST = ['instagram', 'threads'];
+
     /** POST /api/import/inspect {url} -> list of downloadable entries */
     public function inspect()
     {
@@ -16,16 +19,16 @@ class Import extends BaseController
         $url = trim((string) ($in['url'] ?? ''));
         $platform = MediaSupport::platformOf($url);
         if (! $platform) return $this->response->setStatusCode(422)->setJSON(['error' => 'Instagram, Facebook, X, Threads, YouTube 링크만 지원합니다.']);
-        if ($reason = MediaSupport::unsupportedReason($platform)) {
-            // JS-only pages: render the post in headless Chromium and read the media it exposes.
-            // Instagram still hides post media behind login even when rendered, so skip the wait there.
-            if (MediaSupport::supportLevel($platform) === 'none') {
-                $why = null;
-                if ($r = $this->renderEntries($url, $why)) {
-                    return $this->response->setJSON($r + ['platform' => $platform]);
-                }
-                if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, $why)]);
+        // Instagram and Threads serve JavaScript-only pages that yt-dlp reads poorly or not at
+        // all, so the headless renderer is the first attempt for them, not the fallback.
+        if (in_array($platform, self::RENDER_FIRST, true)) {
+            $why = null;
+            if ($r = $this->renderEntries($url, $why)) {
+                return $this->response->setJSON($r + ['platform' => $platform]);
             }
+            if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, $why)]);
+        }
+        if ($reason = MediaSupport::unsupportedReason($platform)) {
             // the image scraper is still worth a try for platforms that expose og:image
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
@@ -44,8 +47,8 @@ class Import extends BaseController
         $out = Ffmpeg::run($probe, 90);
         $j = trim($out['stdout']) !== '' ? json_decode($out['stdout'], true) : null;
         if ($out['code'] !== 0 || ! is_array($j)) {
-            // no video: try the renderer, then fall back to og:image / twitter:image
-            if ($r = $this->renderEntries($url)) {
+            // no video: try the renderer (unless it already ran), then og:image / twitter:image
+            if (! in_array($platform, self::RENDER_FIRST, true) && ($r = $this->renderEntries($url))) {
                 return $this->response->setJSON($r + ['platform' => $platform]);
             }
             $images = MediaSupport::scrapeImages($url);
@@ -126,10 +129,12 @@ class Import extends BaseController
                 'kind' => 'video', 'url' => $url, 'media_url' => $u,
             ];
         }
+        $n = 0;
         foreach (array_slice($r['images'], 0, 20) as $u) {
-            $i++;
+            $i++; $n++;
+            $imgTitle = $title !== '가져온 게시물' ? $title . ' (' . $n . ')' : '이미지 ' . $n;
             $entries[] = [
-                'index' => $i, 'id' => (string) $i, 'title' => '이미지 ' . $i,
+                'index' => $i, 'id' => (string) $i, 'title' => $imgTitle,
                 'duration' => null, 'thumbnail' => $u, 'width' => null, 'height' => null,
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];

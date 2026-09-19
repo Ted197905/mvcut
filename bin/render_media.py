@@ -53,6 +53,23 @@ def load_cookies(path: str) -> list[dict]:
     return out
 
 
+CROPPED = re.compile(r"(stp=c|_s\d{2,4}x\d{2,4})", re.I)
+
+
+def dedupe_media(urls: list[str]) -> list[str]:
+    """One entry per media file: the CDN serves the same photo under several crop variants."""
+    best: dict[str, str] = {}
+    order: list[str] = []
+    for u in urls:
+        key = u.split("?")[0].rsplit("/", 1)[-1]
+        if key not in best:
+            best[key] = u
+            order.append(key)
+        elif CROPPED.search(best[key]) and not CROPPED.search(u):
+            best[key] = u  # prefer the uncropped variant
+    return [best[k] for k in order]
+
+
 def run(url: str, timeout: float, cookies: str = "") -> dict:
     from playwright.sync_api import sync_playwright
 
@@ -108,9 +125,10 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         # top (?injected_media_ids=...). Without that marker a bare feed URL means the post
         # was not viewable, and reporting the feed's media would be plainly wrong.
         want = re.search(r"/(?:post|p|reel)/([A-Za-z0-9_-]+)", url)
+        # where we actually ended up: the landing URL, the frame navigations, the current URL
         trail = " ".join(seen_urls + [landed, page.url])
         injected = "injected_media_ids" in trail
-        if want and not injected and want.group(1) not in trail.replace(url, ""):
+        if want and not injected and want.group(1) not in trail:
             landed = page.url
             body = ""
             try:
@@ -149,12 +167,13 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         if scope:
             videos.clear()
             images.clear()
-        data = page.evaluate("""(scope) => {
+        collector = """(scope) => {
             const root = scope === 'injected'
                 ? (document.querySelector('[data-pressable-container]')?.closest('div[class]')?.parentElement
                    || document.querySelector('[data-pressable-container]') || document)
                 : (scope === 'post'
-                    ? (document.querySelector('main article') || document.querySelector('article') || document)
+                    ? (document.querySelector('main article') || document.querySelector('article')
+                       || document.querySelector('main') || document)
                     : document);
             const scoped = scope !== '';
             const meta = (p) => { const m = document.querySelector(`meta[property="${p}"], meta[name="${p}"]`); return m ? m.content : null; };
@@ -163,7 +182,26 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
                 [v.currentSrc, v.src, ...[...v.querySelectorAll('source')].map(s => s.src)].forEach(s => { if (s) vids.push(s); });
                 if (v.poster) vids.push('POSTER:' + v.poster);
             });
-            const imgs = [...root.querySelectorAll('img')].filter(i => i.naturalWidth >= 200).map(i => i.currentSrc || i.src);
+            const url = (i) => i.currentSrc || i.src;
+            let imgs;
+            if (scope === 'post') {
+                // A post page also lists suggestions and comment avatars. The post's own frames
+                // are the carousel list when there is one, else the largest images on the page.
+                const big = [...root.querySelectorAll('img')].filter(i => i.naturalWidth >= 300);
+                const lists = [...root.querySelectorAll('ul')]
+                    .map(ul => big.filter(i => ul.contains(i)))
+                    .filter(g => g.length > 0)
+                    .sort((a, b) => b.length - a.length);
+                let pick = lists[0] || [];
+                if (pick.length === 0 && big.length) {
+                    const area = (i) => i.naturalWidth * i.naturalHeight;
+                    const max = Math.max(...big.map(area));
+                    pick = big.filter(i => area(i) >= max * 0.4);
+                }
+                imgs = pick.map(url);
+            } else {
+                imgs = [...root.querySelectorAll('img')].filter(i => i.naturalWidth >= 200).map(url);
+            }
             return {
                 title: meta('og:title') || document.title || null,
                 desc: meta('og:description') || null,
@@ -173,7 +211,31 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
                 bodyText: ((scoped ? root.innerText : document.body.innerText) || '').slice(0, 1200),
                 links: [...new Set([...root.querySelectorAll('a[href*="/post/"], a[href*="/p/"], a[href*="/reel/"]')].map(a => a.href))].slice(0, 20),
             };
-        }""", scope)
+        }"""
+        data = page.evaluate(collector, scope)
+
+        # A carousel renders one slide at a time, so step through it and merge what each shows.
+        if scope == "post":
+            for _ in range(12):
+                try:
+                    nxt = page.query_selector(
+                        'button[aria-label="다음"], button[aria-label="Next"], '
+                        '[aria-label="다음"] button, [aria-label="Next"] button')
+                    if not nxt or not nxt.is_visible():
+                        break
+                    nxt.click(timeout=2000)
+                except Exception:  # noqa: BLE001
+                    break
+                page.wait_for_timeout(900)
+                try:
+                    more = page.evaluate(collector, scope)
+                except Exception:  # noqa: BLE001
+                    break
+                for k in ("imgs", "vids"):
+                    for u in more.get(k) or []:
+                        if u not in (data.get(k) or []):
+                            data.setdefault(k, []).append(u)
+
         browser.close()
 
     posters = []
@@ -194,6 +256,8 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         videos.extend(net_first)
     if scope and not images:
         images.extend(net_img_first)
+
+    images[:] = dedupe_media(images)
 
     return {
         "links": data.get("links") or [],
