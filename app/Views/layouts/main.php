@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf" data-name="<?= csrf_token() ?>" content="<?= csrf_hash() ?>">
 <title><?= isset($title) && $title !== 'MV Cut' ? esc($title) . ' - MV Cut' : 'MV Cut' ?></title>
-<link rel="stylesheet" href="<?= base_url('assets/css/app.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('assets/css/app.css') ?>">
 <?= $this->renderSection('head') ?>
 </head>
 <body>
@@ -24,7 +24,7 @@
   <?php endif ?>
 </div></nav>
 <?= $this->renderSection('content') ?>
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
+<script src="<?= asset_url('assets/js/app.js') ?>"></script>
 <?= $this->renderSection('scripts') ?>
 </body>
 </html>

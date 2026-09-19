@@ -24,8 +24,8 @@ $icons = [
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf" data-name="<?= csrf_token() ?>" content="<?= csrf_hash() ?>">
 <title><?= esc($title) ?> - MV Cut</title>
-<link rel="stylesheet" href="<?= base_url('assets/css/app.css') ?>">
-<link rel="stylesheet" href="<?= base_url('assets/css/editor.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('assets/css/app.css') ?>">
+<link rel="stylesheet" href="<?= asset_url('assets/css/editor.css') ?>">
 </head>
 <body class="editor-body">
 <div class="ed" id="editor">
@@ -196,6 +196,17 @@ $icons = [
           <label class="switch"><input type="checkbox" id="keepAudio" checked> <span>오디오 유지 (속도에 맞춰 피치 보정)</span></label>
         </div>
         <div class="sec">
+          <div class="sec-title">화질</div>
+          <div class="presets" id="sharpenPresets">
+            <button data-sharpen="off" class="active">원본</button>
+            <button data-sharpen="low">약하게</button>
+            <button data-sharpen="mid">보통</button>
+            <button data-sharpen="high">강하게</button>
+          </div>
+          <label class="switch"><input type="checkbox" id="denoise" checked> <span>압축 노이즈 정리 후 선명화</span></label>
+          <p class="hint">SNS에서 가져온 영상처럼 압축으로 뭉개진 화면에 효과가 큽니다. 강하게는 윤곽에 테두리가 생길 수 있습니다.</p>
+        </div>
+        <div class="sec">
           <div class="sec-title">출력</div>
           <div class="row2">
             <label>포맷<select id="outFormat"><option value="mp4">MP4 (H.264 + AAC)</option><option value="webm">WebM (VP9 + Opus)</option><option value="gif">GIF (15fps, 무음)</option></select></label>
@@ -273,7 +284,7 @@ window.EDITOR_DATA = <?= json_encode([
     'params'   => $params,
 ], JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="<?= base_url('assets/js/app.js') ?>"></script>
-<script src="<?= base_url('assets/js/editor.js') ?>"></script>
+<script src="<?= asset_url('assets/js/app.js') ?>"></script>
+<script src="<?= asset_url('assets/js/editor.js') ?>"></script>
 </body>
 </html>

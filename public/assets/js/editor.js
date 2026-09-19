@@ -49,6 +49,7 @@
     selectedMask: -1,
     watermark: null,          // {text,font,size,color,opacity,x,y,anchor,style}
     speed: 1, keepAudio: true,
+    enhance: { sharpen: 'off', denoise: true },
     output: { format: 'mp4', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
@@ -630,6 +631,13 @@
   /* ---------- output / speed ---------- */
   $('speedPresets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.speed = +b.dataset.speed; document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', x === b)); renderSegList(); });
   $('keepAudio').addEventListener('change', (e) => state.keepAudio = e.target.checked);
+  $('sharpenPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.enhance.sharpen = b.dataset.sharpen;
+    document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x === b));
+    $('denoise').disabled = state.enhance.sharpen === 'off';
+  });
+  $('denoise').addEventListener('change', (e) => state.enhance.denoise = e.target.checked);
   $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; $('keepAudio').disabled = e.target.value === 'gif'; });
   $('outHeight').addEventListener('change', (e) => state.output.height = +e.target.value);
   $('outQuality').addEventListener('change', (e) => state.output.quality = e.target.value);
@@ -637,11 +645,14 @@
     document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', +x.dataset.speed === state.speed));
     $('keepAudio').checked = state.keepAudio; $('outFormat').value = state.output.format; $('outHeight').value = String(state.output.height); $('outQuality').value = state.output.quality;
     $('keepAudio').disabled = !D.hasAudio || state.output.format === 'gif';
+    document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x.dataset.sharpen === state.enhance.sharpen));
+    $('denoise').checked = state.enhance.denoise;
+    $('denoise').disabled = state.enhance.sharpen === 'off';
   }
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

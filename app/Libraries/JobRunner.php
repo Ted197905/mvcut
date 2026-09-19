@@ -397,6 +397,12 @@ class JobRunner
             $label = 'vw';
         }
         $post = [];
+        // clean up compression noise first, then sharpen: the other order amplifies the noise
+        $sharpen = $p['enhance']['sharpen'] ?? 'off';
+        if ($sharpen !== 'off') {
+            if (! empty($p['enhance']['denoise'])) $post[] = 'hqdn3d=2:1:3:3';
+            $post[] = 'cas=strength=' . match ($sharpen) { 'low' => '0.25', 'high' => '0.75', default => '0.45' };
+        }
         if ($p['speed'] != 1.0) {
             $post[] = sprintf('setpts=PTS/%.4f', $p['speed']);
             // keep the source frame rate (duplicate/drop frames) instead of a fractional output rate
