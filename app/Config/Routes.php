@@ -13,6 +13,7 @@ $routes->get('register', 'Auth::register');
 $routes->post('register', 'Auth::attemptRegister');
 $routes->post('logout', 'Auth::logout');
 $routes->get('session/expired', 'Auth::expired');
+$routes->get('share/(:num)/(:num)/([a-f0-9]{64})', 'Media::share/$1/$2/$3');
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
     $routes->get('account', 'Settings::index');
@@ -43,6 +44,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/jobs', 'Jobs::index');
     $routes->get('api/media/(:num)', 'Media::info/$1');
     $routes->post('api/media/(:num)/rename', 'Media::rename/$1');
+    $routes->post('api/media/(:num)/sharelink', 'Media::shareLink/$1');
     $routes->post('api/convert/(:num)', 'Convert::submit/$1');
     $routes->post('api/import/inspect', 'Import::inspect');
     $routes->post('api/import', 'Import::submit');

@@ -37,6 +37,43 @@ class Media extends BaseController
         return $resp;
     }
 
+    /**
+     * Signature for a short-lived link that lets the browser extension read one file
+     * from another origin (x.com), where our session cookie is not sent.
+     */
+    public static function shareSig(int $id, int $userId, int $exp): string
+    {
+        return hash_hmac('sha256', $id . '|' . $userId . '|' . $exp, (string) config('Encryption')->key);
+    }
+
+    /** POST /api/media/{id}/sharelink - mints that link for the page. */
+    public function shareLink(int $id)
+    {
+        $item = $this->owned($id);
+        $exp  = time() + 1800;
+        return $this->response->setJSON([
+            'ok'       => true,
+            'url'      => site_url('share/' . $id . '/' . $exp . '/' . self::shareSig($id, (int) $item['user_id'], $exp)),
+            'filename' => $item['title'] . '.' . pathinfo($item['filename'], PATHINFO_EXTENSION),
+            'mime'     => $item['mime'] ?: 'application/octet-stream',
+            'expires'  => $exp,
+        ]);
+    }
+
+    /** GET /share/{id}/{exp}/{sig} - the file itself, readable from x.com by the extension. */
+    public function share(int $id, int $exp, string $sig)
+    {
+        $item = (new MediaModel())->find($id);
+        if (! $item || $exp < time() || ! hash_equals(self::shareSig($id, (int) $item['user_id'], $exp), $sig)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+        $origin = (string) $this->request->getHeaderLine('Origin');
+        $allow  = in_array($origin, ['https://x.com', 'https://twitter.com'], true) ? $origin : 'https://x.com';
+        return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream')
+            ->setHeader('Access-Control-Allow-Origin', $allow)
+            ->setHeader('Vary', 'Origin');
+    }
+
     /** GET /api/media/{id} */
     public function info(int $id)
     {

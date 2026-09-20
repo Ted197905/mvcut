@@ -156,6 +156,7 @@ $srcSum = $isImg
           <a class="btn<?= $playable ? '' : ' disabled' ?>" href="<?= site_url('edit/' . $item['id']) ?>">편집</a>
         <?php endif ?>
         <a class="btn secondary" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">원본 받기</a>
+        <button class="btn secondary" type="button" id="btnSendX" title="X 새 글 작성 창에 본문과 파일을 올립니다">Send to X</button>
         <form method="post" action="<?= site_url('library/' . $item['id'] . '/delete') ?>" id="deleteForm">
           <?= csrf_field() ?>
           <button class="btn ghost" type="button" id="btnDelete">삭제</button>
@@ -241,6 +242,30 @@ $srcSum = $isImg
   $('btnRenameCancel').addEventListener('click', () => { head.hidden = false; edit.hidden = true; $('titleInput').value = $('mediaTitle').textContent.trim(); });
   $('titleInput').addEventListener('keydown', e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') $('btnRenameCancel').click(); });
   $('btnRenameSave').addEventListener('click', save);
+  /* ---------- Send to X ---------- */
+  const xText = [<?= json_encode($item['title'], JSON_UNESCAPED_UNICODE) ?>,
+                 <?= json_encode(trim((string) $item['description']), JSON_UNESCAPED_UNICODE) ?>]
+                .filter(Boolean).join('\n\n');
+  $('btnSendX').addEventListener('click', async () => {
+    const b = $('btnSendX'); b.disabled = true;
+    try {
+      // the extension announces itself on the page; without it, fall back to text-only intent
+      if (document.documentElement.dataset.mvcutX !== '1') {
+        window.open('https://x.com/intent/post?text=' + encodeURIComponent(xText), '_blank', 'noopener');
+        location.href = base + 'media/' + id + '/file?dl=1';
+        alert('X 확장이 설치되어 있지 않아 본문만 채운 작성 창을 열고 파일을 내려받습니다.\n작성 창에 파일을 끌어다 놓으세요.');
+        return;
+      }
+      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr });
+      let j = {}; try { j = await res.json(); } catch (e) {}
+      if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: j.url, filename: j.filename,
+                           mime: j.mime, text: xText }, location.origin);
+    } catch (e) { alert(e.message); }
+    setTimeout(() => { b.disabled = false; }, 1500);
+  });
+
   async function save() {
     const title = $('titleInput').value.trim(); if (!title) return;
     try {
