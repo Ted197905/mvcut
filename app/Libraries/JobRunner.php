@@ -85,9 +85,9 @@ class JobRunner
             'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => 'convert',
             'title' => mb_substr($src['title'] . $suffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'image', 'edit_params' => $key, 'status' => 'processing',
-            'description' => "[적용한 처리]\n출력: " . strtoupper($fmt)
+            'description' => $this->resultDescription($src, "[적용한 처리]\n출력: " . strtoupper($fmt)
                 . ' · ' . ($long ? '긴 방향 ' . $long . 'px' : '원본 크기')
-                . ($fmt === 'jpg' ? ' · 압축률 ' . max(10, min(100, (int) ($c['quality'] ?? 60))) . '%' : ''),
+                . ($fmt === 'jpg' ? ' · 압축률 ' . max(10, min(100, (int) ($c['quality'] ?? 60))) . '%' : '')),
         ]);
         $row = $this->media->find($resultId); $dir = MediaModel::dir($row);
         if (! is_dir($dir) && ! mkdir($dir, 0775, true)) throw new \RuntimeException('cannot create ' . $dir);
@@ -575,6 +575,17 @@ class JobRunner
         return $mediaId;
     }
 
+    /**
+     * A result keeps the post's own text, with what this job changed underneath it.
+     * Re-editing a result must not stack the old blocks, so they are cut off first.
+     */
+    private function resultDescription(array $src, string $changes): string
+    {
+        $body = trim((string) ($src['description'] ?? ''));
+        $body = trim(preg_split('/\n*\[(?:적용한 처리|실패한 처리|처리 시간)\]/u', $body)[0]);
+        return $body !== '' ? mb_substr($body, 0, 20000) . "\n\n" . $changes : $changes;
+    }
+
     /** Shared: run the edit pipeline and register the result media. */
     private function encode(array $job, array $src, array $p, string $source, string $titleSuffix, string $editParams, callable $log): int
     {
@@ -586,7 +597,7 @@ class JobRunner
             'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => $source,
             'title' => mb_substr($src['title'] . $titleSuffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'video', 'edit_params' => $editParams, 'status' => 'processing',
-            'description' => EditParams::summary($p, $src),
+            'description' => $this->resultDescription($src, EditParams::summary($p, $src)),
         ]);
         $row = $this->media->find($resultId);
         $dir = MediaModel::dir($row);
@@ -647,7 +658,7 @@ class JobRunner
         foreach ($this->stageTimes as $label => $secs) $parts[] = $label . ' ' . self::secs($secs);
         $desc .= "\n\n[처리 시간]\n" . implode(' · ', $parts)
                . ' · 합계 ' . self::secs(array_sum($this->stageTimes));
-        $this->media->update($resultId, ['description' => $desc]);
+        $this->media->update($resultId, ['description' => $this->resultDescription($src, $desc)]);
         $this->finishMedia($resultId, $out, $dir, $log);
         return $resultId;
     }
