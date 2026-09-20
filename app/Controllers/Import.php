@@ -237,8 +237,10 @@ class Import extends BaseController
             if (is_numeric($v) && $v >= 0 && $v < 1e12) $stats[$k] = (int) $v;
         }
         $jobs = new JobModel(); $ids = [];
-        foreach ($items as $idx) {
-            $params = ['url' => $url, 'platform' => $platform, 'index' => $idx, 'title' => (string) ($in['titles'][$idx] ?? '')];
+        $postKey = bin2hex(random_bytes(8));   // everything from this link is one post
+        foreach ($items as $pos => $idx) {
+            $params = ['url' => $url, 'platform' => $platform, 'index' => $idx, 'title' => (string) ($in['titles'][$idx] ?? ''),
+                       'post_key' => $postKey, 'post_order' => $pos];
             $img = (string) ($images[$idx] ?? '');
             $vid = (string) ($media[$idx] ?? '');
             if ($img !== '') {

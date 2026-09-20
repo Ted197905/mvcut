@@ -117,6 +117,37 @@ $srcSum = $isImg
         <?php endif ?>
       </section>
     <?php endif ?>
+
+    <?php $rest = array_values(array_filter($siblings ?? [], static fn ($s) => (int) $s['id'] !== (int) $item['id'])); ?>
+    <?php if ($rest): ?>
+      <section class="post-items">
+        <p class="eyebrow">같은 게시물의 다른 리소스 <?= count($rest) ?>개</p>
+        <?php foreach ($rest as $n => $s): ?>
+          <?php $sVid = $s['media_type'] === 'video'; $sImg = $s['media_type'] === 'image'; ?>
+          <article class="post-item">
+            <figure class="viewer" style="--arw:<?= (int) ($s['width'] ?: 16) ?>;--arh:<?= (int) ($s['height'] ?: 9) ?>">
+              <?php if ($sVid && ($s['has_proxy'] || \App\Libraries\MediaSupport::browserPlayable($s))): ?>
+                <video controls playsinline preload="none" src="<?= site_url('media/' . $s['id'] . '/proxy') ?>" <?= $s['has_thumb'] ? 'poster="' . site_url('media/' . $s['id'] . '/thumb') . '"' : '' ?>></video>
+              <?php elseif ($sImg): ?>
+                <img src="<?= site_url('media/' . $s['id'] . '/file') ?>" alt="<?= esc($s['title'], 'attr') ?>" loading="lazy">
+              <?php elseif ($s['has_thumb']): ?>
+                <img src="<?= site_url('media/' . $s['id'] . '/thumb') ?>" alt="" loading="lazy">
+              <?php endif ?>
+            </figure>
+            <div class="post-item-bar">
+              <span class="muted small">
+                <?= ($n + 2) ?>번째 · <?= $sVid ? '영상' : ($sImg ? '이미지' : esc($s['media_type'])) ?>
+                <?= $s['width'] ? ' · ' . esc($s['width'] . '×' . $s['height']) : '' ?>
+                · <?= esc(\App\Libraries\MediaSupport::size((int) $s['size'])) ?>
+              </span>
+              <span class="spacer"></span>
+              <?php if ($sVid): ?><a class="btn sm secondary" href="<?= site_url('edit/' . $s['id']) ?>">편집</a><?php endif ?>
+              <a class="btn sm ghost" href="<?= site_url('library/' . $s['id']) ?>">상세</a>
+            </div>
+          </article>
+        <?php endforeach ?>
+      </section>
+    <?php endif ?>
     </div>
 
     <aside>

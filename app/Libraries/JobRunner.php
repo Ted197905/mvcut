@@ -397,6 +397,7 @@ class JobRunner
         $idx = max(1, (int) ($p['index'] ?? 1));
         $mediaId = $this->media->insert([
             'user_id' => $job['user_id'], 'kind' => 'original', 'source' => $platform, 'source_url' => mb_substr($p['url'], 0, 1000),
+            'post_key' => $p['post_key'] ?? null, 'post_order' => (int) ($p['post_order'] ?? 0),
             'title' => MediaSupport::tidyTitle((string) $p['title'], $platform . ' import'), 'filename' => 'original.mp4', 'status' => 'processing',
         ]);
         $this->jobs->update($job['id'], ['media_id' => $mediaId]);

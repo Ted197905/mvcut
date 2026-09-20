@@ -68,7 +68,7 @@
 
     <div class="grid" id="grid">
       <?php foreach ($items as $it): ?>
-        <?= view('library/_card', ['it' => $it]) ?>
+        <?= view('library/_card', ['it' => $it, 'postSize' => $sizes[$it['post_key']] ?? 1]) ?>
       <?php endforeach ?>
     </div>
   </form>

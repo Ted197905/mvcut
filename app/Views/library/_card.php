@@ -9,6 +9,7 @@
       <?php endif ?>
       <?php if ($it['duration']): ?><span class="dur"><?= gmdate($it['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $it['duration']) ?></span><?php endif ?>
       <span class="badge"><?= esc($it['source']) ?></span>
+      <?php if (($postSize ?? 1) > 1): ?><span class="stack"><?= (int) $postSize ?>개</span><?php endif ?>
     </div>
     <div class="body">
       <div class="title" title="<?= esc($it['title'], 'attr') ?>"><?= esc($it['title']) ?></div>

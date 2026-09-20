@@ -37,15 +37,34 @@ class Library extends BaseController
             default   => $builder->orderBy('id', 'DESC'),
         };
 
+        // one card per post: the first item of each imported link stands for the rest
+        $builder->groupStart()
+                ->where('post_key', null)
+                ->orWhere('media.id = (SELECT MIN(m2.id) FROM media m2 WHERE m2.post_key = media.post_key)', null, false)
+                ->groupEnd();
+
         // 4 columns x 4 rows per page
         $perPage = 16;
         $matched = $builder->countAllResults(false);   // false: keep the conditions for findAll()
         $pages   = max(1, (int) ceil($matched / $perPage));
         $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
 
+        $items = $builder->findAll($perPage, ($page - 1) * $perPage);
+        // how many items each post holds, so the card can say "10"
+        $keys  = array_filter(array_column($items, 'post_key'));
+        $sizes = [];
+        if ($keys !== []) {
+            foreach (db_connect()->table('media')->select('post_key, COUNT(*) AS n')
+                        ->where('user_id', $userId)->whereIn('post_key', $keys)
+                        ->groupBy('post_key')->get()->getResultArray() as $r) {
+                $sizes[$r['post_key']] = (int) $r['n'];
+            }
+        }
+
         return view('library/index', [
             'title'   => '라이브러리',
-            'items'   => $builder->findAll($perPage, ($page - 1) * $perPage),
+            'items'   => $items,
+            'sizes'   => $sizes,
             'ffmpeg'  => Ffmpeg::available(),
             'q'       => $q,
             'sort'    => $sort ?: 'newest',
@@ -85,7 +104,8 @@ class Library extends BaseController
         }
         $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
-        return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable, 'pending' => $pending]);
+        return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable,
+                                     'pending' => $pending, 'siblings' => $media->postItems($item)]);
     }
 
     public function delete(int $id)

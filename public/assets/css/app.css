@@ -335,6 +335,17 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .set-card label { display: block; font-size: 13px; color: var(--label2); margin-bottom: 6px; }
 .ck { background: var(--bg-elev); border-radius: var(--r-group); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
 .ck-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+/* a post's other items, stacked under the opened one */
+.post-items { margin-top: 26px; display: flex; flex-direction: column; gap: 18px; }
+.post-item { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); }
+.post-item .viewer { margin: 0; background: #000; display: flex; align-items: center; justify-content: center; max-height: 70vh; }
+.post-item .viewer img, .post-item .viewer video { width: 100%; height: auto; max-height: 70vh; object-fit: contain; display: block; }
+.post-item-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.post-item-bar .spacer { flex: 1; }
+/* how many items a card's post holds */
+.thumb .stack { position: absolute; left: 8px; bottom: 8px; font-size: 11px; font-weight: 600; color: #fff;
+  background: rgba(0,0,0,.6); padding: 2px 7px; border-radius: 6px; }
+
 /* library pager */
 .pager { display: flex; gap: 6px; align-items: center; justify-content: center; margin: 22px 0 8px; flex-wrap: wrap; }
 .pager .pg { min-width: 34px; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line);
