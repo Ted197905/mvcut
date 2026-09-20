@@ -16,5 +16,10 @@ window.MV = (function () {
     if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
     return (b / 1073741824).toFixed(2) + ' GB';
   };
-  return { csrf, fmtDur, fmtSize };
+  // 403 here is almost always an expired CSRF token / session on a long-open page
+  const httpError = (status, fallback) => status === 403
+    ? '로그인 세션이 만료되었습니다. 새로고침(F5) 후 다시 시도하세요.'
+    : (fallback || ('HTTP ' + status));
+
+  return { csrf, fmtDur, fmtSize, httpError };
 })();

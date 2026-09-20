@@ -1089,7 +1089,7 @@
     try {
       const res = await fetch(D.submitUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify(params()) });
       const j = await res.json();
-      if (!res.ok || !j.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       poll(j.job.id);
     } catch (err) { showJobError(err.message); }
   }
