@@ -19,7 +19,8 @@ namespace App\Libraries;
  *   "subtitles": [{"template","font","size","color","anchor","x","y",
  *                  "cues":[{"start","end","text"}]}]   up to 2 layers, times in source seconds
  *   "keepAudio": true
- *   "output": {"format":"mp4|webm|gif", "height": 0|1080|720|480, "quality":"high|medium"}
+ *   "output": {"format":"mp4|webm|gif", "audio":"auto|aac|mp3|opus|none",
+ *              "height": 0|1080|720|480, "quality":"high|medium"}
  * }
  */
 class EditParams
@@ -229,6 +230,16 @@ class EditParams
         if (! in_array($height, [0, 1080, 720, 480, 360], true)) $height = 0;
         $quality = ($in['output']['quality'] ?? 'high') === 'medium' ? 'medium' : 'high';
 
+        // audio is picked apart from the video format; the container limits what fits in it
+        $audio = (string) ($in['output']['audio'] ?? 'auto');
+        if (! in_array($audio, ['auto', 'aac', 'mp3', 'opus', 'none'], true)) $audio = 'auto';
+        if (isset($in['keepAudio']) && ! $in['keepAudio']) $audio = 'none';   // older payloads
+        $audio = match ($fmt) {
+            'gif'  => 'none',
+            'webm' => in_array($audio, ['auto', 'opus', 'none'], true) ? $audio : 'auto',
+            default => $audio === 'opus' ? 'auto' : $audio,
+        };
+
         return [
             'keep'      => $keep,
             'crop'      => $crop,
@@ -241,8 +252,8 @@ class EditParams
             'erase'     => $erase,
             'subtitles' => $subs,
             'speed'     => round($speed, 3),
-            'keepAudio' => (bool) ($in['keepAudio'] ?? true),
-            'output'    => ['format' => $fmt, 'height' => $height, 'quality' => $quality],
+            'keepAudio' => $audio !== 'none',
+            'output'    => ['format' => $fmt, 'audio' => $audio, 'height' => $height, 'quality' => $quality],
         ];
     }
 
@@ -334,7 +345,7 @@ class EditParams
 
         if ($p['speed'] != 1.0) {
             $lines[] = '속도: ' . rtrim(rtrim(number_format($p['speed'], 2), '0'), '.') . '배'
-                     . ($p['speed'] < 1 ? ' (슬로우)' : '') . ' · ' . ($p['keepAudio'] ? '오디오 유지' : '오디오 제거');
+                     . ($p['speed'] < 1 ? ' (슬로우)' : '') . ' · ' . ($p['keepAudio'] ? '오디오 유지' : '무음');
         }
 
         $sharpen = $p['enhance']['sharpen'] ?? 'off';

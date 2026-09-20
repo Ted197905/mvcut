@@ -291,7 +291,6 @@ $icons = [
             <button data-speed="0.25">0.25x</button><button data-speed="0.5">0.5x</button><button data-speed="0.75">0.75x</button>
             <button data-speed="1" class="active">1x</button><button data-speed="1.5">1.5x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
           </div>
-          <label class="switch"><input type="checkbox" id="keepAudio" checked> <span>오디오 유지 (속도에 맞춰 피치 보정)</span></label>
           <div <?= $aiEnabled ? '' : 'hidden' ?>>
           <div class="sec-title" style="margin-top:14px">프레임 생성 (GPU)</div>
           <div class="presets" id="smoothPresets">
@@ -339,13 +338,23 @@ $icons = [
         <div class="sec">
           <div class="sec-title">출력</div>
           <div class="row2">
-            <label>포맷<select id="outFormat"><option value="mp4">MP4 (H.264 + AAC)</option><option value="webm">WebM (VP9 + Opus)</option><option value="gif">GIF (15fps, 무음)</option></select></label>
-            <label>해상도<select id="outHeight"><option value="0">원본</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label>
+            <label>영상 포맷<select id="outFormat"><option value="mp4">MP4 (H.264)</option><option value="webm">WebM (VP9)</option><option value="gif">GIF (15fps)</option></select></label>
+            <label>오디오 포맷<select id="outAudio">
+              <option value="auto">자동 (포맷 기본값)</option>
+              <option value="aac">AAC</option>
+              <option value="mp3">MP3</option>
+              <option value="opus">Opus</option>
+              <option value="none">무음</option>
+            </select></label>
           </div>
           <div class="row2">
+            <label>해상도<select id="outHeight"><option value="0">원본</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label>
             <label>품질<select id="outQuality"><option value="high">높음</option><option value="medium">보통 (작은 용량)</option></select></label>
+          </div>
+          <div class="row2">
             <label>예상 길이<input id="outDuration" readonly></label>
           </div>
+          <p class="hint" id="audioHint">자동은 MP4면 AAC, WebM이면 Opus로 넣습니다. 속도를 바꾸면 오디오도 피치를 맞춰 따라갑니다. 무음은 소리를 넣지 않습니다.</p>
         </div>
         <div class="sec">
           <button class="btn block" id="btnSave2">저장 (라이브러리에 결과 생성)</button>

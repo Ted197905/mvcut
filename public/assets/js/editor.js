@@ -58,7 +58,7 @@
     subtitles: [null, null],   // up to two layers: {template,font,size,color,anchor,x,y,cues:[]}
     subLayer: 0,
     subCue: -1,
-    output: { format: 'mp4', height: 0, quality: 'high' },
+    output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
   function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles }); }
@@ -80,7 +80,7 @@
     state.speed = D.params.speed || 1;
     state.watermark = D.params.watermark || null;
     state.keepAudio = D.params.keepAudio !== false;
-    if (D.params.output) state.output = D.params.output;
+    if (D.params.output) state.output = Object.assign({ audio: 'auto' }, D.params.output);
     if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
   }
 
@@ -1016,7 +1016,7 @@
 
   /* ---------- output / speed ---------- */
   $('speedPresets').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.speed = +b.dataset.speed; document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', x === b)); renderSegList(); });
-  $('keepAudio').addEventListener('change', (e) => state.keepAudio = e.target.checked);
+
   $('sharpenPresets').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     state.enhance.sharpen = b.dataset.sharpen;
@@ -1047,13 +1047,28 @@
     state.smooth = b.dataset.smooth;
     document.querySelectorAll('#smoothPresets button').forEach(x => x.classList.toggle('active', x === b));
   });
-  $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; $('keepAudio').disabled = e.target.value === 'gif'; });
+  $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; syncOutputFields(); });
+  $('outAudio').addEventListener('change', (e) => { state.output.audio = e.target.value; state.keepAudio = e.target.value !== 'none'; });
   $('outHeight').addEventListener('change', (e) => state.output.height = +e.target.value);
   $('outQuality').addEventListener('change', (e) => state.output.quality = e.target.value);
+  // a container takes only some codecs, and a source without sound takes none
+  const AUDIO_OK = { mp4: ['auto', 'aac', 'mp3'], webm: ['auto', 'opus'], gif: [] };
   function syncOutputFields() {
     document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', +x.dataset.speed === state.speed));
-    $('keepAudio').checked = state.keepAudio; $('outFormat').value = state.output.format; $('outHeight').value = String(state.output.height); $('outQuality').value = state.output.quality;
-    $('keepAudio').disabled = !D.hasAudio || state.output.format === 'gif';
+    $('outFormat').value = state.output.format; $('outHeight').value = String(state.output.height); $('outQuality').value = state.output.quality;
+    const ok = AUDIO_OK[state.output.format] || [];
+    const silent = !D.hasAudio || !ok.length;
+    if (silent) state.output.audio = 'none';
+    else if (!ok.includes(state.output.audio) && state.output.audio !== 'none') state.output.audio = 'auto';
+    state.keepAudio = state.output.audio !== 'none';
+    document.querySelectorAll('#outAudio option').forEach(o => {
+      o.disabled = silent ? o.value !== 'none' : (o.value !== 'none' && !ok.includes(o.value));
+    });
+    $('outAudio').value = state.output.audio;
+    $('outAudio').disabled = silent;
+    $('audioHint').textContent = !D.hasAudio ? '원본에 소리가 없어 무음으로 나갑니다.'
+      : (state.output.format === 'gif' ? 'GIF에는 소리를 넣을 수 없습니다.'
+      : '자동은 MP4면 AAC, WebM이면 Opus로 넣습니다. 속도를 바꾸면 오디오도 피치를 맞춰 따라갑니다. 무음은 소리를 넣지 않습니다.');
     document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x.dataset.sharpen === state.enhance.sharpen));
     $('denoise').checked = state.enhance.denoise;
     $('denoise').disabled = state.enhance.sharpen === 'off';

@@ -691,7 +691,8 @@ class JobRunner
     public function buildEditCommand(string $src, string $out, array $p, array $srcMeta): array
     {
         $fmt      = $p['output']['format'];
-        $hasAudio = ! empty($srcMeta['acodec']) && $p['keepAudio'] && $fmt !== 'gif';
+        $aFmt     = $p['output']['audio'] ?? ($p['keepAudio'] ? 'auto' : 'none');
+        $hasAudio = ! empty($srcMeta['acodec']) && $aFmt !== 'none' && $fmt !== 'gif';
         $n        = count($p['keep']);
         $f        = [];
         $vin = []; $ain = [];
@@ -823,18 +824,28 @@ class JobRunner
                 } else {
                     array_push($args, '-c:v', 'libx264', '-preset', 'medium', '-crf', $hq ? '19' : '24', '-profile:v', 'high');
                 }
-                if ($hasAudio) array_push($args, '-c:a', 'aac', '-b:a', '160k');
+                if ($hasAudio) array_push($args, ...$this->audioArgs($aFmt, 'aac'));
                 array_push($args, '-movflags', '+faststart');
                 break;
             case 'webm':
                 array_push($args, '-c:v', 'libvpx-vp9', '-crf', $hq ? '30' : '36', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2');
-                if ($hasAudio) array_push($args, '-c:a', 'libopus', '-b:a', '128k');
+                if ($hasAudio) array_push($args, ...$this->audioArgs($aFmt, 'opus'));
                 break;
             case 'gif':
                 break;
         }
         $args[] = $out;
         return $args;
+    }
+
+    /** ffmpeg arguments for the chosen audio codec; 'auto' takes the container's default. */
+    private function audioArgs(string $audio, string $fallback): array
+    {
+        return match ($audio === 'auto' ? $fallback : $audio) {
+            'mp3'   => ['-c:a', 'libmp3lame', '-b:a', '192k'],
+            'opus'  => ['-c:a', 'libopus', '-b:a', '128k'],
+            default => ['-c:a', 'aac', '-b:a', '160k'],
+        };
     }
 
     /**
