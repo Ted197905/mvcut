@@ -105,6 +105,35 @@ class MediaSupport
      * Width and height of remote images, read from the first bytes of each file so the
      * resource list can show a size before anything is downloaded. Keyed like $urls.
      */
+    /**
+     * The text to carry into a new post elsewhere: the post's own words only.
+     * The account handle, the "3시간" header of a quoted post, our processing notes and
+     * the comment section that the scraper swept up are all left out.
+     */
+    public static function shareText(array $item): string
+    {
+        $body = trim((string) ($item['description'] ?? ''));
+        $body = trim(preg_split('/\n*\[(?:적용한 처리|실패한 처리|처리 시간)\]/u', $body)[0]);
+        $lines = preg_split('/\R/u', $body);
+
+        $age = '/^\d[\d,.]*\s*(초|분|시간|일|주|개월|년)$/u';
+        // "<작성자>\n<n시간>" is the header of a quoted post, not part of the text
+        while (count($lines) >= 2 && preg_match($age, trim($lines[1]))) array_splice($lines, 0, 2);
+        while ($lines !== [] && (trim($lines[0]) === '' || preg_match($age, trim($lines[0])))) array_shift($lines);
+
+        $stop = '/^(번역 보기|답글 달기|더 보기|좋아요\s*[\d,]+개|답글\s*[\d,]+개\s*모두 보기)$/u';
+        $keep = [];
+        foreach ($lines as $l) {
+            if (preg_match($stop, trim($l))) break;   // the comment section starts here
+            $keep[] = $l;
+        }
+        $body = trim(implode("\n", $keep));
+        if ($body !== '') return $body;
+
+        // an upload or an edit result has no post text: use the title, without the handle
+        return trim(preg_replace('/^@[A-Za-z0-9._]+\s*/u', '', (string) ($item['title'] ?? '')));
+    }
+
     public static function imageSizes(array $urls, int $timeout = 10): array
     {
         $urls = array_filter($urls, static fn ($u) => is_string($u) && self::imageUrlAllowed($u));

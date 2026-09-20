@@ -243,9 +243,7 @@ $srcSum = $isImg
   $('titleInput').addEventListener('keydown', e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') $('btnRenameCancel').click(); });
   $('btnRenameSave').addEventListener('click', save);
   /* ---------- Send to X ---------- */
-  const xText = [<?= json_encode($item['title'], JSON_UNESCAPED_UNICODE) ?>,
-                 <?= json_encode(trim((string) $item['description']), JSON_UNESCAPED_UNICODE) ?>]
-                .filter(Boolean).join('\n\n');
+  const xText = <?= json_encode(\App\Libraries\MediaSupport::shareText($item), JSON_UNESCAPED_UNICODE) ?>;
   $('btnSendX').addEventListener('click', async () => {
     const b = $('btnSendX'); b.disabled = true;
     try {
