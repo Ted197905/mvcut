@@ -12,6 +12,7 @@ $routes->post('login', 'Auth::attemptLogin');
 $routes->get('register', 'Auth::register');
 $routes->post('register', 'Auth::attemptRegister');
 $routes->post('logout', 'Auth::logout');
+$routes->get('session/expired', 'Auth::expired');
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
     $routes->get('account', 'Settings::index');

@@ -23,6 +23,7 @@ $icons = [
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf" data-name="<?= csrf_token() ?>" content="<?= csrf_hash() ?>">
+<meta name="expired-url" content="<?= site_url('session/expired') ?>">
 <title><?= esc($title) ?> - MV Cut</title>
 <?= view('partials/favicon') ?>
 <link rel="stylesheet" href="<?= asset_url('assets/css/app.css') ?>">

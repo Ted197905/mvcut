@@ -4,6 +4,9 @@
   <div class="form-card">
     <h1>로그인</h1>
     <?= view('partials/alerts') ?>
+    <?php if (! empty($expired)): ?>
+      <div class="alert error">세션이 만료되어 로그아웃되었습니다. 다시 로그인해 주세요.</div>
+    <?php endif ?>
     <form method="post" action="<?= site_url('login') ?>" novalidate>
       <?= csrf_field() ?>
       <div class="field"><label for="email">이메일</label>

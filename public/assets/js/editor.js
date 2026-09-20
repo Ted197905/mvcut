@@ -1088,7 +1088,8 @@
     openSheet(); renderOverlay();
     try {
       const res = await fetch(D.submitUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify(params()) });
-      const j = await res.json();
+      let j = {}; try { j = await res.json(); } catch (e) {}
+      if (MV.expired(res.status, j)) return;   // session gone: the browser is already leaving
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       poll(j.job.id);
     } catch (err) { showJobError(err.message); }

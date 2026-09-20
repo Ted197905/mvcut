@@ -214,7 +214,9 @@ $srcSum = $isImg
     const title = $('titleInput').value.trim(); if (!title) return;
     try {
       const res = await fetch(base + 'api/media/' + id + '/rename', { method: 'POST', headers: hdr, body: JSON.stringify({ title }) });
-      const j = await res.json(); if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      let j = {}; try { j = await res.json(); } catch (e) {}
+      if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       $('mediaTitle').textContent = j.title; $('mediaTitle').title = j.title; document.title = j.title + ' - MV Cut';
     } catch (e) { alert(e.message); }
     head.hidden = false; edit.hidden = true;
@@ -249,7 +251,9 @@ $srcSum = $isImg
         ? { format: fmt, long: +($('dlLong').value || 0), quality: +$('dlQuality').value }
         : { format: fmt, height: +$('dlHeight').value, quality: $('dlQuality').value };
       const res = await fetch(base + 'api/convert/' + id, { method: 'POST', headers: hdr, body: JSON.stringify(body) });
-      const j = await res.json(); if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      let j = {}; try { j = await res.json(); } catch (e) {}
+      if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       if (j.cached) return done(j.media.id);
       poll(j.job.id, (job) => done(job.result_media_id), (job) => status('변환 중 ' + job.progress + '%'));
     } catch (e) { status('실패: ' + e.message, 'error'); $('btnConvert').disabled = false; }

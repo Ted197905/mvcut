@@ -11,7 +11,10 @@ class Auth extends BaseController
         if (session()->get('user_id')) {
             return redirect()->to('/library');
         }
-        return view('auth/login', ['title' => '로그인']);
+        return view('auth/login', [
+            'title'   => '로그인',
+            'expired' => $this->request->getGet('expired') !== null,
+        ]);
     }
 
     public function attemptLogin()
@@ -78,6 +81,16 @@ class Auth extends BaseController
         ]);
         return redirect()->to('/login')->with('flash',
             '가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.');
+    }
+
+    /**
+     * GET /session/expired - where the browser is sent when an API call comes back 403
+     * (an expired CSRF token or session). The session is ended, so the next try is clean.
+     */
+    public function expired()
+    {
+        session()->destroy();
+        return redirect()->to(site_url('login') . '?expired=1');
     }
 
     public function logout()

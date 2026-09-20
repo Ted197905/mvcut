@@ -16,10 +16,24 @@ window.MV = (function () {
     if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
     return (b / 1073741824).toFixed(2) + ' GB';
   };
-  // 403 here is almost always an expired CSRF token / session on a long-open page
-  const httpError = (status, fallback) => status === 403
-    ? '로그인 세션이 만료되었습니다. 새로고침(F5) 후 다시 시도하세요.'
+  /**
+   * 401, or a 403 the server did not explain, means the session or its CSRF token is
+   * gone: end the session and go to the login page. A 403 that carries an error message
+   * is a real refusal (no permission), so it is left to the caller to show.
+   */
+  let leaving = false;
+  const expired = (status, body) => {
+    if (status !== 401 && status !== 403) return false;
+    if (status === 403 && body && body.error) return false;
+    if (leaving) return true;
+    leaving = true;
+    const m = document.querySelector('meta[name="expired-url"]');
+    location.href = m ? m.content : '/session/expired';
+    return true;
+  };
+  const httpError = (status, fallback) => status === 403 || status === 401
+    ? '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'
     : (fallback || ('HTTP ' + status));
 
-  return { csrf, fmtDur, fmtSize, httpError };
+  return { csrf, fmtDur, fmtSize, httpError, expired };
 })();

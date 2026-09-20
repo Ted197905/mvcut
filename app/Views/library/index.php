@@ -140,6 +140,7 @@
       ? { method: 'POST', headers: hdr, body: JSON.stringify(body) }
       : { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body });
     let j = {}; try { j = await res.json(); } catch (e) {}
+    if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
     if (!res.ok || j.error) throw new Error(j.error || MV.httpError(res.status));
     return j;
   }
@@ -152,6 +153,7 @@
       xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded); };
       xhr.onload = () => {
         let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+        MV.expired(xhr.status, j);
         (xhr.status === 200 && j.ok) ? resolve(j) : reject(new Error(j.error || MV.httpError(xhr.status)));
       };
       xhr.onerror = () => reject(new Error('네트워크 오류'));
