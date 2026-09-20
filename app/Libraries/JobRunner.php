@@ -131,7 +131,7 @@ class JobRunner
         if ($smooth === 'slow') {
             // restore the frame rate the slowdown thinned out
             $target = min(60.0, (float) ($src['fps'] ?: 30));
-            $factor = (int) max(2, min(8, round($target / max(1.0, $fps))));
+            $factor = (int) max(2, min(8, round($target / max(0.1, $fps))));
         } else {
             $factor = $smooth === 'x4' ? 4 : 2;
         }
@@ -786,11 +786,14 @@ class JobRunner
         }
         if ($p['speed'] != 1.0) {
             $post[] = sprintf('setpts=PTS/%.4f', $p['speed']);
-            // keep the source frame rate (duplicate/drop frames) instead of a fractional output rate.
-            // With slow-motion smoothing the missing frames are generated afterwards, so leave the
-            // stream thin here rather than filling it with duplicates RIFE would then blend.
-            if (! empty($srcMeta['fps']) && ($p['smooth'] ?? 'off') !== 'slow') {
-                $post[] = sprintf('fps=%.3f', min(60, (float) $srcMeta['fps']));
+            if (! empty($srcMeta['fps'])) {
+                // Slowing down spreads the real frames apart. Left alone, ffmpeg pads the gaps
+                // with duplicates and RIFE then interpolates between identical frames, which
+                // looks exactly as choppy as no smoothing at all. Pinning the rate to the
+                // thinned one keeps only the real frames for RIFE to fill in afterwards.
+                $post[] = ($p['smooth'] ?? 'off') === 'slow' && $p['speed'] < 1
+                    ? sprintf('fps=%.6f', max(0.1, (float) $srcMeta['fps'] * $p['speed']))
+                    : sprintf('fps=%.3f', min(60, (float) $srcMeta['fps']));
             }
         }
         if ($p['output']['height'] > 0) $post[] = "scale=-2:'min(ih,{$p['output']['height']})'";
