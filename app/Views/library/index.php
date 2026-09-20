@@ -2,7 +2,6 @@
 <?= $this->section('content') ?>
 <main>
   <h1>라이브러리</h1>
-  <p class="sub">원본을 업로드하거나 SNS 링크로 가져와서 편집을 시작하세요.</p>
   <?= view('partials/alerts') ?>
   <?php if (! $ffmpeg): ?>
     <div class="alert error">서버에 ffmpeg가 없어 메타데이터와 썸네일을 만들 수 없습니다. <code>sudo apt install ffmpeg</code></div>
