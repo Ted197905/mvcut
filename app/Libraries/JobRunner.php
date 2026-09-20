@@ -419,6 +419,18 @@ class JobRunner
         $this->jobs->update($job['id'], ['progress' => 5]);
         $r = Ffmpeg::run($args, 900);
         $files = glob($dir . '/original.*') ?: [];
+        // In a carousel our list order is not the slide order, so the item we asked for can
+        // be one of the photos. Ask the post which slide actually holds a video and retry.
+        if (($r['code'] !== 0 || $files === []) && $platform === 'instagram'
+            && str_contains($r['stderr'] . $r['stdout'], 'No video formats')) {
+            $slide = $this->carouselVideoItem($bin, (string) $p['url'], $platform);
+            if ($slide > 0 && $slide !== $idx) {
+                $args[(int) array_search('--playlist-items', $args, true) + 1] = (string) $slide;
+                $log('carousel: the video is slide ' . $slide . ', retrying');
+                $r = Ffmpeg::run($args, 900);
+                $files = glob($dir . '/original.*') ?: [];
+            }
+        }
         if ($r['code'] !== 0 || $files === []) {
             foreach ($files as $f) @unlink($f);
             $this->media->delete($mediaId); @rmdir($dir);
@@ -471,6 +483,24 @@ class JobRunner
             'meta'        => json_encode(MediaSupport::curateInfo($info), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
         return $info;
+    }
+
+    /** Which slide of a carousel holds the video, or 0 when yt-dlp cannot say. */
+    private function carouselVideoItem(string $bin, string $url, string $platform): int
+    {
+        $args = [$bin, '-J', '--no-warnings', '--ignore-errors', '--skip-download'];
+        if ($c = MediaSupport::cookieFile($platform)) array_push($args, '--cookies', $c);
+        $args[] = $url;
+        $r = Ffmpeg::run($args, 180);
+        $j = json_decode($r['stdout'], true);
+        foreach (($j['entries'] ?? []) as $i => $e) {
+            if (! is_array($e)) continue;
+            foreach (($e['formats'] ?? []) as $f) {
+                if (($f['vcodec'] ?? 'none') !== 'none') return $i + 1;
+            }
+            if (! empty($e['duration'])) return $i + 1;
+        }
+        return 0;
     }
 
     /** Downloads a single image URL (already validated) into the media directory. */
