@@ -1,7 +1,6 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <main>
-  <h1>라이브러리</h1>
   <?= view('partials/alerts') ?>
   <?php if (! $ffmpeg): ?>
     <div class="alert error">서버에 ffmpeg가 없어 메타데이터와 썸네일을 만들 수 없습니다. <code>sudo apt install ffmpeg</code></div>
@@ -53,7 +52,7 @@
       <a class="btn sm ghost" href="<?= site_url('library') ?>">초기화</a>
     <?php endif ?>
     <span class="spacer"></span>
-    <span class="muted small" id="libCount"><?= count($items) ?>개<?= count($items) !== $total ? ' / 전체 ' . $total . '개' : '' ?></span>
+    <span class="muted small" id="libCount"><?= $matched ?>개<?= $matched !== $total ? ' / 전체 ' . $total . '개' : '' ?><?= $pages > 1 ? ' · ' . $page . '/' . $pages . ' 쪽' : '' ?></span>
     <button class="btn sm secondary" type="button" id="btnSelectMode">선택</button>
   </form>
 
@@ -73,6 +72,27 @@
       <?php endforeach ?>
     </div>
   </form>
+
+  <?php if ($pages > 1): ?>
+    <?php $link = static function (int $n) use ($q, $kind, $sort) {
+        $qs = array_filter(['q' => $q, 'kind' => $kind === 'all' ? '' : $kind,
+                            'sort' => $sort === 'newest' ? '' : $sort, 'page' => $n > 1 ? $n : '']);
+        return site_url('library') . ($qs ? '?' . http_build_query($qs) : '');
+    }; ?>
+    <nav class="pager">
+      <a class="pg<?= $page <= 1 ? ' off' : '' ?>" href="<?= $link(max(1, $page - 1)) ?>">이전</a>
+      <?php
+        $from = max(1, min($page - 2, $pages - 4));
+        $to   = min($pages, max($page + 2, 5));
+      ?>
+      <?php if ($from > 1): ?><a class="pg" href="<?= $link(1) ?>">1</a><?php if ($from > 2): ?><span class="gap">…</span><?php endif ?><?php endif ?>
+      <?php for ($n = $from; $n <= $to; $n++): ?>
+        <a class="pg<?= $n === $page ? ' on' : '' ?>" href="<?= $link($n) ?>"><?= $n ?></a>
+      <?php endfor ?>
+      <?php if ($to < $pages): ?><?php if ($to < $pages - 1): ?><span class="gap">…</span><?php endif ?><a class="pg" href="<?= $link($pages) ?>"><?= $pages ?></a><?php endif ?>
+      <a class="pg<?= $page >= $pages ? ' off' : '' ?>" href="<?= $link(min($pages, $page + 1)) ?>">다음</a>
+    </nav>
+  <?php endif ?>
   <?php if (empty($items)): ?>
     <div class="empty" id="empty"><?= $total > 0 ? '조건에 맞는 항목이 없습니다.' : '아직 라이브러리가 비어 있습니다.' ?></div>
   <?php endif ?>

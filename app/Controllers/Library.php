@@ -37,14 +37,23 @@ class Library extends BaseController
             default   => $builder->orderBy('id', 'DESC'),
         };
 
+        // 4 columns x 4 rows per page
+        $perPage = 16;
+        $matched = $builder->countAllResults(false);   // false: keep the conditions for findAll()
+        $pages   = max(1, (int) ceil($matched / $perPage));
+        $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
+
         return view('library/index', [
-            'title'  => '라이브러리',
-            'items'  => $builder->findAll(),
-            'ffmpeg' => Ffmpeg::available(),
-            'q'      => $q,
-            'sort'   => $sort ?: 'newest',
-            'kind'   => $kind ?: 'all',
-            'total'  => $media->where('user_id', $userId)->countAllResults(),
+            'title'   => '라이브러리',
+            'items'   => $builder->findAll($perPage, ($page - 1) * $perPage),
+            'ffmpeg'  => Ffmpeg::available(),
+            'q'       => $q,
+            'sort'    => $sort ?: 'newest',
+            'kind'    => $kind ?: 'all',
+            'page'    => $page,
+            'pages'   => $pages,
+            'matched' => $matched,
+            'total'   => (new MediaModel())->where('user_id', $userId)->countAllResults(),
         ]);
     }
 

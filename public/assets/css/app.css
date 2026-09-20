@@ -335,6 +335,15 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .set-card label { display: block; font-size: 13px; color: var(--label2); margin-bottom: 6px; }
 .ck { background: var(--bg-elev); border-radius: var(--r-group); padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
 .ck-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+/* library pager */
+.pager { display: flex; gap: 6px; align-items: center; justify-content: center; margin: 22px 0 8px; flex-wrap: wrap; }
+.pager .pg { min-width: 34px; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--label2); }
+.pager .pg:hover { background: var(--fill3); text-decoration: none; color: var(--label); }
+.pager .pg.on { background: var(--blue, #0a84ff); border-color: transparent; color: #fff; font-weight: 600; }
+.pager .pg.off { opacity: .4; pointer-events: none; }
+.pager .gap { color: var(--label2); padding: 0 2px; }
+
 /* admin account list */
 .adm-list { display: flex; flex-direction: column; gap: 10px; }
 .adm-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center;

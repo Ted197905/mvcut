@@ -11,9 +11,8 @@
 </head>
 <body>
 <nav class="nav"><div class="in">
-  <a class="brand" href="<?= site_url('/') ?>"><img src="<?= base_url('favicon/android-chrome-192x192.png') ?>" alt="" width="26" height="26"><span>MV Cut</span></a>
+  <a class="brand" href="<?= site_url(session()->get('user_id') ? 'library' : '/') ?>"><img src="<?= base_url('favicon/android-chrome-192x192.png') ?>" alt="" width="26" height="26"><span>MV Cut</span></a>
   <?php if (session()->get('user_id')): ?>
-    <a href="<?= site_url('library') ?>" class="<?= uri_string() === 'library' ? 'active' : '' ?>">라이브러리</a>
     <span class="spacer"></span>
     <?php if (session()->get('role') === 'admin'): ?>
       <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
