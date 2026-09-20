@@ -101,6 +101,49 @@ class MediaSupport
     ];
 
     /** True when the URL is https, on an allowed CDN host, and not pointing at a private address. */
+    /**
+     * Width and height of remote images, read from the first bytes of each file so the
+     * resource list can show a size before anything is downloaded. Keyed like $urls.
+     */
+    public static function imageSizes(array $urls, int $timeout = 10): array
+    {
+        $urls = array_filter($urls, static fn ($u) => is_string($u) && self::imageUrlAllowed($u));
+        if ($urls === [] || ! function_exists('curl_multi_init')) return [];
+
+        $mh = curl_multi_init();
+        $handles = [];
+        foreach ($urls as $k => $u) {
+            $ch = curl_init($u);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_RANGE          => '0-131071',   // the header is at the front of the file
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                                          . '(KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$k] = $ch;
+        }
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running) curl_multi_select($mh, 0.5);
+        } while ($running && $status === CURLM_OK);
+
+        $out = [];
+        foreach ($handles as $k => $ch) {
+            $body = (string) curl_multi_getcontent($ch);
+            $size = $body !== '' ? @getimagesizefromstring($body) : false;
+            if ($size && $size[0] > 0 && $size[1] > 0) $out[$k] = ['w' => (int) $size[0], 'h' => (int) $size[1]];
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+        return $out;
+    }
+
     public static function imageUrlAllowed(string $url): bool
     {
         $parts = parse_url($url);

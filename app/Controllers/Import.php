@@ -138,13 +138,16 @@ class Import extends BaseController
         }
         // a reel's images are just cover frames of the video already listed above
         $coverOnly = $entries !== [] && preg_match('#/(reel|reels)/#', $url) === 1;
+        $imgs  = $coverOnly ? [] : array_slice($r['images'], 0, 20);
+        $sizes = MediaSupport::imageSizes($imgs);   // so the list can show 1080 x 1350
         $n = 0;
-        foreach ($coverOnly ? [] : array_slice($r['images'], 0, 20) as $u) {
+        foreach ($imgs as $k => $u) {
             $i++; $n++;
             $imgTitle = $title !== '가져온 게시물' ? $title . ' (' . $n . ')' : '이미지 ' . $n;
             $entries[] = [
                 'index' => $i, 'id' => (string) $i, 'title' => $imgTitle,
-                'duration' => null, 'thumbnail' => $u, 'width' => null, 'height' => null,
+                'duration' => null, 'thumbnail' => $u,
+                'width' => $sizes[$k]['w'] ?? null, 'height' => $sizes[$k]['h'] ?? null,
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];
         }
@@ -205,11 +208,14 @@ class Import extends BaseController
     private function imageEntries(array $urls): array
     {
         $entries = [];
-        foreach (array_values($urls) as $i => $u) {
+        $urls    = array_values($urls);
+        $sizes   = MediaSupport::imageSizes($urls);
+        foreach ($urls as $i => $u) {
             $entries[] = [
                 'index' => $i + 1, 'id' => (string) ($i + 1),
                 'title' => '이미지 ' . ($i + 1), 'duration' => null,
-                'thumbnail' => $u, 'width' => null, 'height' => null,
+                'thumbnail' => $u,
+                'width' => $sizes[$i]['w'] ?? null, 'height' => $sizes[$i]['h'] ?? null,
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];
         }

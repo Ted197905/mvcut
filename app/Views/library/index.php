@@ -285,7 +285,7 @@
         el.innerHTML = (e.thumbnail ? '<img src="' + esc(e.thumbnail) + '" alt="" referrerpolicy="no-referrer">' : '<img alt="">') +
           '<div style="min-width:0"><div class="t">' + esc(e.title) + '</div><div class="m">' +
           esc(e.kind === 'image' ? '이미지' : '영상') + (e.duration ? ' · ' + MV.fmtDur(e.duration) : '') +
-          (e.width ? ' · ' + e.width + 'x' + e.height : '') + '</div></div>';
+          (e.width ? ' · ' + e.width + ' × ' + e.height : '') + '</div></div>';
         el.addEventListener('click', () => { el.classList.toggle('on'); count(); });
         il.appendChild(el);
       });
