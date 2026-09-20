@@ -40,7 +40,8 @@ class Library extends BaseController
         // one card per post: the first item of each imported link stands for the rest
         $builder->groupStart()
                 ->where('post_key', null)
-                ->orWhere('media.id = (SELECT MIN(m2.id) FROM media m2 WHERE m2.post_key = media.post_key)', null, false)
+                ->orWhere('media.id = (SELECT m2.id FROM media m2 WHERE m2.post_key = media.post_key'
+                          . ' ORDER BY m2.post_order ASC, m2.id ASC LIMIT 1)', null, false)
                 ->groupEnd();
 
         // 4 columns x 4 rows per page
