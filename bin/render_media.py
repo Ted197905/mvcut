@@ -11,9 +11,11 @@ Output: one JSON object on stdout:
   {"ok": false, "error": "..."}
 Media URLs are returned as-is; the caller must still validate the host.
 """
+import base64
 import json
 import re
 import sys
+import urllib.parse
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
@@ -83,6 +85,48 @@ def parse_post(text: str) -> dict:
 
 
 CROPPED = re.compile(r"(stp=c|_s\d{2,4}x\d{2,4})", re.I)
+
+
+def efg_of(url: str) -> dict:
+    """Meta's CDN packs a JSON blob into the efg parameter; it says what the file really is."""
+    m = re.search(r"[?&]efg=([^&]+)", url)
+    if not m:
+        return {}
+    raw = urllib.parse.unquote(m.group(1))
+    try:
+        return json.loads(base64.b64decode(raw + "=" * (-len(raw) % 4)).decode("utf-8", "replace"))
+    except Exception:
+        return {}
+
+
+def dedupe_videos(urls: list[str]) -> list[str]:
+    """
+    One entry per clip. A carousel hands out every DASH rendition of the same video
+    (q30..q90 plus an audio-only track); they all share one xpv_asset_id, so keep the
+    highest bitrate of each asset and drop the audio-only ones.
+    """
+    best: dict[str, tuple[int, str]] = {}
+    order: list[str] = []
+    for u in urls:
+        e = efg_of(u)
+        tag = str(e.get("vencode_tag") or "")
+        if "_audio" in tag:
+            continue
+        key = str(e.get("xpv_asset_id") or u.split("?")[0])
+        rate = int(e.get("bitrate") or 0)
+        if key not in best:
+            best[key] = (rate, u)
+            order.append(key)
+        elif rate > best[key][0]:
+            best[key] = (rate, u)
+    return [best[k][1] for k in order]
+
+
+def is_video_cover(url: str) -> bool:
+    """A carousel's video slide also exposes its cover frame as a still image."""
+    e = efg_of(url)
+    tag = str(e.get("vencode_tag") or e.get("efg_tag") or "")
+    return "cover_frame" in tag or "best_image_urlgen" in tag
 
 
 def dedupe_media(urls: list[str]) -> list[str]:
@@ -286,7 +330,14 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
     if scope and not images:
         images.extend(net_img_first)
 
+    videos[:] = dedupe_videos(videos)
     images[:] = dedupe_media(images)
+    if videos:
+        # the cover of a video slide is not a photo of its own; a reel has nothing but
+        # the cover, so it is only dropped when real photos remain
+        real = [u for u in images if not is_video_cover(u)]
+        if real:
+            images[:] = real
 
     return {
         "links": data.get("links") or [],
