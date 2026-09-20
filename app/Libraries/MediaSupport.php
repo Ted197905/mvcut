@@ -117,8 +117,16 @@ class MediaSupport
         $lines = preg_split('/\R/u', $body);
 
         $age = '/^\d[\d,.]*\s*(초|분|시간|일|주|개월|년)$/u';
-        // "<작성자>\n<n시간>" is the header of a quoted post, not part of the text
-        while (count($lines) >= 2 && preg_match($age, trim($lines[1]))) array_splice($lines, 0, 2);
+        // The scraped text opens with the post header: the account (sometimes two, joined by
+        // "및") and how long ago it was posted. Everything up to that "6일" line goes, as long
+        // as those lines are short enough to be names rather than the post's own sentences.
+        foreach (array_slice($lines, 0, 6) as $i => $l) {
+            if (! preg_match($age, trim($l))) continue;
+            $names = array_slice($lines, 0, $i);
+            $short = array_filter($names, static fn ($n) => mb_strlen(trim($n)) <= 40);
+            if (count($short) === count($names)) array_splice($lines, 0, $i + 1);
+            break;
+        }
         while ($lines !== [] && (trim($lines[0]) === '' || preg_match($age, trim($lines[0])))) array_shift($lines);
 
         $stop = '/^(번역 보기|답글 달기|더 보기|좋아요\s*[\d,]+개|답글\s*[\d,]+개\s*모두 보기)$/u';
