@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MV Cut - Send to X",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MV Cut 라이브러리에서 고른 영상과 본문을 X 새 글 작성 창에 올려 둡니다. 게시는 직접 누릅니다.",
   "host_permissions": [
     "https://mvcut.blackout.kr/*",

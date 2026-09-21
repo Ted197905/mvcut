@@ -1,12 +1,12 @@
-// Fills the X composer with the text and attaches the file, then stops. Posting stays manual.
+// Attaches the file to the compose window X opened with our text. Posting stays manual.
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
   if (!job) return;
 
-  const waitFor = (sel, ms = 20000) => new Promise((resolve, reject) => {
-    const found = document.querySelector(sel);
-    if (found) return resolve(found);
-    const t = setTimeout(() => { ob.disconnect(); reject(new Error('시간이 초과되었습니다: ' + sel)); }, ms);
+  const waitFor = (sel, ms = 25000) => new Promise((resolve, reject) => {
+    const hit = document.querySelector(sel);
+    if (hit) return resolve(hit);
+    const t = setTimeout(() => { ob.disconnect(); reject(new Error('작성 창을 찾지 못했습니다')); }, ms);
     const ob = new MutationObserver(() => {
       const el = document.querySelector(sel);
       if (el) { clearTimeout(t); ob.disconnect(); resolve(el); }
@@ -24,37 +24,29 @@
     setTimeout(() => el.remove(), bad ? 8000 : 3500);
   };
 
-  try {
-    // our own server allows this origin on the signed link, so the file can be read here
-    const res = await fetch(job.url);
-    if (!res.ok) throw new Error('파일을 불러오지 못했습니다 (HTTP ' + res.status + ')');
-    const file = new File([await res.blob()], job.filename, { type: job.mime });
-
-    const box = await waitFor('div[data-testid^="tweetTextarea_"]');
-    box.focus();
-    // A restored draft would otherwise stay and our text would land inside it.
-    document.execCommand('selectAll');
-    document.execCommand('delete');
-
-    if (job.text) {
-      // Paste, not insertText: the composer is a rich editor that only updates its own
-      // state (and hides the placeholder) for events it knows, and paste is one of them.
-      const dt = new DataTransfer();
-      dt.setData('text/plain', job.text);
-      box.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
-      await new Promise((r) => setTimeout(r, 250));
-      if (!box.textContent.trim()) {
-        box.focus();
-        document.execCommand('insertText', false, job.text);
-      }
+  const load = async () => {
+    try {
+      const r = await fetch(job.url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.blob();
+    } catch (e) {
+      const r = await chrome.runtime.sendMessage({ type: 'fetch-file', url: job.url });
+      if (!r || !r.ok) throw new Error('파일을 불러오지 못했습니다: ' + ((r && r.error) || e.message));
+      const bin = atob(r.b64);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      return new Blob([buf], { type: job.mime });
     }
+  };
 
-    const input = await waitFor('input[data-testid="fileInput"]');
+  try {
+    // the compose modal, not the inline composer behind it
+    const input = await waitFor('div[role="dialog"] input[data-testid="fileInput"]');
+    const file = new File([await load()], job.filename, { type: job.mime });
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
-
     toast('본문과 파일을 올렸습니다. 확인 후 직접 게시하세요.');
   } catch (e) {
     toast('MV Cut: ' + e.message, true);
