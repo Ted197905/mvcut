@@ -32,7 +32,22 @@
 
     const box = await waitFor('div[data-testid^="tweetTextarea_"]');
     box.focus();
-    if (job.text) document.execCommand('insertText', false, job.text);
+    // A restored draft would otherwise stay and our text would land inside it.
+    document.execCommand('selectAll');
+    document.execCommand('delete');
+
+    if (job.text) {
+      // Paste, not insertText: the composer is a rich editor that only updates its own
+      // state (and hides the placeholder) for events it knows, and paste is one of them.
+      const dt = new DataTransfer();
+      dt.setData('text/plain', job.text);
+      box.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+      await new Promise((r) => setTimeout(r, 250));
+      if (!box.textContent.trim()) {
+        box.focus();
+        document.execCommand('insertText', false, job.text);
+      }
+    }
 
     const input = await waitFor('input[data-testid="fileInput"]');
     const dt = new DataTransfer();

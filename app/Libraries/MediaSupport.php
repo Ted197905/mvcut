@@ -135,7 +135,11 @@ class MediaSupport
             if (preg_match($stop, trim($l))) break;   // the comment section starts here
             $keep[] = $l;
         }
-        $body = trim(implode("\n", $keep));
+        $body = implode("\n", $keep);
+        // links do not travel: t.co shorteners and source links only clutter the new post
+        $body = preg_replace('~\b(?:https?://|www\.)\S+~iu', '', $body);
+        $body = preg_replace('/[ \t]+/u', ' ', $body);
+        $body = trim(preg_replace('/\n{3,}/u', "\n\n", implode("\n", array_map('rtrim', preg_split('/\R/u', $body)))));
         if ($body !== '') return $body;
 
         // an upload or an edit result has no post text: use the title, without the handle
