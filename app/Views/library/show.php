@@ -271,7 +271,7 @@ $srcSum = $isImg
       let j = {}; try { j = await res.json(); } catch (e) {}
       if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
-      $('mediaTitle').textContent = j.title; $('mediaTitle').title = j.title; document.title = j.title + ' - MV Cut';
+      $('mediaTitle').textContent = j.title; $('mediaTitle').title = j.title;
     } catch (e) { alert(e.message); }
     head.hidden = false; edit.hidden = true;
   }
