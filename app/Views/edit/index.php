@@ -104,7 +104,20 @@ $icons = [
 
       <div class="panel" data-panel="screen">
         <div class="sec">
-          <div class="sec-title">화면 크롭 (Screen Crop)</div>
+          <div class="sec-title">회전 / 반전</div>
+          <div class="presets" id="rotPresets">
+            <button data-rot="0" class="active">원본</button>
+            <button data-rot="90">오른쪽 90°</button>
+            <button data-rot="180">180°</button>
+            <button data-rot="270">왼쪽 90°</button>
+          </div>
+          <div class="row2" style="margin-top:8px">
+            <label class="switch"><input type="checkbox" id="flipH"> <span>좌우 반전</span></label>
+            <label class="switch"><input type="checkbox" id="flipV"> <span>상하 반전</span></label>
+          </div>
+          <p class="hint">회전은 가장 먼저 적용됩니다. 자르기, 가리기, 워터마크, 자막 위치는 모두 회전된 화면 기준입니다.</p>
+
+          <div class="sec-title" style="margin-top:14px">화면 크롭 (Screen Crop)</div>
           <label class="switch"><input type="checkbox" id="cropOn"> <span>크롭 사용</span></label>
           <div class="presets" id="cropPresets">
             <button data-ar="free" class="active">자유</button>

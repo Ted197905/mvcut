@@ -44,7 +44,8 @@
     segments: [{ start: 0, end: DUR, removed: false }],
     selected: 0,
     markIn: null, markOut: null,
-    crop: null,               // {x,y,w,h} in source px, null = off
+    transform: { rotate: 0, flipH: false, flipV: false },   // applied before everything else
+    crop: null,               // {x,y,w,h} in rotated-source px, null = off
     cropAR: 'free',
     masks: [],                // {x,y,w,h,style}
     selectedMask: -1,
@@ -61,9 +62,9 @@
     output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
-  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles }); }
+  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform }); }
   function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
-  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.subtitles) state.subtitles = s.subtitles; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.transform) state.transform = s.transform; if (s.subtitles) state.subtitles = s.subtitles; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
@@ -82,6 +83,7 @@
     state.keepAudio = D.params.keepAudio !== false;
     if (D.params.output) state.output = Object.assign({ audio: 'auto' }, D.params.output);
     if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
+    if (D.params.transform) state.transform = Object.assign({ rotate: 0, flipH: false, flipV: false }, D.params.transform);
   }
 
   /* ---------- segment ops ---------- */
@@ -396,15 +398,26 @@
   /* ---------- stage / crop / masks ---------- */
   const stage = $('stage'), overlay = $('overlay'), cropRect = $('cropRect'), maskLayer = $('maskLayer');
   let scale = 1; // stage px per source px
+  // every coordinate in the editor is measured on the rotated frame, like the export
+  const turned = () => state.transform.rotate === 90 || state.transform.rotate === 270;
+  const SW = () => (turned() ? D.height : D.width);
+  const SH = () => (turned() ? D.width : D.height);
   function layoutStage() {
     const wrap = $('previewWrap');
     const cs = getComputedStyle(wrap);
     const aw = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const ah = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     if (aw <= 0 || ah <= 0) return;
-    const ar = D.width / D.height; let w = aw, h = w / ar; if (h > ah) { h = ah; w = h * ar; }
-    stage.style.width = w + 'px'; stage.style.height = h + 'px'; video.style.width = w + 'px'; video.style.height = h + 'px';
-    scale = w / D.width; renderOverlay();
+    const ar = SW() / SH(); let w = aw, h = w / ar; if (h > ah) { h = ah; w = h * ar; }
+    stage.style.width = w + 'px'; stage.style.height = h + 'px';
+    // the file itself is not rotated, so the element is sized unrotated and then turned
+    const vw = turned() ? h : w, vh = turned() ? w : h;
+    video.style.width = vw + 'px'; video.style.height = vh + 'px';
+    video.style.marginLeft = ((w - vw) / 2) + 'px'; video.style.marginTop = ((h - vh) / 2) + 'px';
+    const t = state.transform;
+    // the list applies right to left, so the flip mirrors the already rotated picture
+    video.style.transform = 'scale(' + (t.flipH ? -1 : 1) + ',' + (t.flipV ? -1 : 1) + ') rotate(' + t.rotate + 'deg)';
+    scale = w / SW(); renderOverlay();
   }
   function placeRect(el, r) { el.style.left = r.x * scale + 'px'; el.style.top = r.y * scale + 'px'; el.style.width = r.w * scale + 'px'; el.style.height = r.h * scale + 'px'; }
   function renderOverlay() {
@@ -718,7 +731,7 @@
 
   /* ---------- watermark ---------- */
   const wmEl = $('wmPreview'), wmText = $('wmPreviewText');
-  const wmBox = () => state.crop || { x: 0, y: 0, w: D.width, h: D.height };
+  const wmBox = () => state.crop || { x: 0, y: 0, w: SW(), h: SH() };
   function defaultWatermark() {
     const b = wmBox(), pad = Math.round(Math.min(b.w, b.h) * 0.04);
     const base = { text: '', font: Object.keys(window.FONTS)[0] || 'pretendard', size: Math.max(12, Math.round(b.h * 0.05)),
@@ -867,30 +880,30 @@
 
   function syncCropFields() {
     $('cropOn').checked = !!state.crop;
-    const c = state.crop || { x: 0, y: 0, w: D.width, h: D.height };
+    const c = state.crop || { x: 0, y: 0, w: SW(), h: SH() };
     $('cropX').value = c.x; $('cropY').value = c.y; $('cropW').value = c.w; $('cropH').value = c.h;
     [ 'cropX', 'cropY', 'cropW', 'cropH' ].forEach(id => $(id).disabled = !state.crop);
     document.querySelectorAll('#cropPresets button').forEach(b => b.classList.toggle('active', b.dataset.ar === state.cropAR));
   }
   const even = (v) => Math.round(v / 2) * 2;
   function normRect(r) {
-    r.w = clamp(even(r.w), 2, D.width); r.h = clamp(even(r.h), 2, D.height);
-    r.x = clamp(even(r.x), 0, D.width - r.w); r.y = clamp(even(r.y), 0, D.height - r.h);
+    r.w = clamp(even(r.w), 2, SW()); r.h = clamp(even(r.h), 2, SH());
+    r.x = clamp(even(r.x), 0, SW() - r.w); r.y = clamp(even(r.y), 0, SH() - r.h);
     return r;
   }
-  function arValue(ar) { if (ar === 'src') return D.width / D.height; if (ar === 'free') return null; const [a, b] = ar.split(':').map(Number); return a / b; }
+  function arValue(ar) { if (ar === 'src') return SW() / SH(); if (ar === 'free') return null; const [a, b] = ar.split(':').map(Number); return a / b; }
   function applyAR(r, ar, anchor) {
     const v = arValue(ar); if (!v) return normRect(r);
     // keep width, adjust height (or vice versa when it does not fit)
     let w = r.w, h = w / v;
-    if (h > D.height) { h = D.height; w = h * v; }
-    if (w > D.width) { w = D.width; h = w / v; }
+    if (h > SH()) { h = SH(); w = h * v; }
+    if (w > SW()) { w = SW(); h = w / v; }
     const cx = anchor ? anchor.x : r.x + r.w / 2, cy = anchor ? anchor.y : r.y + r.h / 2;
     return normRect({ x: cx - w / 2, y: cy - h / 2, w, h });
   }
   function setCropOn(on) {
     commit();
-    if (on) { const r = { x: 0, y: 0, w: D.width, h: D.height }; state.crop = applyAR(r, state.cropAR); }
+    if (on) { const r = { x: 0, y: 0, w: SW(), h: SH() }; state.crop = applyAR(r, state.cropAR); }
     else state.crop = null;
     renderOverlay();
   }
@@ -901,8 +914,8 @@
     if (!state.crop) { setCropOn(true); $('cropOn').checked = true; }
     else { commit(); state.crop = applyAR(state.crop, state.cropAR); }
     if (state.cropAR !== 'free' && state.crop) { // maximize within frame while keeping ratio
-      const v = arValue(state.cropAR); let w = D.width, h = w / v; if (h > D.height) { h = D.height; w = h * v; }
-      state.crop = normRect({ x: (D.width - w) / 2, y: (D.height - h) / 2, w, h });
+      const v = arValue(state.cropAR); let w = SW(), h = w / v; if (h > SH()) { h = SH(); w = h * v; }
+      state.crop = normRect({ x: (SW() - w) / 2, y: (SH() - h) / 2, w, h });
     }
     renderOverlay();
   });
@@ -912,13 +925,64 @@
     if (state.cropAR !== 'free') { const v = arValue(state.cropAR); if (id === 'cropH') r.w = r.h * v; else r.h = r.w / v; }
     state.crop = normRect(r); renderOverlay();
   }));
-  $('btnCropCenter').addEventListener('click', () => { if (!state.crop) return; commit(); state.crop.x = even((D.width - state.crop.w) / 2); state.crop.y = even((D.height - state.crop.h) / 2); renderOverlay(); });
+  /* ---------- rotation / flip ---------- */
+  // Turning the frame moves every box and point with it, so nothing lands off screen.
+  function remapAll(fr, fp) {
+    if (state.crop) state.crop = normRect(Object.assign({}, state.crop, fr(state.crop)));
+    state.masks = state.masks.map(m => Object.assign({}, m, m.style === 'track' ? fp(m) : fr(m)));
+    if (state.watermark) Object.assign(state.watermark, fp(state.watermark));
+    state.subtitles.forEach(sub => {
+      if (!sub) return;
+      Object.assign(sub, fp(sub));
+      sub.cues.forEach(c => { if (c.style) Object.assign(c.style, fp(c.style)); });
+    });
+  }
+  function turnBy(d) {
+    const W = SW(), H = SH();   // the frame as it stands before the turn
+    remapAll(
+      (r) => d === 90 ? { x: H - r.y - r.h, y: r.x, w: r.h, h: r.w }
+           : d === 180 ? { x: W - r.x - r.w, y: H - r.y - r.h }
+           : { x: r.y, y: W - r.x - r.w, w: r.h, h: r.w },
+      (p) => d === 90 ? { x: H - p.y, y: p.x }
+           : d === 180 ? { x: W - p.x, y: H - p.y }
+           : { x: p.y, y: W - p.x }
+    );
+  }
+  function mirrorBy(axis) {
+    const W = SW(), H = SH();
+    remapAll(
+      (r) => axis === 'h' ? { x: W - r.x - r.w } : { y: H - r.y - r.h },
+      (p) => axis === 'h' ? { x: W - p.x, y: p.y } : { x: p.x, y: H - p.y }
+    );
+  }
+  function syncTransform() {
+    document.querySelectorAll('#rotPresets button').forEach(b => b.classList.toggle('active', +b.dataset.rot === state.transform.rotate));
+    $('flipH').checked = state.transform.flipH;
+    $('flipV').checked = state.transform.flipV;
+  }
+  $('rotPresets').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const d = ((+b.dataset.rot - state.transform.rotate) + 360) % 360;
+    if (!d) return;
+    commit();
+    turnBy(d);
+    state.transform.rotate = +b.dataset.rot;
+    syncTransform(); layoutStage();
+  });
+  [['flipH', 'h'], ['flipV', 'v']].forEach(([id, axis]) => $(id).addEventListener('change', (e) => {
+    commit();
+    mirrorBy(axis);
+    state.transform[id] = e.target.checked;
+    layoutStage();
+  }));
+
+  $('btnCropCenter').addEventListener('click', () => { if (!state.crop) return; commit(); state.crop.x = even((SW() - state.crop.w) / 2); state.crop.y = even((SH() - state.crop.h) / 2); renderOverlay(); });
   $('btnCropReset').addEventListener('click', () => { commit(); state.crop = null; state.cropAR = 'free'; renderOverlay(); });
 
   function addMask(style) {
     commit();
-    const w = even(D.width / 4), h = even(D.height / 4);
-    state.masks.push(normRect({ x: (D.width - w) / 2, y: (D.height - h) / 2, w, h, style }));
+    const w = even(SW() / 4), h = even(SH() / 4);
+    state.masks.push(normRect({ x: (SW() - w) / 2, y: (SH() - h) / 2, w, h, style }));
     state.selectedMask = state.masks.length - 1; renderOverlay();
   }
   function removeMask(i) { commit(); state.masks.splice(i, 1); state.selectedMask = -1; renderOverlay(); }
@@ -988,7 +1052,7 @@
     const move = (ev) => {
       const dx = (ev.clientX - sx) / scale, dy = (ev.clientY - sy) / scale;
       let r = { ...start };
-      if (!handle) { r.x = start.x + dx; r.y = start.y + dy; r.w = start.w; r.h = start.h; r.x = clamp(r.x, 0, D.width - r.w); r.y = clamp(r.y, 0, D.height - r.h); }
+      if (!handle) { r.x = start.x + dx; r.y = start.y + dy; r.w = start.w; r.h = start.h; r.x = clamp(r.x, 0, SW() - r.w); r.y = clamp(r.y, 0, SH() - r.h); }
       else {
         if (handle.includes('e')) r.w = start.w + dx;
         if (handle.includes('s')) r.h = start.h + dy;
@@ -1002,8 +1066,8 @@
         }
         if (r.x < 0) { if (ar) { r.w += r.x; r.h = r.w / ar; } else r.w += r.x; r.x = 0; }
         if (r.y < 0) { if (ar) { r.h += r.y; r.w = r.h * ar; } else r.h += r.y; r.y = 0; }
-        if (r.x + r.w > D.width) { r.w = D.width - r.x; if (ar) r.h = r.w / ar; }
-        if (r.y + r.h > D.height) { r.h = D.height - r.y; if (ar) r.w = r.h * ar; }
+        if (r.x + r.w > SW()) { r.w = SW() - r.x; if (ar) r.h = r.w / ar; }
+        if (r.y + r.h > SH()) { r.h = SH() - r.y; if (ar) r.w = r.h * ar; }
       }
       r = normRect(r); if (!isCrop) r.style = start.style;
       if (isCrop) state.crop = r; else state.masks[idx] = r;
@@ -1076,7 +1140,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;
@@ -1120,5 +1184,5 @@
   stripEl.style.backgroundImage = `url("${D.stripUrl}")`;
   $('tcTotal').textContent = '/ ' + tc(DUR);
   syncOutputFields();
-  layoutStage(); layoutTimeline(); renderAll();
+  syncTransform(); layoutStage(); layoutTimeline(); renderAll();
 })();

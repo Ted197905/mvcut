@@ -7,6 +7,8 @@ namespace App\Libraries;
  *
  * {
  *   "keep":   [[start, end], ...]        seconds, sorted, non-overlapping (segments to keep)
+ *   "transform": {"rotate":0|90|180|270, "flipH":bool, "flipV":bool}
+ *             applied first, so every coordinate below is in the rotated frame
  *   "crop":   {"x":0,"y":0,"w":W,"h":H} | null   source pixels
  *   "masks":  [{"x","y","w","h","style":"black|blur|fill|ai"}]
  *             or {"style":"track","x","y","at"}   click point, tracked by SAM 2
@@ -111,6 +113,16 @@ class EditParams
             if ($keep[$i][0] < $keep[$i - 1][1]) throw new \InvalidArgumentException('구간이 겹칩니다.');
         }
         if ($keep === []) throw new \InvalidArgumentException('남길 구간이 없습니다.');
+
+        // rotation and flips come first in the pipeline, so everything below - crop, masks,
+        // watermark, subtitles - is measured on the rotated frame the editor shows
+        $rot = (int) ($in['transform']['rotate'] ?? 0);
+        if ($rot < 0) $rot += 360;
+        if (! in_array($rot, [0, 90, 180, 270], true)) $rot = 0;
+        $transform = ['rotate' => $rot,
+                      'flipH'  => (bool) ($in['transform']['flipH'] ?? false),
+                      'flipV'  => (bool) ($in['transform']['flipV'] ?? false)];
+        if ($rot === 90 || $rot === 270) [$W, $H] = [$H, $W];
 
         // crop
         $crop = null;
@@ -242,6 +254,7 @@ class EditParams
 
         return [
             'keep'      => $keep,
+            'transform' => $transform,
             'crop'      => $crop,
             'masks'     => $masks,
             'watermark' => $wm,
@@ -319,6 +332,17 @@ class EditParams
             $q  = $p['erase']['quality'] ?? 'normal';
             $lines[] = '가리기: ' . implode(', ', $parts)
                      . ($ai ? ' · 정밀도 ' . match ($q) { 'fast' => '빠르게', 'fine' => '정밀', default => '보통' } : '');
+        }
+
+        $t = $p['transform'] ?? [];
+        if (! empty($t['rotate']) || ! empty($t['flipH']) || ! empty($t['flipV'])) {
+            $bits = [];
+            if (! empty($t['rotate'])) $bits[] = match ((int) $t['rotate']) {
+                90 => '오른쪽 90도', 180 => '180도', 270 => '왼쪽 90도', default => '',
+            };
+            if (! empty($t['flipH'])) $bits[] = '좌우 반전';
+            if (! empty($t['flipV'])) $bits[] = '상하 반전';
+            $lines[] = '회전: ' . implode(' · ', array_filter($bits));
         }
 
         if (! empty($p['watermark'])) {

@@ -165,7 +165,7 @@ class JobRunner
         $rects = array_values(array_filter($p['masks'], static fn ($m) => ($m['style'] ?? '') === 'ai'));
         if ($rects === []) return [];
         $ox = $p['crop']['x'] ?? 0; $oy = $p['crop']['y'] ?? 0;
-        $ch = (int) ($p['crop']['h'] ?? $src['height']);
+        $ch = (int) ($p['crop']['h'] ?? self::frameSize($p, $src)[1]);
         $oh = (int) $p['output']['height'];
         $s  = ($oh > 0 && $ch > 0 && $oh < $ch) ? $oh / $ch : 1.0;
         $out = [];
@@ -215,7 +215,7 @@ class JobRunner
         $pts = array_values(array_filter($p['masks'], static fn ($m) => ($m['style'] ?? '') === 'track'));
         if ($pts === []) return null;
         $ox = $p['crop']['x'] ?? 0; $oy = $p['crop']['y'] ?? 0;
-        $ch = (int) ($p['crop']['h'] ?? $src['height']);
+        $ch = (int) ($p['crop']['h'] ?? self::frameSize($p, $src)[1]);
         $oh = (int) $p['output']['height'];
         $s  = ($oh > 0 && $ch > 0 && $oh < $ch) ? $oh / $ch : 1.0;
 
@@ -729,6 +729,33 @@ class JobRunner
         $this->stageErrors[] = $label . ': ' . $why;
     }
 
+    /**
+     * Rotation and flips, first in the chain and in that order; the editor's preview
+     * composes them the same way.
+     */
+    /** The frame the edit coordinates live in: the source after rotation. */
+    private static function frameSize(array $p, array $src): array
+    {
+        $w = (int) $src['width'];
+        $h = (int) $src['height'];
+        $r = (int) ($p['transform']['rotate'] ?? 0);
+        return ($r === 90 || $r === 270) ? [$h, $w] : [$w, $h];
+    }
+
+    private static function transformFilters(array $t): array
+    {
+        // rotate first, then flip: a flip mirrors what the editor already shows rotated
+        $out = match ((int) ($t['rotate'] ?? 0)) {
+            90      => ['transpose=1'],            // clockwise
+            180     => ['transpose=1', 'transpose=1'],
+            270     => ['transpose=2'],            // counter-clockwise
+            default => [],
+        };
+        if (! empty($t['flipH'])) $out[] = 'hflip';
+        if (! empty($t['flipV'])) $out[] = 'vflip';
+        return $out;
+    }
+
     /** @return string[] argv */
     public function buildEditCommand(string $src, string $out, array $p, array $srcMeta): array
     {
@@ -756,7 +783,7 @@ class JobRunner
 
         // video chain
         $v = '[vc]';
-        $chain = [];
+        $chain = self::transformFilters($p['transform'] ?? []);
         if ($p['crop']) {
             $c = $p['crop'];
             $chain[] = "crop={$c['w']}:{$c['h']}:{$c['x']}:{$c['y']}";
@@ -779,8 +806,9 @@ class JobRunner
             }
             if ($m['style'] === 'fill') {
                 // delogo interpolates the box from its border, so it needs one pixel of margin
-                $fw = (int) ($p['crop']['w'] ?? $srcMeta['width']);
-                $fh = (int) ($p['crop']['h'] ?? $srcMeta['height']);
+                [$frameW, $frameH] = self::frameSize($p, $srcMeta);
+                $fw = (int) ($p['crop']['w'] ?? $frameW);
+                $fh = (int) ($p['crop']['h'] ?? $frameH);
                 $dx = max(1, min($fw - 3, $x));
                 $dy = max(1, min($fh - 3, $y));
                 $dw = max(1, min($fw - $dx - 1, $m['w']));
