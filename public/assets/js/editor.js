@@ -410,13 +410,14 @@
     if (aw <= 0 || ah <= 0) return;
     const ar = SW() / SH(); let w = aw, h = w / ar; if (h > ah) { h = ah; w = h * ar; }
     stage.style.width = w + 'px'; stage.style.height = h + 'px';
-    // the file itself is not rotated, so the element is sized unrotated and then turned
+    // the file itself is not rotated: size the element unrotated, then turn it about its
+    // centre. Turned, its box is (h x w) and it fills the (w x h) stage exactly.
     const vw = turned() ? h : w, vh = turned() ? w : h;
     video.style.width = vw + 'px'; video.style.height = vh + 'px';
-    video.style.marginLeft = ((w - vw) / 2) + 'px'; video.style.marginTop = ((h - vh) / 2) + 'px';
     const t = state.transform;
-    // the list applies right to left, so the flip mirrors the already rotated picture
-    video.style.transform = 'scale(' + (t.flipH ? -1 : 1) + ',' + (t.flipV ? -1 : 1) + ') rotate(' + t.rotate + 'deg)';
+    // right to left: rotate, then mirror what is now on screen, then centre it
+    video.style.transform = 'translate(-50%,-50%) scale(' + (t.flipH ? -1 : 1) + ',' + (t.flipV ? -1 : 1) + ')'
+                          + ' rotate(' + t.rotate + 'deg)';
     scale = w / SW(); renderOverlay();
   }
   function placeRect(el, r) { el.style.left = r.x * scale + 'px'; el.style.top = r.y * scale + 'px'; el.style.width = r.w * scale + 'px'; el.style.height = r.h * scale + 'px'; }
