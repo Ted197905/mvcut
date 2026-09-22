@@ -105,27 +105,33 @@ $icons = [
       <div class="panel" data-panel="screen">
         <div class="sec">
           <div class="sec-title">회전 / 반전</div>
-          <div class="presets" id="rotPresets">
-            <button data-rot="0" class="active">원본</button>
-            <button data-rot="90">오른쪽 90°</button>
-            <button data-rot="180">180°</button>
-            <button data-rot="270">왼쪽 90°</button>
+          <div class="iconrow">
+            <span class="lbl">회전</span>
+            <div class="presets icons" id="rotPresets">
+              <button data-rot="0" class="active" title="원본" aria-label="원본"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/></svg></button>
+              <button data-rot="90" title="오른쪽 90도" aria-label="오른쪽 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M6.5 3.6h4.6a2.4 2.4 0 0 1 2.4 2.4v1.3"/><path d="M8.3 1.8 6.4 3.6l1.9 1.8"/></svg></button>
+              <button data-rot="180" title="180도" aria-label="180도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 0 1 10 0 5 5 0 0 1-5 5"/><path d="M6.1 10.9 8 13l-1.9 2"/><path d="M3 8H1.6M3 8l1.4-1.4M3 8l1.4 1.4"/></svg></button>
+              <button data-rot="270" title="왼쪽 90도" aria-label="왼쪽 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M9.5 3.6H4.9A2.4 2.4 0 0 0 2.5 6v1.3"/><path d="M7.7 1.8 9.6 3.6 7.7 5.4"/></svg></button>
+            </div>
           </div>
-          <div class="row2" style="margin-top:8px">
-            <label class="switch"><input type="checkbox" id="flipH"> <span>좌우 반전</span></label>
-            <label class="switch"><input type="checkbox" id="flipV"> <span>상하 반전</span></label>
+          <div class="iconrow">
+            <span class="lbl">반전</span>
+            <div class="presets icons" id="flipBtns">
+              <button data-flip="H" title="좌우 반전" aria-label="좌우 반전"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 2v12" stroke-dasharray="2 2"/><path d="M6.2 4.5 2.5 8l3.7 3.5z"/><path d="M9.8 4.5 13.5 8l-3.7 3.5z"/></svg></button>
+              <button data-flip="V" title="상하 반전" aria-label="상하 반전"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2 8h12" stroke-dasharray="2 2"/><path d="M4.5 6.2 8 2.5l3.5 3.7z"/><path d="M4.5 9.8 8 13.5l3.5-3.7z"/></svg></button>
+            </div>
           </div>
           <p class="hint">회전은 가장 먼저 적용됩니다. 자르기, 가리기, 워터마크, 자막 위치는 모두 회전된 화면 기준입니다.</p>
 
           <div class="sec-title" style="margin-top:14px">화면 크롭 (Screen Crop)</div>
           <label class="switch"><input type="checkbox" id="cropOn"> <span>크롭 사용</span></label>
-          <div class="presets" id="cropPresets">
-            <button data-ar="free" class="active">자유</button>
-            <button data-ar="1:1">1:1</button>
-            <button data-ar="4:5">4:5</button>
-            <button data-ar="9:16">9:16</button>
-            <button data-ar="16:9">16:9</button>
-            <button data-ar="src">원본</button>
+          <div class="presets tiles" id="cropPresets">
+            <button data-ar="free" class="active" title="자유 비율"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.5 1.5v10a1 1 0 0 0 1 1h9"/><path d="M1.5 4.5h10a1 1 0 0 1 1 1v9"/></svg><span>자유</span></button>
+            <button data-ar="1:1" title="1:1"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="10" rx="1.2"/></svg><span>1:1</span></button>
+            <button data-ar="4:5" title="4:5"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="2.5" width="8" height="11" rx="1.2"/></svg><span>4:5</span></button>
+            <button data-ar="9:16" title="9:16"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.2" y="1.5" width="5.6" height="13" rx="1.2"/></svg><span>9:16</span></button>
+            <button data-ar="16:9" title="16:9"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="5" width="13" height="6" rx="1.2"/></svg><span>16:9</span></button>
+            <button data-ar="src" title="원본 비율"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2"/><path d="M5.5 8h5" stroke-linecap="round"/></svg><span>원본</span></button>
           </div>
           <div class="row4">
             <label>X<input type="number" id="cropX" min="0" step="2"></label>

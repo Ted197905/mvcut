@@ -82,6 +82,16 @@
 .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .presets button { background: var(--e-panel2); border: 1px solid var(--e-line); color: var(--e-fg2); border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
 .presets button.active { border-color: var(--e-accent); color: var(--e-fg); background: rgba(41,151,255,.15); }
+/* a label on the left, icon-only buttons after it */
+.iconrow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.iconrow .lbl { flex: none; width: 34px; font-size: 12px; color: var(--e-fg2); }
+.iconrow .presets { margin-bottom: 0; }
+.presets.icons button { width: 40px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+/* icon over its label */
+.presets.tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.presets.tiles button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 7px 2px; font-size: 11px; line-height: 1; }
+.presets.tiles button svg { display: block; }
 .seglist, .masklist { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; margin-bottom: 8px; }
 .segitem, .maskitem { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px; border-radius: 6px; background: var(--e-panel2); cursor: pointer; border: 1px solid transparent; font-variant-numeric: tabular-nums; }
 .segitem.selected, .maskitem.selected { border-color: var(--e-accent); }

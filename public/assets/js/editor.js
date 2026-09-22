@@ -957,8 +957,7 @@
   }
   function syncTransform() {
     document.querySelectorAll('#rotPresets button').forEach(b => b.classList.toggle('active', +b.dataset.rot === state.transform.rotate));
-    $('flipH').checked = state.transform.flipH;
-    $('flipV').checked = state.transform.flipV;
+    document.querySelectorAll('#flipBtns button').forEach(b => b.classList.toggle('active', !!state.transform['flip' + b.dataset.flip]));
   }
   $('rotPresets').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -969,12 +968,14 @@
     state.transform.rotate = +b.dataset.rot;
     syncTransform(); layoutStage();
   });
-  [['flipH', 'h'], ['flipV', 'v']].forEach(([id, axis]) => $(id).addEventListener('change', (e) => {
+  $('flipBtns').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const key = 'flip' + b.dataset.flip;
     commit();
-    mirrorBy(axis);
-    state.transform[id] = e.target.checked;
-    layoutStage();
-  }));
+    mirrorBy(b.dataset.flip.toLowerCase());
+    state.transform[key] = !state.transform[key];
+    syncTransform(); layoutStage();
+  });
 
   $('btnCropCenter').addEventListener('click', () => { if (!state.crop) return; commit(); state.crop.x = even((SW() - state.crop.w) / 2); state.crop.y = even((SH() - state.crop.h) / 2); renderOverlay(); });
   $('btnCropReset').addEventListener('click', () => { commit(); state.crop = null; state.cropAR = 'free'; renderOverlay(); });
