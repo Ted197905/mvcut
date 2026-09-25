@@ -174,11 +174,11 @@ class Import extends BaseController
     /** The page is a login or age gate instead of the post. Returns the user-facing reason. */
     private function loginWall(string $platform, string $text): ?string
     {
-        // Instagram and Threads are handled by the empty-media checks; public Facebook pages also
-        // show a login form, so match the gate's own wording only
+        // Instagram and Threads are handled by the empty-media checks. Public Facebook posts also
+        // show a login form and a "Facebook에서 더 많은 콘텐츠 보기" popup, so match the gate's own wording only
         if ($platform !== 'facebook') return null;
         $gate = false;
-        foreach (['Log in to view', 'You must log in', 'See more on Facebook', 'Facebook에서 더 많은 콘텐츠 보기'] as $p) {
+        foreach (['Log in to view', 'You must log in', '로그인해야'] as $p) {
             if (stripos($text, $p) !== false) { $gate = true; break; }
         }
         if (! $gate) return null;
