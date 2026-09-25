@@ -47,9 +47,11 @@ class Import extends BaseController
         $j = trim($out['stdout']) !== '' ? json_decode($out['stdout'], true) : null;
         if ($out['code'] !== 0 || ! is_array($j)) {
             // no video: try the renderer (unless it already ran), then og:image / twitter:image
-            if (! in_array($platform, self::RENDER_FIRST, true) && ($r = $this->renderEntries($url))) {
+            $why = null;
+            if (! in_array($platform, self::RENDER_FIRST, true) && ($r = $this->renderEntries($url, $why))) {
                 return $this->response->setJSON($r + ['platform' => $platform]);
             }
+            if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, $why)]);
             $images = MediaSupport::scrapeImages($url);
             if ($images !== []) {
                 $e = $this->imageEntries($images);
@@ -100,6 +102,12 @@ class Import extends BaseController
     {
         $r = MediaSupport::render($url);
         if (! $r) return null;
+        $platform = (string) MediaSupport::platformOf($url);
+        // a login or age gate carries its own images (tracking pixels), so check it before the media
+        if ($wall = $this->loginWall($platform, (string) $r['text'])) {
+            $why = $wall;
+            return null;
+        }
         if ($r['videos'] === [] && $r['images'] === []) {
             $t = $r['text'];
             if ($r['redirected']) {
@@ -122,7 +130,6 @@ class Import extends BaseController
         );
         // Instagram serves reels as fragmented streams that a plain download cannot reassemble,
         // so let yt-dlp fetch the video from the post URL whenever it can read this platform.
-        $platform = (string) MediaSupport::platformOf($url);
         $useYtdlp = $platform !== 'threads' && MediaSupport::ytdlp() && MediaSupport::cookieFile($platform);
 
         $entries = []; $i = 0;
@@ -140,6 +147,9 @@ class Import extends BaseController
         $coverOnly = $entries !== [] && preg_match('#/(reel|reels)/#', $url) === 1;
         $imgs  = $coverOnly ? [] : array_slice($r['images'], 0, 20);
         $sizes = MediaSupport::imageSizes($imgs);   // so the list can show 1080 x 1350
+        foreach ($imgs as $k => $u) {
+            if (isset($sizes[$k]) && min($sizes[$k]['w'], $sizes[$k]['h']) < 100) unset($imgs[$k]);   // pixels, icons
+        }
         $n = 0;
         foreach ($imgs as $k => $u) {
             $i++; $n++;
@@ -151,6 +161,7 @@ class Import extends BaseController
                 'kind' => 'image', 'url' => $u, 'image_url' => $u,
             ];
         }
+        if ($entries === []) return null;
         Cookies::clearFailure($platform);
         $notice = MediaSupport::cookieFile($platform)
             ? '로그인 세션으로 읽은 화면에서 찾은 미디어입니다. 원본보다 화질이 낮을 수 있습니다.'
@@ -158,6 +169,26 @@ class Import extends BaseController
         return ['ok' => true, 'entries' => $entries, 'title' => $title,
                 'desc' => mb_substr($body, 0, 5000), 'notice' => $notice,
                 'post' => ['uploader' => $handle, 'stats' => $this->postStats($post)]];
+    }
+
+    /** The page is a login or age gate instead of the post. Returns the user-facing reason. */
+    private function loginWall(string $platform, string $text): ?string
+    {
+        // Instagram and Threads are handled by the empty-media checks; public Facebook pages also
+        // show a login form, so match the gate's own wording only
+        if ($platform !== 'facebook') return null;
+        $gate = false;
+        foreach (['Log in to view', 'You must log in', 'See more on Facebook', 'Facebook에서 더 많은 콘텐츠 보기'] as $p) {
+            if (stripos($text, $p) !== false) { $gate = true; break; }
+        }
+        if (! $gate) return null;
+        $msg = str_contains($text, '18+')
+            ? '연령 제한(18+) 게시물이라 로그인해야 볼 수 있습니다.'
+            : '로그인해야 볼 수 있는 게시물이라 가져올 수 없습니다.';
+        if (Cookies::known($platform) && ! MediaSupport::cookieFile($platform)) {
+            $msg .= ' 설정 화면에서 ' . Cookies::PLATFORMS[$platform]['label'] . ' 로그인 쿠키를 등록하면 가져올 수 있습니다.';
+        }
+        return $msg;
     }
 
     /**

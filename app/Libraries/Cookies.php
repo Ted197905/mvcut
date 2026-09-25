@@ -11,10 +11,11 @@ class Cookies
     public const PLATFORMS = [
         'instagram' => ['label' => 'Instagram', 'domains' => ['instagram.com'], 'site' => 'https://www.instagram.com/'],
         'threads'   => ['label' => 'Threads',   'domains' => ['threads.com', 'threads.net'], 'site' => 'https://www.threads.com/'],
+        'facebook'  => ['label' => 'Facebook',  'domains' => ['facebook.com'], 'site' => 'https://www.facebook.com/', 'session' => ['c_user', 'xs']],
     ];
 
     /** Cookies that carry the session; used for the expiry readout. */
-    private const SESSION_COOKIES = ['sessionid', 'ds_user_id', 'csrftoken'];
+    private const SESSION_COOKIES = ['sessionid', 'ds_user_id', 'csrftoken', 'c_user', 'xs'];
 
     public static function known(string $platform): bool
     {
@@ -79,8 +80,10 @@ class Cookies
             }
         }
         if (! $match) return self::PLATFORMS[$platform]['label'] . ' 쿠키가 아닙니다. 해당 사이트에 로그인한 상태에서 다시 내보내 주세요.';
-        if (! in_array('sessionid', array_column($rows, 'name'), true)) {
-            return '로그인 세션 쿠키(sessionid)가 없습니다. 로그인한 상태에서 내보냈는지 확인해 주세요.';
+        $need = self::PLATFORMS[$platform]['session'] ?? ['sessionid'];
+        $missing = array_diff($need, array_column($rows, 'name'));
+        if ($missing !== []) {
+            return '로그인 세션 쿠키(' . implode(', ', $missing) . ')가 없습니다. 로그인한 상태에서 내보냈는지 확인해 주세요.';
         }
         $dir = ROOTPATH . 'secrets';
         if (! is_dir($dir) && ! @mkdir($dir, 0770, true)) return '서버에 secrets 디렉터리를 만들 수 없습니다.';
