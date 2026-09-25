@@ -1025,7 +1025,7 @@
   }, true);
   /* ---------- face track ---------- */
   let pickFace = false;
-  const FACE_DEF = { aspect: '9:16', zoom: 1.5, smooth: 50, edge: 'clamp' };
+  const FACE_DEF = { aspect: '9:16', zoom: 1.5, smooth: 0, edge: 'blur', anchor: 'center' };
   const FACE_AR = { '9:16': 9 / 16, '4:5': 4 / 5, '1:1': 1, '16:9': 16 / 9 };
   function setPickFace(on) {
     pickFace = on;
@@ -1040,7 +1040,7 @@
     const ar = FACE_AR[f.aspect] || b.w / b.h;
     let bw = b.w, bh = b.w / ar; if (bh > b.h) { bh = b.h; bw = bh * ar; }
     const w = bw / f.zoom, h = bh / f.zoom;
-    let x = f.x - w / 2, y = f.y - h / 2;
+    let x = f.x - w / 2, y = f.y - h * (f.anchor === 'upper' ? 0.35 : 0.5);
     if (f.edge !== 'blur') { x = clamp(x, b.x, b.x + b.w - w); y = clamp(y, b.y, b.y + b.h - h); }
     return { x, y, w, h };
   }
@@ -1058,8 +1058,8 @@
     const o = f || FACE_DEF;
     document.querySelectorAll('#faceAspect button').forEach(b => b.classList.toggle('active', b.dataset.ar === o.aspect));
     $('faceZoom').value = o.zoom; $('faceZoomVal').textContent = (+o.zoom).toFixed(1) + '\uBC30';
-    $('faceSmooth').value = o.smooth; $('faceSmoothVal').textContent = o.smooth;
-    $('faceEdge').value = o.edge;
+    $('faceSmooth').value = o.smooth; $('faceSmoothVal').textContent = +o.smooth ? o.smooth : '\uACE0\uC815';
+    $('faceEdge').value = o.edge; $('faceAnchor').value = o.anchor || 'center';
     $('faceStatus').textContent = pickFace ? '따라갈 얼굴을 미리보기에서 클릭하세요. 얼굴이 잘 보이는 프레임을 고르면 정확합니다.'
       : f ? '지정됨: ' + tc(f.at) + ' 프레임의 얼굴. 노란 점선이 이 프레임에서 잘릴 화면입니다.'
       : '따라갈 인물의 얼굴을 지정하면 그 얼굴이 화면 가운데에 오도록 프레임마다 화면을 옮깁니다.';
@@ -1071,6 +1071,7 @@
   $('faceZoom').addEventListener('input', (e) => setFace('zoom', +e.target.value));
   $('faceSmooth').addEventListener('input', (e) => setFace('smooth', +e.target.value));
   $('faceEdge').addEventListener('change', (e) => setFace('edge', e.target.value));
+  $('faceAnchor').addEventListener('change', (e) => setFace('anchor', e.target.value));
   overlay.addEventListener('click', (e) => {
     if (!pickFace) return;
     e.preventDefault(); e.stopPropagation();

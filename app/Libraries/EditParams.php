@@ -19,7 +19,7 @@ namespace App\Libraries;
  *   "expand":  {"w":1.0,"h":1.0}           ProPainter outpainting, 1.0 .. 2.0
  *   "erase":   {"quality":"fast|normal|fine"}   how finely the repaint runs
  *   "facetrack": {"x","y","at","aspect":"9:16|4:5|1:1|16:9|src","zoom":1.0..3.0,
- *                 "smooth":0..100,"edge":"clamp|blur"} | null
+ *                 "smooth":0..100,"edge":"clamp|blur","anchor":"center|upper"} | null
  *             keeps the face clicked at (x, y, at) in the middle of a moving window
  *   "subtitles": [{"template","font","size","color","anchor","x","y",
  *                  "cues":[{"start","end","text"}]}]   up to 2 layers, times in source seconds
@@ -199,8 +199,9 @@ class EditParams
                 'at'     => max(0.0, min($dur, round((float) ($f['at'] ?? 0), 3))),
                 'aspect' => in_array($f['aspect'] ?? '', ['9:16', '4:5', '1:1', '16:9', 'src'], true) ? $f['aspect'] : '9:16',
                 'zoom'   => round(max(1.0, min(3.0, (float) ($f['zoom'] ?? 1.5))), 2),
-                'smooth' => max(0, min(100, (int) ($f['smooth'] ?? 50))),
-                'edge'   => ($f['edge'] ?? '') === 'blur' ? 'blur' : 'clamp',
+                'smooth' => max(0, min(100, (int) ($f['smooth'] ?? 0))),
+                'edge'   => ($f['edge'] ?? 'blur') === 'clamp' ? 'clamp' : 'blur',
+                'anchor' => ($f['anchor'] ?? '') === 'upper' ? 'upper' : 'center',
             ];
         }
 
@@ -413,8 +414,9 @@ class EditParams
             $f = $p['facetrack'];
             $lines[] = '얼굴 추적: ' . ($f['aspect'] === 'src' ? '원본 비율' : $f['aspect'])
                      . ' · ' . rtrim(rtrim(number_format($f['zoom'], 2), '0'), '.') . '배 확대'
-                     . ' · 부드러움 ' . $f['smooth']
-                     . ($f['edge'] === 'blur' ? ' · 가장자리 블러 채움' : '');
+                     . ' · 얼굴 ' . (($f['anchor'] ?? 'center') === 'upper' ? '위쪽' : '가운데')
+                     . ($f['smooth'] > 0 ? ' · 부드러움 ' . $f['smooth'] : ' · 고정')
+                     . ($f['edge'] === 'blur' ? ' · 가장자리 블러 채움' : ' · 화면 안에서 멈춤');
         }
 
         $ex = $p['expand'] ?? ['w' => 1, 'h' => 1];

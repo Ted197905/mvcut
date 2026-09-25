@@ -164,17 +164,21 @@ $icons = [
             <label class="slider">확대 <span id="faceZoomVal">1.5배</span>
               <input type="range" id="faceZoom" min="1" max="3" step="0.1" value="1.5">
             </label>
-            <label class="slider">부드러움 <span id="faceSmoothVal">50</span>
-              <input type="range" id="faceSmooth" min="0" max="100" step="5" value="50">
+            <label class="slider">부드러움 <span id="faceSmoothVal">고정</span>
+              <input type="range" id="faceSmooth" min="0" max="100" step="5" value="0">
             </label>
             <div class="row2">
+              <label>얼굴 위치<select id="faceAnchor">
+                <option value="center">가운데</option>
+                <option value="upper">위쪽 (1/3)</option>
+              </select></label>
               <label>가장자리<select id="faceEdge">
-                <option value="clamp">화면 안에서 멈춤</option>
                 <option value="blur">블러 배경으로 채움</option>
+                <option value="clamp">화면 안에서 멈춤</option>
               </select></label>
             </div>
           </div>
-          <p class="hint">확대가 클수록 얼굴을 가운데에 붙일 여유가 커지지만 화질이 떨어집니다. 부드러움 0은 얼굴에 딱 고정, 100은 카메라가 천천히 따라가는 느낌입니다. 얼굴이 잠시 안 보이는 구간은 앞뒤 위치로 이어 붙이며, 비슷한 옷을 입은 사람이 붙어 있으면 다른 사람으로 넘어갈 수 있습니다.</p>
+          <p class="hint">부드러움 0(고정)은 스테디캠처럼 얼굴을 화면 한곳에 붙여 둡니다. 올리면 카메라가 천천히 따라가는 느낌이 됩니다. 고정하려면 얼굴이 원본 가장자리에 가도 창이 따라가야 하므로 가장자리는 블러 채움을 권합니다. "화면 안에서 멈춤"은 얼굴이 원본 가장자리에 가까울 때 고정이 풀립니다. 확대가 클수록 화질이 떨어집니다. 얼굴이 잠시 안 보이는 구간은 앞뒤 위치로 이어 붙이며, 비슷한 옷을 입은 사람이 붙어 있으면 다른 사람으로 넘어갈 수 있습니다.</p>
         </div>
         <div class="sec">
           <div class="sec-title">화면 가리기 (Screen Cut)</div>

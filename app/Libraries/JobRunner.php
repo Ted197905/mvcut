@@ -247,7 +247,7 @@ class JobRunner
         $args = [$py, ROOTPATH . 'bin/facetrack.py', '--in', $out, '--out', $tmp,
                  '--x', (string) $f['ox'], '--y', (string) $f['oy'], '--frame', (string) (int) max(0, round($f['ot'] * $fps)),
                  '--aspect', $f['aspect'], '--zoom', (string) $f['zoom'], '--smooth', (string) $f['smooth'],
-                 '--edge', $f['edge'], '--models', ROOTPATH . 'vendor_ml/face'];
+                 '--edge', $f['edge'], '--anchor-y', ($f['anchor'] ?? 'center') === 'upper' ? '0.35' : '0.5', '--models', ROOTPATH . 'vendor_ml/face'];
         $log('facetrack ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
         if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
