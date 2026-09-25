@@ -21,7 +21,8 @@ class Import extends BaseController
         if (! $platform) return $this->response->setStatusCode(422)->setJSON(['error' => 'Instagram, Facebook, X, Threads, YouTube 링크만 지원합니다.']);
         // Instagram and Threads serve JavaScript-only pages that yt-dlp reads poorly or not at
         // all, so the headless renderer is the first attempt for them, not the fallback.
-        if (in_array($platform, self::RENDER_FIRST, true)) {
+        $renderFirst = $this->renderFirst($platform, $url);
+        if ($renderFirst) {
             $why = null;
             if ($r = $this->renderEntries($url, $why)) {
                 return $this->response->setJSON($r + ['platform' => $platform]);
@@ -48,7 +49,7 @@ class Import extends BaseController
         if ($out['code'] !== 0 || ! is_array($j)) {
             // no video: try the renderer (unless it already ran), then og:image / twitter:image
             $why = null;
-            if (! in_array($platform, self::RENDER_FIRST, true) && ($r = $this->renderEntries($url, $why))) {
+            if (! $renderFirst && ($r = $this->renderEntries($url, $why))) {
                 return $this->response->setJSON($r + ['platform' => $platform]);
             }
             if ($why) return $this->response->setStatusCode(422)->setJSON(['error' => $this->cookieHint($platform, $why)]);
@@ -92,6 +93,16 @@ class Import extends BaseController
             if ($images !== []) $entries = $this->imageEntries($images);
         }
         return $this->response->setJSON(['ok' => true, 'platform' => $platform, 'title' => $j['title'] ?? null, 'entries' => $entries]);
+    }
+
+    /**
+     * Facebook posts (not reels or videos) go to the renderer first: yt-dlp answers a post link
+     * with whichever video it finds on the page, often not the post's own.
+     */
+    private function renderFirst(string $platform, string $url): bool
+    {
+        if (in_array($platform, self::RENDER_FIRST, true)) return true;
+        return $platform === 'facebook' && preg_match('#/share/p/|/posts/|/permalink\.php|story_fbid=#', $url) === 1;
     }
 
     /**
