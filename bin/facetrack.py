@@ -111,7 +111,8 @@ def analyse(src: str, v: dict, models: str):
                     continue
                 feat = rec.feature(rec.alignCrop(img, f)).flatten()
                 feat /= (np.linalg.norm(feat) + 1e-9)
-                row.append((float((f[0] + f[2] / 2) * back), float((f[1] + f[3] / 2) * back),
+                # anchor on the eyes: steadier than the box, which grows and shrinks with hair and angle
+                row.append((float((f[4] + f[6]) / 2 * back), float((f[5] + f[7]) / 2 * back),
                             float(max(f[2], f[3]) * back), feat, torso_hist(img, f)))
         out.append(row)
         if i % 10 == 0:
@@ -226,7 +227,8 @@ def main() -> int:
     ap.add_argument("--frame", type=int, default=0)
     ap.add_argument("--aspect", default="9:16")
     ap.add_argument("--zoom", type=float, default=1.5)
-    ap.add_argument("--smooth", type=int, default=50, help="0 = locked on the face, 100 = slow follow")
+    ap.add_argument("--smooth", type=int, default=0, help="0 = locked on the face, 100 = slow follow")
+    ap.add_argument("--anchor-y", type=float, default=0.5, help="where the eyes sit, 0 = top, 1 = bottom")
     ap.add_argument("--edge", default="clamp", choices=["clamp", "blur"])
     ap.add_argument("--models", default="/var/www/mvcut/vendor_ml/face")
     ap.add_argument("--crf", default="18")
@@ -249,8 +251,8 @@ def main() -> int:
     seen = sum(1 for t in track if t)
     cx, cy = fill(track)
 
-    # 0 keeps the face pinned (a little damping against detector jitter), 100 glides
-    sigma = (0.04 + (max(0, min(100, a.smooth)) / 100) ** 1.5 * 1.2) * fps
+    # 0 pins the face (only the detector's own jitter is damped), 100 glides like a slow camera
+    sigma = max(1.0, 0.03 * fps) + (max(0, min(100, a.smooth)) / 100) ** 2 * 1.0 * fps
     cx, cy = smooth(cx, sigma), smooth(cy, sigma)
 
     # the window: the largest box of the aspect that fits, shrunk by the zoom
@@ -260,6 +262,7 @@ def main() -> int:
     zoom = max(1.0, min(4.0, a.zoom))
     ww, wh = bw / zoom, bh / zoom
     scale = ow / ww
+    ay = max(0.2, min(0.8, a.anchor_y))
 
     enc_v = (["-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-row-mt", "1", "-cpu-used", "4"]
              if a.dst.lower().endswith(".webm") else
@@ -273,7 +276,7 @@ def main() -> int:
     dec = decoder(a.src, 0, 0)
     for i, img in enumerate(frames(dec, W, H)):
         j = min(i, n - 1)
-        x0, y0 = cx[j] - ww / 2, cy[j] - wh / 2
+        x0, y0 = cx[j] - ww / 2, cy[j] - wh * ay
         if a.edge == "clamp":
             x0 = min(max(0.0, x0), W - ww)
             y0 = min(max(0.0, y0), H - wh)
