@@ -308,15 +308,15 @@
   $('btnImport').addEventListener('click', async () => {
     const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index);
     if (!items.length || !inspected) return;
-    const titles = {}, images = {}, media = {};
+    const titles = {}, images = {}, media = {}, audio = {};
     inspected.entries.forEach(e => {
       titles[e.index] = e.title;
       if (e.image_url) images[e.index] = e.image_url;
-      else if (e.media_url) media[e.index] = e.media_url;
+      else if (e.media_url) { media[e.index] = e.media_url; if (e.audio_url) audio[e.index] = e.audio_url; }
     });
     istatus('가져오기 요청 중...'); $('btnImport').disabled = true;
     try {
-      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images, media, desc: inspected.desc, post: inspected.post });
+      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images, media, audio, desc: inspected.desc, post: inspected.post });
       il.hidden = ia.hidden = true;
       istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
       j.job_ids.forEach(id => pollImport(id));

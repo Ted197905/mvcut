@@ -144,6 +144,37 @@ def progressive_urls(html: str) -> dict[str, str]:
     return {k: v[1] for k, v in best.items()}
 
 
+def dash_tracks(html: str) -> dict[str, dict[str, str]]:
+    """
+    xpv_asset_id -> {"video": url, "audio": url} from the DASH representations a logged-in page
+    embeds. Video prefers H.264 (plays everywhere) and then bandwidth; audio takes the best bandwidth.
+    """
+    best: dict[str, dict[str, tuple]] = {}
+    dec = json.JSONDecoder()
+    for m in re.finditer(r'"representations":(?=\[)', html or ""):
+        try:
+            reps, _ = dec.raw_decode(html, m.end())
+        except ValueError:
+            continue
+        for r in reps if isinstance(reps, list) else []:
+            if not isinstance(r, dict):
+                continue
+            u = str(r.get("base_url") or "")
+            mime = str(r.get("mime_type") or "")
+            if not u or not MEDIA_HOST.search(u) or "/" not in mime:
+                continue
+            key = str(efg_of(u).get("xpv_asset_id") or "")
+            if not key:
+                continue
+            kind = "audio" if mime.startswith("audio") else "video"
+            score = (str(r.get("codecs") or "").startswith("avc1") if kind == "video" else True,
+                     int(r.get("bandwidth") or 0))
+            slot = best.setdefault(key, {})
+            if kind not in slot or score > slot[kind][0]:
+                slot[kind] = (score, u)
+    return {k: {kind: v[1] for kind, v in slot.items()} for k, slot in best.items()}
+
+
 def whole_file(url: str) -> str:
     """A DASH segment request carries bytestart/byteend; without them the CDN returns the whole file."""
     return re.sub(r"&(bytestart|byteend)=\d+", "", url)
@@ -365,10 +396,21 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
     videos[:] = dedupe_videos(videos)
     # the player fetches DASH segments (video-only, a few hundred bytes at a time); swap each
     # for the progressive file of the same asset, else for the whole representation
+    # (logged in, the page has no progressive file but lists every DASH track: take the best
+    # video and audio and let the importer mux them)
     prog = progressive_urls(html)
+    dash = dash_tracks(html)
+    audio: dict[str, str] = {}
     for k, u in enumerate(videos):
         key = str(efg_of(u).get("xpv_asset_id") or "")
-        videos[k] = prog.get(key) or whole_file(u)
+        if key in prog:
+            videos[k] = prog[key]
+        elif dash.get(key, {}).get("video"):
+            videos[k] = dash[key]["video"]
+            if dash[key].get("audio"):
+                audio[videos[k]] = dash[key]["audio"]
+        else:
+            videos[k] = whole_file(u)
     if not videos and len(prog) == 1:
         videos.extend(prog.values())
     images[:] = dedupe_media(images)
@@ -388,6 +430,7 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         "text": data.get("bodyText"),
         "post": parse_post(data.get("bodyText") or "") if scope else None,
         "videos": videos[:10],
+        "audio": audio,
         "images": images[:20],
     }
 

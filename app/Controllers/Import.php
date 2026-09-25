@@ -130,7 +130,8 @@ class Import extends BaseController
         );
         // Instagram serves reels as fragmented streams that a plain download cannot reassemble,
         // so let yt-dlp fetch the video from the post URL whenever it can read this platform.
-        $useYtdlp = $platform !== 'threads' && MediaSupport::ytdlp() && MediaSupport::cookieFile($platform);
+        // Facebook gets whole files from the renderer, and yt-dlp can pick another video of a shared post.
+        $useYtdlp = $platform === 'instagram' && MediaSupport::ytdlp() && MediaSupport::cookieFile($platform);
 
         $entries = []; $i = 0;
         foreach (array_slice($r['videos'], 0, 10) as $u) {
@@ -140,7 +141,10 @@ class Import extends BaseController
                 'duration' => null, 'thumbnail' => $r['images'][0] ?? null, 'width' => null, 'height' => null,
                 'kind' => 'video', 'url' => $url,
             ];
-            if (! $useYtdlp) $entry['media_url'] = $u;
+            if (! $useYtdlp) {
+                $entry['media_url'] = $u;
+                if (! empty($r['audio'][$u])) $entry['audio_url'] = $r['audio'][$u];
+            }
             $entries[] = $entry;
         }
         // a reel's images are just cover frames of the video already listed above
@@ -265,6 +269,7 @@ class Import extends BaseController
         if ($items === []) return $this->response->setStatusCode(422)->setJSON(['error' => '선택된 항목이 없습니다.']);
         $images = (array) ($in['images'] ?? []);
         $media  = (array) ($in['media'] ?? []);
+        $audio  = (array) ($in['audio'] ?? []);
         $desc   = mb_substr(trim((string) ($in['desc'] ?? '')), 0, 5000);
         $post   = is_array($in['post'] ?? null) ? $in['post'] : [];
         $uploader = mb_substr(trim((string) ($post['uploader'] ?? '')), 0, 190);
@@ -289,6 +294,8 @@ class Import extends BaseController
             } elseif ($vid !== '') {
                 if (! MediaSupport::imageUrlAllowed($vid)) continue;
                 $params['video_url'] = $vid;
+                $aud = (string) ($audio[$idx] ?? '');
+                if ($aud !== '' && MediaSupport::imageUrlAllowed($aud)) $params['audio_url'] = $aud;
                 if ($desc !== '') $params['description'] = $desc;
                 if ($uploader !== '') $params['uploader'] = $uploader;
                 if ($stats !== []) $params['stats'] = $stats;

@@ -434,6 +434,8 @@ class MediaSupport
             'text'        => (string) ($j['text'] ?? ''),
             'videos'      => $keep((array) ($j['videos'] ?? [])),
             'images'      => $keep((array) ($j['images'] ?? [])),
+            // video url -> separate audio track (DASH), muxed by the importer
+            'audio'       => array_filter((array) ($j['audio'] ?? []), static fn ($a, $v) => is_string($a) && self::imageUrlAllowed($a), ARRAY_FILTER_USE_BOTH),
         ];
     }
 }

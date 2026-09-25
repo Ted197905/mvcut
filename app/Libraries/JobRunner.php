@@ -564,6 +564,10 @@ class JobRunner
         }
         $ext  = match ($meta['container'] ?? '') { 'matroska,webm' => 'webm', 'mov,mp4,m4a,3gp,3g2,mj2' => 'mp4', default => 'mp4' };
         $file = $dir . '/original.' . $ext;
+        if (! empty($p['audio_url']) && empty($meta['acodec'])) {
+            $this->muxAudio($tmp, (string) $p['audio_url'], $dir, $log);
+            $ext = 'mp4'; $file = $dir . '/original.mp4';
+        }
         rename($tmp, $file);
         $this->media->update($mediaId, ['filename' => 'original.' . $ext] + $this->postFields($p));
         $this->jobs->update($job['id'], ['progress' => 80]);
@@ -573,6 +577,27 @@ class JobRunner
             $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
         }
         return $mediaId;
+    }
+
+    /** Adds a separately served audio track (DASH) to the downloaded video, in place. Skipped on failure. */
+    private function muxAudio(string $video, string $audioUrl, string $dir, callable $log): void
+    {
+        $aud = $dir . '/audio.bin';
+        $out = $dir . '/muxed.mp4';
+        $log('curl audio ' . $audioUrl);
+        $r = Ffmpeg::run(['curl', '-sL', '--max-redirs', '3', '--max-time', '300', '--max-filesize', '536870912',
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+            '-w', '%{url_effective}', '-o', $aud, $audioUrl], 310);
+        $effective = trim($r['stdout']);
+        if ($r['code'] === 0 && is_file($aud) && filesize($aud) > 0 && ($effective === '' || MediaSupport::imageUrlAllowed($effective))) {
+            $m = Ffmpeg::run(['ffmpeg', '-v', 'error', '-y', '-i', $video, '-i', $aud, '-map', '0:v:0', '-map', '1:a:0',
+                '-c', 'copy', '-movflags', '+faststart', $out], 300);
+            if ($m['code'] === 0 && is_file($out) && filesize($out) > 0) rename($out, $video);
+            else $log('audio mux failed: ' . mb_substr($m['stderr'], 0, 300));
+        } else {
+            $log('audio download failed');
+        }
+        @unlink($aud); @unlink($out);
     }
 
     /**
