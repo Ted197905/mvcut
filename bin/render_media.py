@@ -122,6 +122,33 @@ def dedupe_videos(urls: list[str]) -> list[str]:
     return [best[k][1] for k in order]
 
 
+# Facebook embeds a progressive mp4 (video + audio in one file) next to the DASH manifest.
+PROGRESSIVE = re.compile(r'"(browser_native_hd_url|playable_url_quality_hd|browser_native_sd_url|playable_url)":("(?:[^"\\]|\\.)*")')
+
+
+def progressive_urls(html: str) -> dict[str, str]:
+    """xpv_asset_id -> progressive mp4 URL, HD preferred over SD."""
+    rank = {"browser_native_hd_url": 0, "playable_url_quality_hd": 0, "browser_native_sd_url": 1, "playable_url": 1}
+    best: dict[str, tuple[int, str]] = {}
+    for m in PROGRESSIVE.finditer(html or ""):
+        try:
+            u = json.loads(m.group(2))
+        except ValueError:
+            continue
+        if not u or not MEDIA_HOST.search(u):
+            continue
+        key = str(efg_of(u).get("xpv_asset_id") or u.split("?")[0])
+        r = rank[m.group(1)]
+        if key not in best or r < best[key][0]:
+            best[key] = (r, u)
+    return {k: v[1] for k, v in best.items()}
+
+
+def whole_file(url: str) -> str:
+    """A DASH segment request carries bytestart/byteend; without them the CDN returns the whole file."""
+    return re.sub(r"&(bytestart|byteend)=\d+", "", url)
+
+
 def is_video_cover(url: str) -> bool:
     """A carousel's video slide also exposes its cover frame as a still image."""
     e = efg_of(url)
@@ -309,6 +336,11 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
                         if u not in (data.get(k) or []):
                             data.setdefault(k, []).append(u)
 
+        html = ""
+        try:
+            html = page.content()
+        except Exception:  # noqa: BLE001
+            pass
         browser.close()
 
     posters = []
@@ -331,6 +363,14 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
         images.extend(net_img_first)
 
     videos[:] = dedupe_videos(videos)
+    # the player fetches DASH segments (video-only, a few hundred bytes at a time); swap each
+    # for the progressive file of the same asset, else for the whole representation
+    prog = progressive_urls(html)
+    for k, u in enumerate(videos):
+        key = str(efg_of(u).get("xpv_asset_id") or "")
+        videos[k] = prog.get(key) or whole_file(u)
+    if not videos and len(prog) == 1:
+        videos.extend(prog.values())
     images[:] = dedupe_media(images)
     if videos:
         # the cover of a video slide is not a photo of its own; a reel has nothing but
