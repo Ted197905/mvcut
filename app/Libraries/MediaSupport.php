@@ -227,6 +227,8 @@ class MediaSupport
         }
         $urls = [];
         foreach (array_unique($found) as $u) {
+            // a post whose media is hidden (X sensitive media) falls back to the author's avatar
+            if (str_contains($u, '/profile_images/')) continue;
             if (self::imageUrlAllowed($u)) $urls[] = $u;
         }
         return array_slice($urls, 0, 20);

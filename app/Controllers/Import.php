@@ -61,6 +61,9 @@ class Import extends BaseController
             $msg = trim(preg_replace('/^ERROR:\s*/m', '', $out['stderr'])) ?: '리소스를 찾을 수 없습니다.';
             if (stripos($msg, 'empty media response') !== false || stripos($msg, 'login') !== false || stripos($msg, 'cookies') !== false) {
                 $msg = '이 게시물은 로그인해야 볼 수 있어 가져올 수 없습니다. 비공개 계정이거나 플랫폼이 비로그인 접근을 막은 경우입니다.';
+            } elseif (stripos($msg, 'No video could be found in this tweet') !== false) {
+                $msg = '영상을 찾지 못했습니다. 민감한 콘텐츠로 표시된 게시물은 로그인해야 영상이 보입니다.'
+                     . (MediaSupport::cookieFile('x') ? '' : ' 설정 화면에서 X 로그인 쿠키를 등록하면 가져올 수 있습니다.');
             } elseif (stripos($msg, 'No video formats found') !== false) {
                 $msg = '영상이 없는 게시물입니다. 이미지만 있는 글은 로그인 쿠키를 등록해야 가져올 수 있습니다.';
             } elseif (stripos($msg, 'Unsupported URL') !== false) {

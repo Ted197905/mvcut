@@ -12,10 +12,11 @@ class Cookies
         'instagram' => ['label' => 'Instagram', 'domains' => ['instagram.com'], 'site' => 'https://www.instagram.com/'],
         'threads'   => ['label' => 'Threads',   'domains' => ['threads.com', 'threads.net'], 'site' => 'https://www.threads.com/'],
         'facebook'  => ['label' => 'Facebook',  'domains' => ['facebook.com'], 'site' => 'https://www.facebook.com/', 'session' => ['c_user', 'xs']],
+        'x'         => ['label' => 'X',         'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
     ];
 
     /** Cookies that carry the session; used for the expiry readout. */
-    private const SESSION_COOKIES = ['sessionid', 'ds_user_id', 'csrftoken', 'c_user', 'xs'];
+    private const SESSION_COOKIES = ['sessionid', 'ds_user_id', 'csrftoken', 'c_user', 'xs', 'auth_token'];
 
     public static function known(string $platform): bool
     {
