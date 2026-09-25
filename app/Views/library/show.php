@@ -2,6 +2,7 @@
 $ext    = strtoupper(pathinfo($item['filename'], PATHINFO_EXTENSION));
 $isVid  = $item['media_type'] === 'video';
 $isImg  = $item['media_type'] === 'image';
+$noX    = $isVid && $item['vcodec'] === 'av1';   // X rejects AV1 uploads
 $fmts   = $isImg ? ['jpg' => 'JPG', 'png' => 'PNG', 'webp' => 'WebP'] : ['mp4' => 'MP4', 'webm' => 'WebM', 'gif' => 'GIF'];
 $srcSum = $isImg
     ? array_filter([$ext, $item['width'] ? $item['width'] . '×' . $item['height'] : null])
@@ -162,13 +163,16 @@ $srcSum = $isImg
           <button class="btn ghost" type="button" id="btnDelete">삭제</button>
         </form>
       </div>
+      <?php if ($noX): ?>
+        <p class="codec-warn">AV1 코덱 영상은 X(트위터)에 업로드할 수 없습니다. 아래 "변환해서 받기"에서 MP4(H.264)로 변환한 파일을 올려 주세요.</p>
+      <?php endif ?>
 
       <div class="panel-block">
         <p class="eyebrow">정보</p>
         <dl class="list">
           <div class="row"><dt>파일</dt><dd><?= esc($item['filename']) ?></dd></div>
           <div class="row"><dt>형식</dt><dd><?= $isImg ? esc($ext) . ' <span class="muted">· ' . esc($item['mime']) . '</span>' : esc($item['container'] ?: $item['mime']) . ($item['has_proxy'] ? ' <span class="muted">· 프록시</span>' : '') ?></dd></div>
-          <?php if (! $isImg && $item['vcodec']): ?><div class="row"><dt>비디오</dt><dd><?= esc($item['vcodec']) ?><?= $item['fps'] ? ' · ' . esc(rtrim(rtrim($item['fps'], '0'), '.')) . ' fps' : '' ?></dd></div><?php endif ?>
+          <?php if (! $isImg && $item['vcodec']): ?><div class="row"><dt>비디오</dt><dd<?= $noX ? ' class="codec-bad"' : '' ?>><?= esc($item['vcodec']) ?><?= $item['fps'] ? ' · ' . esc(rtrim(rtrim($item['fps'], '0'), '.')) . ' fps' : '' ?></dd></div><?php endif ?>
           <?php if (! $isImg && $item['acodec']): ?><div class="row"><dt>오디오</dt><dd><?= esc($item['acodec']) ?></dd></div><?php endif ?>
           <?php if ($item['width']): ?><div class="row"><dt>해상도</dt><dd><?= esc($item['width'] . ' × ' . $item['height']) ?></dd></div><?php endif ?>
           <?php if ($item['duration']): ?><div class="row"><dt>길이</dt><dd><?= gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $item['duration']) ?></dd></div><?php endif ?>
