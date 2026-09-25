@@ -18,6 +18,9 @@ namespace App\Libraries;
  *   "restore": {"mode":"off|ai|ai2x", "model":"general|anime"}   Real-ESRGAN detail restore
  *   "expand":  {"w":1.0,"h":1.0}           ProPainter outpainting, 1.0 .. 2.0
  *   "erase":   {"quality":"fast|normal|fine"}   how finely the repaint runs
+ *   "facetrack": {"x","y","at","aspect":"9:16|4:5|1:1|16:9|src","zoom":1.0..3.0,
+ *                 "smooth":0..100,"edge":"clamp|blur"} | null
+ *             keeps the face clicked at (x, y, at) in the middle of a moving window
  *   "subtitles": [{"template","font","size","color","anchor","x","y",
  *                  "cues":[{"start","end","text"}]}]   up to 2 layers, times in source seconds
  *   "keepAudio": true
@@ -187,6 +190,20 @@ class EditParams
         if (! in_array($eq, ['fast', 'normal', 'fine'], true)) $eq = 'normal';
         $erase = ['quality' => $eq];
 
+        $face = null;
+        if (! empty($in['facetrack']) && is_array($in['facetrack']) && isset($in['facetrack']['x'], $in['facetrack']['y'])) {
+            $f = $in['facetrack'];
+            $face = [
+                'x'      => max(0, min($W, (int) round((float) $f['x']))),
+                'y'      => max(0, min($H, (int) round((float) $f['y']))),
+                'at'     => max(0.0, min($dur, round((float) ($f['at'] ?? 0), 3))),
+                'aspect' => in_array($f['aspect'] ?? '', ['9:16', '4:5', '1:1', '16:9', 'src'], true) ? $f['aspect'] : '9:16',
+                'zoom'   => round(max(1.0, min(3.0, (float) ($f['zoom'] ?? 1.5))), 2),
+                'smooth' => max(0, min(100, (int) ($f['smooth'] ?? 50))),
+                'edge'   => ($f['edge'] ?? '') === 'blur' ? 'blur' : 'clamp',
+            ];
+        }
+
         $ew = round(max(1.0, min(2.0, (float) ($in['expand']['w'] ?? 1))), 2);
         $eh = round(max(1.0, min(2.0, (float) ($in['expand']['h'] ?? 1))), 2);
         $expand = ['w' => $ew, 'h' => $eh];
@@ -263,6 +280,7 @@ class EditParams
             'restore'   => $restore,
             'expand'    => $expand,
             'erase'     => $erase,
+            'facetrack' => $face,
             'subtitles' => $subs,
             'speed'     => round($speed, 3),
             'keepAudio' => $audio !== 'none',
@@ -389,6 +407,14 @@ class EditParams
             $lines[] = '프레임 생성: ' . match ($smooth) {
                 'x2' => '2배 (부드럽게)', 'x4' => '4배 (부드럽게)', default => '슬로우 보정',
             };
+        }
+
+        if (! empty($p['facetrack'])) {
+            $f = $p['facetrack'];
+            $lines[] = '얼굴 추적: ' . ($f['aspect'] === 'src' ? '원본 비율' : $f['aspect'])
+                     . ' · ' . rtrim(rtrim(number_format($f['zoom'], 2), '0'), '.') . '배 확대'
+                     . ' · 부드러움 ' . $f['smooth']
+                     . ($f['edge'] === 'blur' ? ' · 가장자리 블러 채움' : '');
         }
 
         $ex = $p['expand'] ?? ['w' => 1, 'h' => 1];

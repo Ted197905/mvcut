@@ -56,15 +56,16 @@
     restore: { mode: 'off', model: 'general' },
     expand: { w: 1, h: 1 },
     erase: { quality: 'normal' },
+    facetrack: null,          // {x,y,at,aspect,zoom,smooth,edge}, x/y in rotated-source px
     subtitles: [null, null],   // up to two layers: {template,font,size,color,anchor,x,y,cues:[]}
     subLayer: 0,
     subCue: -1,
     output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high' },
   };
   const undoStack = [], redoStack = [];
-  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform }); }
+  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform, facetrack: state.facetrack }); }
   function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
-  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.transform) state.transform = s.transform; if (s.subtitles) state.subtitles = s.subtitles; state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.transform) state.transform = s.transform; if (s.subtitles) state.subtitles = s.subtitles; state.facetrack = s.facetrack || null; syncFace(); state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
@@ -84,6 +85,7 @@
     if (D.params.output) state.output = Object.assign({ audio: 'auto' }, D.params.output);
     if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
     if (D.params.transform) state.transform = Object.assign({ rotate: 0, flipH: false, flipV: false }, D.params.transform);
+    if (D.params.facetrack) state.facetrack = D.params.facetrack;
   }
 
   /* ---------- segment ops ---------- */
@@ -440,6 +442,7 @@
       el.innerHTML = '<div class="rect-label">' + ({ blur: 'BLUR', fill: 'FILL', ai: 'AI' }[m.style] || 'BLACK') + '</div>' + (i === state.selectedMask ? '<i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>' : '');
       el.dataset.i = i; placeRect(el, m); el.style.pointerEvents = screenTab ? 'auto' : 'none'; maskLayer.appendChild(el);
     });
+    renderFace();
     renderWatermark(); renderSubs();
     syncCropFields(); renderMaskList();
   }
@@ -932,6 +935,7 @@
     if (state.crop) state.crop = normRect(Object.assign({}, state.crop, fr(state.crop)));
     state.masks = state.masks.map(m => Object.assign({}, m, m.style === 'track' ? fp(m) : fr(m)));
     if (state.watermark) Object.assign(state.watermark, fp(state.watermark));
+    if (state.facetrack) Object.assign(state.facetrack, fp(state.facetrack));
     state.subtitles.forEach(sub => {
       if (!sub) return;
       Object.assign(sub, fp(sub));
@@ -997,6 +1001,7 @@
   const trackHint = (msg) => { const el = $('trackHint'); el.textContent = msg; el.hidden = !msg; };
   $('btnMaskTrack').addEventListener('click', () => {
     pickTrack = !pickTrack;
+    if (pickTrack && pickFace) setPickFace(false);
     $('btnMaskTrack').classList.toggle('active', pickTrack);
     overlay.classList.toggle('picking', pickTrack);
     trackHint(pickTrack ? '지울 대상을 미리보기에서 클릭하세요. 지금 보이는 프레임이 기준입니다.' : '');
@@ -1018,6 +1023,68 @@
     trackHint('');
     state.selectedMask = -1; renderOverlay();
   }, true);
+  /* ---------- face track ---------- */
+  let pickFace = false;
+  const FACE_DEF = { aspect: '9:16', zoom: 1.5, smooth: 50, edge: 'clamp' };
+  const FACE_AR = { '9:16': 9 / 16, '4:5': 4 / 5, '1:1': 1, '16:9': 16 / 9 };
+  function setPickFace(on) {
+    pickFace = on;
+    if (on && pickTrack) $('btnMaskTrack').click();
+    $('btnFacePick').classList.toggle('active', on);
+    overlay.classList.toggle('picking', on || pickTrack);
+    syncFace();
+  }
+  /** The window as it will sit on the clicked frame, inside the crop when there is one. */
+  function faceWindow(f) {
+    const b = state.crop || { x: 0, y: 0, w: SW(), h: SH() };
+    const ar = FACE_AR[f.aspect] || b.w / b.h;
+    let bw = b.w, bh = b.w / ar; if (bh > b.h) { bh = b.h; bw = bh * ar; }
+    const w = bw / f.zoom, h = bh / f.zoom;
+    let x = f.x - w / 2, y = f.y - h / 2;
+    if (f.edge !== 'blur') { x = clamp(x, b.x, b.x + b.w - w); y = clamp(y, b.y, b.y + b.h - h); }
+    return { x, y, w, h };
+  }
+  function renderFace() {
+    const f = state.facetrack, show = !!f && activeTab() === 'screen';
+    $('faceWin').hidden = $('faceDot').hidden = !show;
+    if (!show) return;
+    placeRect($('faceWin'), faceWindow(f));
+    $('faceDot').style.left = f.x * scale + 'px'; $('faceDot').style.top = f.y * scale + 'px';
+  }
+  function syncFace() {
+    const f = state.facetrack;
+    $('btnFaceClear').disabled = !f;
+    $('faceOpts').classList.toggle('off', !f);
+    const o = f || FACE_DEF;
+    document.querySelectorAll('#faceAspect button').forEach(b => b.classList.toggle('active', b.dataset.ar === o.aspect));
+    $('faceZoom').value = o.zoom; $('faceZoomVal').textContent = (+o.zoom).toFixed(1) + '\uBC30';
+    $('faceSmooth').value = o.smooth; $('faceSmoothVal').textContent = o.smooth;
+    $('faceEdge').value = o.edge;
+    $('faceStatus').textContent = pickFace ? '따라갈 얼굴을 미리보기에서 클릭하세요. 얼굴이 잘 보이는 프레임을 고르면 정확합니다.'
+      : f ? '지정됨: ' + tc(f.at) + ' 프레임의 얼굴. 노란 점선이 이 프레임에서 잘릴 화면입니다.'
+      : '따라갈 인물의 얼굴을 지정하면 그 얼굴이 화면 가운데에 오도록 프레임마다 화면을 옮깁니다.';
+  }
+  function setFace(k, v) { if (!state.facetrack) return; state.facetrack[k] = v; syncFace(); renderFace(); }
+  $('btnFacePick').addEventListener('click', () => setPickFace(!pickFace));
+  $('btnFaceClear').addEventListener('click', () => { commit(); state.facetrack = null; setPickFace(false); renderFace(); });
+  $('faceAspect').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setFace('aspect', b.dataset.ar); });
+  $('faceZoom').addEventListener('input', (e) => setFace('zoom', +e.target.value));
+  $('faceSmooth').addEventListener('input', (e) => setFace('smooth', +e.target.value));
+  $('faceEdge').addEventListener('change', (e) => setFace('edge', e.target.value));
+  overlay.addEventListener('click', (e) => {
+    if (!pickFace) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = overlay.getBoundingClientRect();
+    commit();
+    state.facetrack = Object.assign({}, state.facetrack || FACE_DEF, {
+      x: Math.round((e.clientX - r.left) / scale),
+      y: Math.round((e.clientY - r.top) / scale),
+      at: +(video.currentTime || 0).toFixed(3),
+    });
+    setPickFace(false); renderFace();
+  }, true);
+  syncFace();
+
   const MASK_LABEL = { black: '검정', blur: '블러', fill: '배경 채우기', ai: 'AI 지우기', track: '대상 추적' };
   function renderMaskList() {
     const list = $('maskList'); list.innerHTML = '';
@@ -1142,7 +1209,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, facetrack: state.facetrack, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;

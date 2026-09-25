@@ -204,6 +204,61 @@ class JobRunner
         rename($tmp, $out);
     }
 
+    /** Source seconds -> output seconds: the cut segments and the speed shift every time. */
+    private static function outputTime(array $p, float $t): float
+    {
+        $elapsed = 0.0;
+        foreach ($p['keep'] as [$ks, $ke]) {
+            if ($t < $ks) break;
+            $elapsed += ($t <= $ke ? $t - $ks : $ke - $ks);
+            if ($t <= $ke) break;
+        }
+        return $elapsed / max(0.01, (float) $p['speed']);
+    }
+
+    /** The face-track click in encoded-frame pixels and output seconds, or null when off. */
+    private function facePoint(array $p, array $src): ?array
+    {
+        $f = $p['facetrack'] ?? null;
+        if (! $f) return null;
+        $ox = $p['crop']['x'] ?? 0; $oy = $p['crop']['y'] ?? 0;
+        $ch = (int) ($p['crop']['h'] ?? self::frameSize($p, $src)[1]);
+        $oh = (int) $p['output']['height'];
+        $s  = ($oh > 0 && $ch > 0 && $oh < $ch) ? $oh / $ch : 1.0;
+        return $f + ['ox' => (int) round(($f['x'] - $ox) * $s), 'oy' => (int) round(($f['y'] - $oy) * $s),
+                     'ot' => self::outputTime($p, (float) $f['at'])];
+    }
+
+    /**
+     * Follows the clicked face and re-renders every frame through a window centred on it.
+     * Not fatal: without a face the plain encode stays.
+     */
+    private function faceTrack(array $job, string $out, array $f, int $at, int $span, callable $log): void
+    {
+        $py = Ffmpeg::python();
+        if (! $py || ! is_file(ROOTPATH . 'bin/facetrack.py') || ! is_dir(ROOTPATH . 'vendor_ml/face')) {
+            $log('face models not installed, skipping');
+            $this->stageError('얼굴 추적', 'not installed');
+            return;
+        }
+        $meta = Ffmpeg::probe($out);
+        $fps  = (float) ($meta['fps'] ?? 30);
+        $tmp  = preg_replace('/\.([^.]+)$/', '.ft.$1', $out);
+        $args = [$py, ROOTPATH . 'bin/facetrack.py', '--in', $out, '--out', $tmp,
+                 '--x', (string) $f['ox'], '--y', (string) $f['oy'], '--frame', (string) (int) max(0, round($f['ot'] * $fps)),
+                 '--aspect', $f['aspect'], '--zoom', (string) $f['zoom'], '--smooth', (string) $f['smooth'],
+                 '--edge', $f['edge'], '--models', ROOTPATH . 'vendor_ml/face'];
+        $log('facetrack ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => $at + (int) round($pct * $span / 100)]));
+        if ($r['code'] !== 0 || ! is_file($tmp) || filesize($tmp) === 0) {
+            @unlink($tmp);
+            $log('facetrack failed, keeping the plain encode: ' . mb_substr(trim($r['stderr']), -600));
+            $this->stageError('얼굴 추적', $r['stderr']);
+            return;
+        }
+        rename($tmp, $out);
+    }
+
     /**
      * Click points for tracked removal, mapped into the encoded frame: crop shifts them,
      * the output height scales them, and the source time becomes the output time.
@@ -223,15 +278,7 @@ class JobRunner
         foreach ($pts as $m) {
             $out[] = ['x' => (int) round(($m['x'] - $ox) * $s), 'y' => (int) round(($m['y'] - $oy) * $s), 'label' => 1];
         }
-        // source seconds -> output seconds: the cut segments shift everything before it
-        $t = (float) ($pts[0]['at'] ?? 0);
-        $elapsed = 0.0;
-        foreach ($p['keep'] as [$ks, $ke]) {
-            if ($t < $ks) break;
-            $elapsed += ($t <= $ke ? $t - $ks : $ke - $ks);
-            if ($t <= $ke) break;
-        }
-        return ['points' => $out, 'at' => $elapsed / max(0.01, (float) $p['speed'])];
+        return ['points' => $out, 'at' => self::outputTime($p, (float) ($pts[0]['at'] ?? 0))];
     }
 
     /** Tracks the clicked object with SAM 2, then repaints it out with ProPainter. */
@@ -637,9 +684,10 @@ class JobRunner
         $restore  = $p['restore']['mode'] ?? 'off';
         $aiRects  = $this->inpaintRects($p, $src);
         $track    = $this->trackPoints($p, $src);
+        $face     = $this->facePoint($p, $src);
         $expand   = ($p['expand']['w'] ?? 1) > 1 || ($p['expand']['h'] ?? 1) > 1;
         $stages   = 1 + ($smooth !== 'off' ? 1 : 0) + ($restore !== 'off' ? 1 : 0)
-                      + ($aiRects ? 1 : 0) + ($expand ? 1 : 0) + ($track ? 1 : 0);
+                      + ($aiRects ? 1 : 0) + ($expand ? 1 : 0) + ($track ? 1 : 0) + ($face ? 1 : 0);
         $encMax   = $stages === 1 ? 100 : (int) round(100 / $stages / 2);   // the GPU passes take longer
         $t0 = microtime(true);
         $r = $this->runWithProgress($cmd, $expected, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => (int) round($pct * $encMax / 100)]));
@@ -659,6 +707,12 @@ class JobRunner
         }
         if ($aiRects && $fmt !== 'gif') {
             $this->timed('AI 지우기', fn () => $this->inpaint($job, $out, $aiRects, $p, $at, $span, $log));
+            $at += $span;
+        }
+        // the moving window comes after the erasers (they read the full frame) and before
+        // expand/restore/RIFE, which then work on the smaller reframed picture
+        if ($face && $fmt !== 'gif') {
+            $this->timed('얼굴 추적', fn () => $this->faceTrack($job, $out, $face, $at, $span, $log));
             $at += $span;
         }
         if ($expand && $fmt !== 'gif') {
@@ -749,6 +803,7 @@ class JobRunner
             str_contains($stderr, 'out of memory')        => 'GPU 메모리가 부족했습니다. 해상도를 낮추거나 구간을 짧게 잘라 다시 시도해 주세요.',
             str_contains($stderr, 'cuda not available')   => 'GPU를 사용할 수 없습니다.',
             str_contains($stderr, 'not installed')        => '서버에 모델이 설치되어 있지 않습니다.',
+            str_contains($stderr, 'no face at point')     => '지정한 위치에서 얼굴을 찾지 못했습니다. 얼굴이 정면에 가깝게 보이는 프레임에서 얼굴 가운데를 다시 지정해 주세요.',
             default                                       => '처리 중 오류가 났습니다.',
         };
         $this->stageErrors[] = $label . ': ' . $why;

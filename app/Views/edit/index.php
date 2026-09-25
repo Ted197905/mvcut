@@ -52,6 +52,8 @@ $icons = [
             <i data-h="nw"></i><i data-h="n"></i><i data-h="ne"></i><i data-h="e"></i><i data-h="se"></i><i data-h="s"></i><i data-h="sw"></i><i data-h="w"></i>
           </div>
           <div id="maskLayer"></div>
+          <div class="rect facewin" id="faceWin" hidden><div class="rect-label">FACE</div></div>
+          <div class="facedot" id="faceDot" hidden></div>
           <div class="wm" id="wmPreview" hidden><span id="wmPreviewText"></span></div>
           <div class="wm sub" id="subPreview0" hidden><span></span></div>
           <div class="wm sub" id="subPreview1" hidden><span></span></div>
@@ -143,6 +145,36 @@ $icons = [
             <button class="btn sm ghost" id="btnCropCenter">가운데 정렬</button>
             <button class="btn sm ghost" id="btnCropReset">초기화</button>
           </div>
+        </div>
+        <div class="sec">
+          <div class="sec-title">얼굴 추적 (Face Track)</div>
+          <div class="row2">
+            <button class="btn sm secondary" id="btnFacePick">얼굴 지정</button>
+            <button class="btn sm ghost" id="btnFaceClear" disabled>해제</button>
+          </div>
+          <p class="hint" id="faceStatus">따라갈 인물의 얼굴을 지정하면 그 얼굴이 화면 가운데에 오도록 프레임마다 화면을 옮깁니다.</p>
+          <div id="faceOpts" class="off">
+            <div class="presets tiles" id="faceAspect">
+              <button data-ar="9:16" class="active"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.2" y="1.5" width="5.6" height="13" rx="1.2"/></svg><span>9:16</span></button>
+              <button data-ar="4:5"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="2.5" width="8" height="11" rx="1.2"/></svg><span>4:5</span></button>
+              <button data-ar="1:1"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="10" height="10" rx="1.2"/></svg><span>1:1</span></button>
+              <button data-ar="16:9"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="5" width="13" height="6" rx="1.2"/></svg><span>16:9</span></button>
+              <button data-ar="src"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2"/><path d="M5.5 8h5" stroke-linecap="round"/></svg><span>원본</span></button>
+            </div>
+            <label class="slider">확대 <span id="faceZoomVal">1.5배</span>
+              <input type="range" id="faceZoom" min="1" max="3" step="0.1" value="1.5">
+            </label>
+            <label class="slider">부드러움 <span id="faceSmoothVal">50</span>
+              <input type="range" id="faceSmooth" min="0" max="100" step="5" value="50">
+            </label>
+            <div class="row2">
+              <label>가장자리<select id="faceEdge">
+                <option value="clamp">화면 안에서 멈춤</option>
+                <option value="blur">블러 배경으로 채움</option>
+              </select></label>
+            </div>
+          </div>
+          <p class="hint">확대가 클수록 얼굴을 가운데에 붙일 여유가 커지지만 화질이 떨어집니다. 부드러움 0은 얼굴에 딱 고정, 100은 카메라가 천천히 따라가는 느낌입니다. 얼굴이 잠시 안 보이는 구간은 앞뒤 위치로 이어 붙이며, 비슷한 옷을 입은 사람이 붙어 있으면 다른 사람으로 넘어갈 수 있습니다.</p>
         </div>
         <div class="sec">
           <div class="sec-title">화면 가리기 (Screen Cut)</div>

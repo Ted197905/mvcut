@@ -46,6 +46,10 @@
 .trackdot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
   background: var(--e-blue, #0a84ff); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); pointer-events: none; }
 .ed-overlay.picking { cursor: crosshair; }
+.rect.facewin { border: 1.5px dashed var(--e-yellow, #ffd60a); pointer-events: none; }
+.rect.facewin .rect-label { background: var(--e-yellow, #ffd60a); color: #000; }
+.facedot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  border: 2px solid var(--e-yellow, #ffd60a); box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
 .rect.mask.selected { border-style: solid; box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
 .rect-label { position: absolute; left: 0; top: -20px; font-size: 10px; letter-spacing: .08em; background: var(--e-accent); color: #fff; padding: 1px 6px; border-radius: 3px; pointer-events: none; }
 .rect.mask .rect-label { background: var(--e-red); }
