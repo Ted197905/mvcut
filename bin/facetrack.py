@@ -211,6 +211,30 @@ def fill(track):
     return np.interp(idx, known, xs), np.interp(idx, known, ys)
 
 
+def one_euro(a: np.ndarray, fps: float, min_cutoff: float = 1.2, beta: float = 0.02) -> np.ndarray:
+    """
+    Steadicam damping: heavy low-pass while the target hovers (kills detector jitter),
+    almost none while it moves fast (no lag). Run forwards and backwards and averaged,
+    so the result has no phase lag.
+    """
+    def run(x):
+        out = np.empty_like(x)
+        prev, dprev = x[0], 0.0
+        out[0] = prev
+        alpha_d = 1 / (1 + fps / (2 * math.pi * 1.0))
+        for i in range(1, len(x)):
+            dx = (x[i] - prev) * fps
+            dprev = dprev + alpha_d * (dx - dprev)
+            cutoff = min_cutoff + beta * abs(dprev)
+            alpha = 1 / (1 + fps / (2 * math.pi * cutoff))
+            prev = prev + alpha * (x[i] - prev)
+            out[i] = prev
+        return out
+    if len(a) < 3:
+        return a
+    return 0.5 * (run(a) + run(a[::-1])[::-1])
+
+
 def smooth(a: np.ndarray, sigma: float) -> np.ndarray:
     if sigma < 0.5 or len(a) < 3:
         return a
@@ -232,7 +256,7 @@ def main() -> int:
     ap.add_argument("--zoom", type=float, default=1.5)
     ap.add_argument("--smooth", type=int, default=0, help="0 = locked on the face, 100 = slow follow")
     ap.add_argument("--anchor-y", type=float, default=0.5, help="where the eyes sit, 0 = top, 1 = bottom")
-    ap.add_argument("--edge", default="clamp", choices=["clamp", "blur"])
+    ap.add_argument("--edge", default="blur", choices=["blur", "black", "clamp"])
     ap.add_argument("--models", default="/var/www/mvcut/vendor_ml/face")
     ap.add_argument("--crf", default="18")
     a = ap.parse_args()
@@ -254,9 +278,12 @@ def main() -> int:
     seen = sum(1 for t in track if t)
     cx, cy = fill(track)
 
-    # 0 pins the face (only the detector's own jitter is damped), 100 glides like a slow camera
-    sigma = max(1.0, 0.03 * fps) + (max(0, min(100, a.smooth)) / 100) ** 2 * 1.0 * fps
-    cx, cy = smooth(cx, sigma), smooth(cy, sigma)
+    # 0 pins the face: an adaptive filter removes the detector's jitter without lagging
+    # behind real movement. Above 0 a wider blur makes the camera glide.
+    cx, cy = one_euro(cx, fps, beta=0.02 * 1000 / diag), one_euro(cy, fps, beta=0.02 * 1000 / diag)
+    if a.smooth > 0:
+        sigma = (max(0, min(100, a.smooth)) / 100) ** 2 * 1.0 * fps
+        cx, cy = smooth(cx, sigma), smooth(cy, sigma)
 
     # the window: the largest box of the aspect that fits, shrunk by the zoom
     ar = ASPECTS.get(a.aspect, W / H)
@@ -284,7 +311,10 @@ def main() -> int:
             x0 = min(max(0.0, x0), W - ww)
             y0 = min(max(0.0, y0), H - wh)
         m = np.float32([[scale, 0, -x0 * scale], [0, scale, -y0 * scale]])
-        if a.edge == "blur" and (x0 < 0 or y0 < 0 or x0 + ww > W or y0 + wh > H):
+        outside = x0 < 0 or y0 < 0 or x0 + ww > W or y0 + wh > H
+        if a.edge == "black" and outside:
+            out = cv2.warpAffine(img, m, (ow, oh), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0))
+        elif a.edge == "blur" and outside:
             # the frame itself, covering the window and blurred, behind the part that exists
             cs = max(ow / W, oh / H)
             bg = cv2.resize(img, (max(ow, int(W * cs) + 1), max(oh, int(H * cs) + 1)), interpolation=cv2.INTER_AREA)
