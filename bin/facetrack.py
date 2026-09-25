@@ -178,7 +178,10 @@ def follow(faces, f0: int, k0: int, diag: float):
                 bf = far[0] if far else None
                 # after a long absence the face nearby may be someone else: ask for more
                 floor = 0.28 if gap <= 6 else 0.4
-                if bn and bn[0] >= floor and not (bf and bf[0] > bn[0] + 0.15 and bf[0] >= 0.5):
+                # a fast turn or a spin blurs the face and its identity scores drop, but a lone
+                # face right where the track just was is still the same person
+                close = bn and gap <= 45 and bn[1] < 0.035 + 0.01 * min(gap, 10) and len(near) == 1
+                if bn and (bn[0] >= floor or (close and bn[0] >= 0.05)) and not (bf and bf[0] > bn[0] + 0.15 and bf[0] >= 0.5):
                     pick = bn
                 elif bf and bf[0] >= 0.5 and (len(cands) == 1 or bf[0] >= cands[1][0] + 0.1 or cands[1] is bf):
                     pick = bf
