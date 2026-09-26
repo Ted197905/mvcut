@@ -51,6 +51,9 @@ class Library extends BaseController
         $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
 
         $items = $builder->findAll($perPage, ($page - 1) * $perPage);
+        // remembered so delete / detail "back" return to this list view
+        session()->set('library_back', http_build_query(array_filter(
+            ['q' => $q, 'kind' => $kind, 'sort' => $sort, 'page' => $page > 1 ? $page : ''], 'strlen')));
         // how many items each post holds, so the card can say "10"
         $keys  = array_filter(array_column($items, 'post_key'));
         $sizes = [];
@@ -106,13 +109,13 @@ class Library extends BaseController
         $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
         return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable,
-                                     'pending' => $pending, 'siblings' => $media->postItems($item)]);
+                                     'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl()]);
     }
 
     public function delete(int $id)
     {
         $this->removeOwned([$id]);
-        return redirect()->to('/library')->with('flash', '삭제했습니다.');
+        return redirect()->to($this->backUrl())->with('flash', '삭제했습니다.');
     }
 
     /** POST /library/delete  ids[]=1&ids[]=2 */
@@ -120,7 +123,14 @@ class Library extends BaseController
     {
         $ids = array_map('intval', (array) $this->request->getPost('ids'));
         $n   = $this->removeOwned($ids);
-        return redirect()->to('/library')->with('flash', $n . '개를 삭제했습니다.');
+        return redirect()->to($this->backUrl())->with('flash', $n . '개를 삭제했습니다.');
+    }
+
+    /** Last library list view (filters + page); index() clamps a page that no longer exists. */
+    private function backUrl(): string
+    {
+        $qs = (string) session()->get('library_back');
+        return site_url('library') . ($qs !== '' ? '?' . $qs : '');
     }
 
     private function removeOwned(array $ids): int

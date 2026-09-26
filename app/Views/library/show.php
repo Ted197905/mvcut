@@ -11,7 +11,7 @@ $srcSum = $isImg
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <main>
-  <a class="back" href="<?= site_url('library') ?>">&lsaquo; 라이브러리</a>
+  <a class="back" href="<?= esc($back ?? site_url('library'), 'attr') ?>">&lsaquo; 라이브러리</a>
   <?= view('partials/alerts') ?>
   <?php if ($pending): ?>
     <div class="alert" id="pendingBox" data-job="<?= (int) $pending['id'] ?>">
