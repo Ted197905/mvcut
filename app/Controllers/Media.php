@@ -69,7 +69,11 @@ class Media extends BaseController
         }
         $origin = (string) $this->request->getHeaderLine('Origin');
         $allow  = in_array($origin, ['https://x.com', 'https://twitter.com'], true) ? $origin : 'https://x.com';
-        return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream')
+        $file = \App\Libraries\CleanCopy::file($item);
+        if ($file === null) {
+            return $this->response->setStatusCode(500)->setHeader('Access-Control-Allow-Origin', $allow)->setBody('파일을 준비하지 못했습니다.');
+        }
+        return $this->accel($item, $file, $item['mime'] ?: 'application/octet-stream')
             ->setHeader('Access-Control-Allow-Origin', $allow)
             ->setHeader('Vary', 'Origin');
     }
@@ -123,10 +127,15 @@ class Media extends BaseController
     public function file(int $id)
     {
         $item = $this->owned($id);
-        $name = $this->request->getGet('dl') !== null
-            ? 'download.' . strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION))
-            : null;
-        return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream', $name);
+        if ($this->request->getGet('dl') === null) {
+            return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream');
+        }
+        $file = \App\Libraries\CleanCopy::file($item);
+        if ($file === null) {
+            return $this->response->setStatusCode(500)->setBody('다운로드 파일을 준비하지 못했습니다.');
+        }
+        return $this->accel($item, $file, $item['mime'] ?: 'application/octet-stream',
+                            'download.' . strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)));
     }
 
     public function strip(int $id)
