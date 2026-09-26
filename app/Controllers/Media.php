@@ -54,7 +54,7 @@ class Media extends BaseController
         return $this->response->setJSON([
             'ok'       => true,
             'url'      => site_url('share/' . $id . '/' . $exp . '/' . self::shareSig($id, (int) $item['user_id'], $exp)),
-            'filename' => $item['title'] . '.' . pathinfo($item['filename'], PATHINFO_EXTENSION),
+            'filename' => 'download.' . strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)),
             'mime'     => $item['mime'] ?: 'application/octet-stream',
             'expires'  => $exp,
         ]);
@@ -124,7 +124,7 @@ class Media extends BaseController
     {
         $item = $this->owned($id);
         $name = $this->request->getGet('dl') !== null
-            ? $item['title'] . '.' . pathinfo($item['filename'], PATHINFO_EXTENSION)
+            ? 'download.' . strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION))
             : null;
         return $this->accel($item, $item['filename'], $item['mime'] ?: 'application/octet-stream', $name);
     }
