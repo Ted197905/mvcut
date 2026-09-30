@@ -144,18 +144,21 @@ def progressive_urls(html: str) -> dict[str, str]:
     return {k: v[1] for k, v in best.items()}
 
 
-def dash_tracks(html: str) -> dict[str, dict[str, str]]:
+def dash_tracks(html: str, owners: dict[str, str] | None = None) -> dict[str, dict[str, str]]:
     """
     xpv_asset_id -> {"video": url, "audio": url} from the DASH representations a logged-in page
     embeds. Video prefers H.264 (plays everywhere) and then bandwidth; audio takes the best bandwidth.
+    owners, when given, is filled with xpv_asset_id -> Facebook video id (the "video_id" that
+    follows each representations list).
     """
     best: dict[str, dict[str, tuple]] = {}
     dec = json.JSONDecoder()
     for m in re.finditer(r'"representations":(?=\[)', html or ""):
         try:
-            reps, _ = dec.raw_decode(html, m.end())
+            reps, end = dec.raw_decode(html, m.end())
         except ValueError:
             continue
+        vid = re.match(r'(?:[^\[\]{}]|\{[^{}]*\})*?"video_id":"(\d+)"', html[end:end + 600])
         for r in reps if isinstance(reps, list) else []:
             if not isinstance(r, dict):
                 continue
@@ -166,6 +169,8 @@ def dash_tracks(html: str) -> dict[str, dict[str, str]]:
             key = str(efg_of(u).get("xpv_asset_id") or "")
             if not key:
                 continue
+            if vid and owners is not None:
+                owners.setdefault(key, vid.group(1))
             kind = "audio" if mime.startswith("audio") else "video"
             score = (str(r.get("codecs") or "").startswith("avc1") if kind == "video" else True,
                      int(r.get("bandwidth") or 0))
@@ -372,6 +377,10 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
             html = page.content()
         except Exception:  # noqa: BLE001
             pass
+        # a Facebook video/share link lands on the reel viewer, which preloads the next reels too
+        m = re.search(r"facebook\.com/(?:reel|[^/?#]+/videos|videos)/(\d+)|facebook\.com/watch/?\?(?:.*&)?v=(\d+)",
+                      " ".join([url, landed, page.url]))
+        target = (m.group(1) or m.group(2)) if m else ""
         browser.close()
 
     posters = []
@@ -399,8 +408,21 @@ def run(url: str, timeout: float, cookies: str = "") -> dict:
     # (logged in, the page has no progressive file but lists every DASH track: take the best
     # video and audio and let the importer mux them)
     prog = progressive_urls(html)
-    dash = dash_tracks(html)
+    owners: dict[str, str] = {}
+    dash = dash_tracks(html, owners)
     audio: dict[str, str] = {}
+    mine = [k for k, v in owners.items() if v == target and dash.get(k, {}).get("video")] if target else []
+    if mine:
+        # only the linked video; the rest of the page (next reels, avatars, thumbnails) is not the post
+        videos[:] = [dash[mine[0]]["video"]]
+        if dash[mine[0]].get("audio"):
+            audio[videos[0]] = dash[mine[0]]["audio"]
+        images.clear()
+        return {
+            "links": [], "ok": True, "title": data.get("title"), "description": data.get("desc"),
+            "text": data.get("bodyText"), "post": None,
+            "videos": videos, "audio": audio, "images": [],
+        }
     for k, u in enumerate(videos):
         key = str(efg_of(u).get("xpv_asset_id") or "")
         if key in prog:
