@@ -104,6 +104,10 @@ class Import extends BaseController
      */
     private function renderFirst(string $platform, string $url): bool
     {
+        // a logged-in reel page plays a feed of other reels, so the renderer picks up the wrong
+        // clip; yt-dlp reads the reel itself (the renderer remains the fallback)
+        if ($platform === 'instagram' && preg_match('#/(reel|reels|tv)/#', $url) === 1
+            && MediaSupport::ytdlp() && MediaSupport::cookieFile($platform)) return false;
         if (in_array($platform, self::RENDER_FIRST, true)) return true;
         return $platform === 'facebook' && preg_match('#/share/p/|/posts/|/permalink\.php|story_fbid=#', $url) === 1;
     }
