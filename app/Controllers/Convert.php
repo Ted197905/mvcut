@@ -45,6 +45,10 @@ class Convert extends BaseController
         $key = json_encode(['convert' => $params]);
         $cached = $media->where('parent_id', $item['id'])->where('source', 'convert')->where('status', 'ready')->where('edit_params', $key)->first();
         if ($cached) {
+            if ($cached['category'] !== $item['category']) {
+                $media->update($cached['id'], ['category' => $item['category']]);
+                $cached['category'] = $item['category'];
+            }
             return $this->response->setJSON(['ok' => true, 'cached' => true, 'media' => $cached]);
         }
         $jobs  = new JobModel();

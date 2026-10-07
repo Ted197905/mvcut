@@ -82,7 +82,7 @@ class JobRunner
         $suffix = ' - ' . strtoupper($fmt) . ($long ? ' ' . $long . 'px' : '');
         $srcPath = MediaModel::dir($src) . '/' . $src['filename'];
         $resultId = $this->media->insert([
-            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => 'convert',
+            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'category' => $src['category'] ?? '', 'source' => 'convert',
             'title' => mb_substr($src['title'] . $suffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'image', 'edit_params' => $key, 'status' => 'processing',
             'description' => $this->resultDescription($src, "[적용한 처리]\n출력: " . strtoupper($fmt)
@@ -666,7 +666,7 @@ class JobRunner
         if (! is_file($srcPath)) throw new \RuntimeException('source file missing');
         $fmt = $p['output']['format'];
         $resultId = $this->media->insert([
-            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'source' => $source,
+            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'category' => $src['category'] ?? '', 'source' => $source,
             'title' => mb_substr($src['title'] . $titleSuffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'video', 'edit_params' => $editParams, 'status' => 'processing',
             'description' => $this->resultDescription($src, EditParams::summary($p, $src)),
