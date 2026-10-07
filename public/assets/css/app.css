@@ -368,7 +368,8 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .adm-acts form { margin: 0; }
 .cat-name { display: flex; gap: 8px; align-items: center; margin: 0; min-width: 0; }
 .cat-name .input { max-width: 260px; }
-.cat-filter { margin: 0 0 12px; }
+.cat-filter { margin: 28px 0 0; }
+.cat-filter + .lib-toolbar { margin-top: 12px; }
 .cat-pick { display: flex; gap: 8px; align-items: center; }
 .input.sm { width: auto; min-height: 32px; padding: 4px 30px 4px 10px; font-size: 13px; border-radius: 8px; }
 @media (min-width: 720px) {
