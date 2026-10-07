@@ -12,7 +12,8 @@
       <?php if (($postSize ?? 1) > 1): ?><span class="stack"><?= (int) $postSize ?>개</span><?php endif ?>
     </div>
     <div class="body">
-      <div class="title" title="<?= esc($it['title'], 'attr') ?>"><?= esc($it['title']) ?></div>
+      <?php $label = ($it['category'] !== '' ? $it['category'] . ' | ' : '') . $it['title']; ?>
+      <div class="title" title="<?= esc($label, 'attr') ?>"><?= esc($label) ?></div>
       <div class="meta"><?= $it['width'] ? esc($it['width'] . '×' . $it['height']) . ' · ' : '' ?><?= esc(\App\Libraries\MediaSupport::size((int) $it['size'])) ?></div>
     </div>
   </a>

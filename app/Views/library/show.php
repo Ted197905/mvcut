@@ -21,7 +21,7 @@ $srcSum = $isImg
   <?php endif ?>
 
   <div class="detail-head">
-    <h1 id="mediaTitle" title="<?= esc($item['title'], 'attr') ?>"><?= esc($item['title']) ?></h1>
+    <h1><span id="catPrefix"><?= $item['category'] !== '' ? esc($item['category']) . ' | ' : '' ?></span><span id="mediaTitle" title="<?= esc($item['title'], 'attr') ?>"><?= esc($item['title']) ?></span></h1>
     <button class="iconbtn" type="button" id="btnRename" title="이름 변경" aria-label="이름 변경">&#9998;</button>
   </div>
   <div class="title-edit" id="titleEdit" hidden>
@@ -294,6 +294,7 @@ $srcSum = $isImg
       let j = {}; try { j = await res.json(); } catch (err) {}
       if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      $('catPrefix').textContent = j.category ? j.category + ' | ' : '';
     } catch (err) { alert(err.message); }
     sel.disabled = false;
   });
