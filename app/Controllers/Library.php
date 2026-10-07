@@ -5,8 +5,10 @@ namespace App\Controllers;
 use App\Libraries\Ffmpeg;
 use App\Libraries\MediaIntake;
 use App\Libraries\MediaSupport;
+use App\Models\CategoryModel;
 use App\Models\JobModel;
 use App\Models\MediaModel;
+use App\Models\UserModel;
 
 class Library extends BaseController
 {
@@ -17,11 +19,26 @@ class Library extends BaseController
         $sort   = (string) $this->request->getGet('sort');
         $kind   = (string) $this->request->getGet('kind');
 
+        // the category filter is remembered per account; ?cat= changes it
+        $cats  = (new CategoryModel())->names();
+        $users = new UserModel();
+        $cat   = $this->request->getGet('cat');
+        if ($cat !== null) {
+            $cat = (string) $cat;
+            if (! in_array($cat, $cats, true) && $cat !== CategoryModel::NONE) $cat = CategoryModel::ALL;
+            $users->savePref($userId, 'library_category', $cat === CategoryModel::ALL ? null : $cat);
+        } else {
+            $cat = (string) ($users->prefs($userId)['library_category'] ?? CategoryModel::ALL);
+            if (! in_array($cat, $cats, true) && $cat !== CategoryModel::NONE) $cat = CategoryModel::ALL;
+        }
+
         $media   = new MediaModel();
         $builder = $media->where('user_id', $userId);
         if ($q !== '') {
             $builder->groupStart()->like('title', $q)->orLike('source_url', $q)->groupEnd();
         }
+        if ($cat === CategoryModel::NONE) $builder->where('category', '');
+        elseif ($cat !== CategoryModel::ALL) $builder->where('category', $cat);
         match ($kind) {
             'original' => $builder->where('kind', 'original'),
             'result'   => $builder->where('kind', 'result'),
@@ -73,6 +90,8 @@ class Library extends BaseController
             'q'       => $q,
             'sort'    => $sort ?: 'newest',
             'kind'    => $kind ?: 'all',
+            'cat'     => $cat,
+            'cats'    => $cats,
             'page'    => $page,
             'pages'   => $pages,
             'matched' => $matched,
@@ -109,6 +128,7 @@ class Library extends BaseController
         $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
         return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable,
+                                     'cats' => (new CategoryModel())->names(),
                                      'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl()]);
     }
 
@@ -124,6 +144,18 @@ class Library extends BaseController
         $ids = array_map('intval', (array) $this->request->getPost('ids'));
         $n   = $this->removeOwned($ids);
         return redirect()->to($this->backUrl())->with('flash', $n . '개를 삭제했습니다.');
+    }
+
+    /** POST /library/category  ids[]=1&ids[]=2&category=IDOL ('' clears it) */
+    public function bulkCategory()
+    {
+        $ids = array_map('intval', (array) $this->request->getPost('ids'));
+        $cat = (string) $this->request->getPost('category');
+        if ($cat !== '' && ! in_array($cat, (new CategoryModel())->names(), true)) {
+            return redirect()->to($this->backUrl())->with('flash', '없는 카테고리입니다.');
+        }
+        (new MediaModel())->setCategory((int) session()->get('user_id'), $ids, $cat);
+        return redirect()->to($this->backUrl())->with('flash', count($ids) . '개의 카테고리를 ' . ($cat === '' ? '해제했습니다.' : '"' . $cat . '"(으)로 지정했습니다.'));
     }
 
     /** Last library list view (filters + page); index() clamps a page that no longer exists. */

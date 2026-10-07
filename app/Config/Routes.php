@@ -25,6 +25,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
     $routes->post('library/delete', 'Library::bulkDelete');
+    $routes->post('library/category', 'Library::bulkCategory');
     $routes->post('api/upload/init', 'Upload::init');
     $routes->post('api/upload/chunk', 'Upload::chunk');
     $routes->post('api/upload/finish', 'Upload::finish');
@@ -44,6 +45,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/jobs', 'Jobs::index');
     $routes->get('api/media/(:num)', 'Media::info/$1');
     $routes->post('api/media/(:num)/rename', 'Media::rename/$1');
+    $routes->post('api/media/(:num)/category', 'Media::category/$1');
     $routes->post('api/media/(:num)/sharelink', 'Media::shareLink/$1');
     $routes->post('api/convert/(:num)', 'Convert::submit/$1');
     $routes->post('api/import/inspect', 'Import::inspect');
@@ -52,5 +54,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Admin::index');
         $routes->post('users/(:num)', 'Admin::update/$1');
+        $routes->post('categories', 'Admin::addCategory');
+        $routes->post('categories/(:num)', 'Admin::category/$1');
     });
 });

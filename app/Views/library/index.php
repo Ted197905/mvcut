@@ -32,6 +32,12 @@
     </div>
   </section>
 
+  <div class="segmented cat-filter" role="radiogroup" aria-label="카테고리">
+    <?php foreach (array_merge(['ALL' => 'ALL'], array_combine($cats, $cats) ?: [], ['_none' => '미지정']) as $v => $labelText): ?>
+      <label><input type="radio" name="cat" form="filterForm" value="<?= esc($v, 'attr') ?>"<?= $cat === (string) $v ? ' checked' : '' ?> onchange="filterForm.submit()"><span><?= esc($labelText) ?></span></label>
+    <?php endforeach ?>
+  </div>
+
   <form class="lib-toolbar" method="get" action="<?= site_url('library') ?>" id="filterForm">
     <input class="input search" type="search" name="q" id="q" value="<?= esc($q) ?>" placeholder="제목으로 검색" autocomplete="off">
     <select class="input" name="kind" onchange="filterForm.submit()">
@@ -62,6 +68,13 @@
       <label class="switch"><input type="checkbox" id="checkAll"> <span>전체 선택</span></label>
       <span class="muted small" id="bulkCount">0개 선택</span>
       <span class="spacer"></span>
+      <span class="cat-pick">
+        <select class="input sm" name="category" aria-label="카테고리 지정">
+          <option value="">미지정</option>
+          <?php foreach ($cats as $c): ?><option value="<?= esc($c, 'attr') ?>"<?= $cat === $c ? ' selected' : '' ?>><?= esc($c) ?></option><?php endforeach ?>
+        </select>
+        <button class="btn sm secondary" type="submit" id="btnBulkCat" formaction="<?= site_url('library/category') ?>" disabled>카테고리 지정</button>
+      </span>
       <button class="btn sm secondary" type="button" id="btnCancelSelect">취소</button>
       <button class="btn sm danger" type="button" id="btnBulkDelete" disabled>선택 삭제</button>
     </div>
@@ -228,6 +241,7 @@
     const n = boxes().filter(b => b.checked).length;
     $('bulkCount').textContent = n + '개 선택';
     $('btnBulkDelete').disabled = !n;
+    $('btnBulkCat').disabled = !n;
     $('btnBulkDelete').textContent = n ? '선택 ' + n + '개 삭제' : '선택 삭제';
   }
   $('btnSelectMode').addEventListener('click', () => setSelectMode(!selectMode));

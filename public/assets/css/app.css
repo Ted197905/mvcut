@@ -366,6 +366,11 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 .adm-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .adm-acts { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
 .adm-acts form { margin: 0; }
+.cat-name { display: flex; gap: 8px; align-items: center; margin: 0; min-width: 0; }
+.cat-name .input { max-width: 260px; }
+.cat-filter { margin: 0 0 12px; }
+.cat-pick { display: flex; gap: 8px; align-items: center; }
+.input.sm { width: auto; min-height: 32px; padding: 4px 30px 4px 10px; font-size: 13px; border-radius: 8px; }
 @media (min-width: 720px) {
   .adm-row { grid-template-columns: minmax(240px, 1fr) auto auto; }
   .adm-acts { grid-column: auto; justify-content: flex-end; }

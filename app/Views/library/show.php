@@ -170,6 +170,13 @@ $srcSum = $isImg
       <div class="panel-block">
         <p class="eyebrow">정보</p>
         <dl class="list">
+          <div class="row"><dt>카테고리</dt><dd>
+            <select class="input sm" id="catSelect" aria-label="카테고리">
+              <option value="">미지정</option>
+              <?php foreach ($cats as $c): ?><option value="<?= esc($c, 'attr') ?>"<?= $item['category'] === $c ? ' selected' : '' ?>><?= esc($c) ?></option><?php endforeach ?>
+              <?php if ($item['category'] !== '' && ! in_array($item['category'], $cats, true)): ?><option value="<?= esc($item['category'], 'attr') ?>" selected><?= esc($item['category']) ?></option><?php endif ?>
+            </select>
+          </dd></div>
           <div class="row"><dt>파일</dt><dd><?= esc($item['filename']) ?></dd></div>
           <div class="row"><dt>형식</dt><dd><?= $isImg ? esc($ext) . ' <span class="muted">· ' . esc($item['mime']) . '</span>' : esc($item['container'] ?: $item['mime']) . ($item['has_proxy'] ? ' <span class="muted">· 프록시</span>' : '') ?></dd></div>
           <?php if (! $isImg && $item['vcodec']): ?><div class="row"><dt>비디오</dt><dd<?= $noX ? ' class="codec-bad"' : '' ?>><?= esc($item['vcodec']) ?><?= $item['fps'] ? ' · ' . esc(rtrim(rtrim($item['fps'], '0'), '.')) . ' fps' : '' ?></dd></div><?php endif ?>
@@ -178,7 +185,7 @@ $srcSum = $isImg
           <?php if ($item['duration']): ?><div class="row"><dt>길이</dt><dd><?= gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $item['duration']) ?></dd></div><?php endif ?>
           <div class="row"><dt>크기</dt><dd><?= esc(\App\Libraries\MediaSupport::size((int) $item['size'])) ?></dd></div>
           <?php if (! empty($meta['source_res'])): ?><div class="row"><dt>원본 화질</dt><dd><?= esc(str_replace('x', ' × ', (string) $meta['source_res'])) ?><?= ! empty($meta['source_fps']) ? ' · ' . esc(rtrim(rtrim(number_format((float) $meta['source_fps'], 2), '0'), '.')) . ' fps' : '' ?><?= ! empty($meta['dynamic_range']) ? ' · ' . esc($meta['dynamic_range']) : '' ?></dd></div><?php endif ?>
-          <?php if (! empty($meta['categories'])): ?><div class="row"><dt>카테고리</dt><dd><?= esc(implode(', ', $meta['categories'])) ?></dd></div><?php endif ?>
+          <?php if (! empty($meta['categories'])): ?><div class="row"><dt>원본 카테고리</dt><dd><?= esc(implode(', ', $meta['categories'])) ?></dd></div><?php endif ?>
           <?php if (! empty($meta['language'])): ?><div class="row"><dt>언어</dt><dd><?= esc($meta['language']) ?></dd></div><?php endif ?>
           <?php if (! empty($meta['availability'])): ?><div class="row"><dt>공개 범위</dt><dd><?= esc($meta['availability']) ?><?= ! empty($meta['age_limit']) ? ' · ' . esc($meta['age_limit']) . '+' : '' ?></dd></div><?php endif ?>
           <?php if (! empty($meta['timestamp'])): ?><div class="row"><dt>게시</dt><dd><?= esc(date('Y-m-d H:i', (int) $meta['timestamp'])) ?></dd></div><?php endif ?>
@@ -279,6 +286,17 @@ $srcSum = $isImg
     } catch (e) { alert(e.message); }
     head.hidden = false; edit.hidden = true;
   }
+
+  $('catSelect').addEventListener('change', async (e) => {
+    const sel = e.target; sel.disabled = true;
+    try {
+      const res = await fetch(base + 'api/media/' + id + '/category', { method: 'POST', headers: hdr, body: JSON.stringify({ category: sel.value }) });
+      let j = {}; try { j = await res.json(); } catch (err) {}
+      if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+    } catch (err) { alert(err.message); }
+    sel.disabled = false;
+  });
 
   /* delete: two-step, no modal */
   const del = $('btnDelete');

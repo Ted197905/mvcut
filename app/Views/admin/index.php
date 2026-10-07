@@ -54,5 +54,36 @@
       <?php endforeach ?>
     </div>
   </section>
+
+  <section class="set-card">
+    <h2>카테고리 <span class="muted small">(<?= count($categories) ?>개)</span></h2>
+    <p class="muted small" style="margin-bottom:18px">라이브러리 미디어를 나누는 카테고리입니다. 이름을 바꾸면 지정된 미디어도 함께 바뀌고, 삭제하면 해당 미디어는 미지정이 됩니다.</p>
+    <div class="adm-list">
+      <?php foreach ($categories as $i => $c): ?>
+        <div class="adm-row cat-row">
+          <form class="cat-name" method="post" action="<?= site_url('admin/categories/' . $c['id']) ?>"><?= csrf_field() ?>
+            <input type="hidden" name="action" value="rename">
+            <input class="input" name="name" maxlength="32" value="<?= esc($c['name'], 'attr') ?>" required>
+            <button class="btn sm secondary" type="submit">이름 저장</button>
+          </form>
+          <div class="adm-badges"><span class="ck-badge none">미디어 <?= (int) ($catUse[$c['name']] ?? 0) ?>개</span></div>
+          <div class="adm-acts">
+            <form method="post" action="<?= site_url('admin/categories/' . $c['id']) ?>"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="up"><button class="btn sm ghost" type="submit"<?= $i === 0 ? ' disabled' : '' ?>>위로</button></form>
+            <form method="post" action="<?= site_url('admin/categories/' . $c['id']) ?>"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="down"><button class="btn sm ghost" type="submit"<?= $i === count($categories) - 1 ? ' disabled' : '' ?>>아래로</button></form>
+            <form method="post" action="<?= site_url('admin/categories/' . $c['id']) ?>" onsubmit="return confirm('카테고리 &quot;<?= esc($c['name'], 'attr') ?>&quot;을(를) 삭제합니다. 지정된 미디어는 미지정이 됩니다. 계속할까요?')"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="delete"><button class="btn sm ghost" type="submit">삭제</button></form>
+          </div>
+        </div>
+      <?php endforeach ?>
+      <form class="adm-row cat-row cat-add" method="post" action="<?= site_url('admin/categories') ?>"><?= csrf_field() ?>
+        <div class="cat-name">
+          <input class="input" name="name" maxlength="32" placeholder="새 카테고리 이름" required>
+          <button class="btn sm" type="submit">추가</button>
+        </div>
+      </form>
+    </div>
+  </section>
 </main>
 <?= $this->endSection() ?>

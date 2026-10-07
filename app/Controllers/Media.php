@@ -115,6 +115,18 @@ class Media extends BaseController
         return $this->response->setJSON(['ok' => true, 'title' => $title]);
     }
 
+    /** POST /api/media/{id}/category {category} ('' clears it) */
+    public function category(int $id)
+    {
+        $item = $this->owned($id);
+        $cat  = (string) (($this->request->getJSON(true) ?: [])['category'] ?? '');
+        if ($cat !== '' && ! in_array($cat, (new \App\Models\CategoryModel())->names(), true)) {
+            return $this->response->setStatusCode(422)->setJSON(['error' => '없는 카테고리입니다.']);
+        }
+        (new MediaModel())->setCategory((int) $item['user_id'], [$id], $cat);
+        return $this->response->setJSON(['ok' => true, 'category' => $cat]);
+    }
+
     public function thumb(int $id)
     {
         $item = $this->owned($id);

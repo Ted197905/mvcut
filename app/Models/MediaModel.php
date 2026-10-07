@@ -10,7 +10,7 @@ class MediaModel extends Model
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
     protected $allowedFields = [
-        'user_id', 'parent_id', 'kind', 'source', 'source_url', 'post_key', 'post_order',
+        'user_id', 'parent_id', 'kind', 'category', 'source', 'source_url', 'post_key', 'post_order',
         'description', 'uploader', 'stats', 'meta', 'title', 'filename',
         'media_type', 'mime', 'container', 'vcodec', 'acodec', 'width', 'height',
         'duration', 'fps', 'size', 'has_thumb', 'has_proxy', 'edit_params', 'status',
@@ -33,6 +33,22 @@ class MediaModel extends Model
         if (empty($item['post_key'])) return [$item];
         return $this->where('user_id', $item['user_id'])->where('post_key', $item['post_key'])
                     ->orderBy('post_order', 'ASC')->orderBy('id', 'ASC')->findAll();
+    }
+
+    /**
+     * Sets the category of the user's items; items imported from the same link share one card,
+     * so the whole post follows. Returns the number of items changed.
+     */
+    public function setCategory(int $userId, array $ids, string $category): int
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids), static fn ($i) => $i > 0));
+        if ($ids === []) return 0;
+        $keys = array_values(array_filter(array_column(
+            $this->select('post_key')->where('user_id', $userId)->whereIn('id', $ids)->findAll(), 'post_key')));
+        $b = $this->db->table('media')->where('user_id', $userId)->groupStart()->whereIn('id', $ids);
+        if ($keys !== []) $b->orWhereIn('post_key', $keys);
+        $b->groupEnd()->update(['category' => $category]);
+        return $this->db->affectedRows();
     }
 
     /** Storage directory for a media row (outside web root). */
