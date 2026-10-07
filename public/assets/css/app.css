@@ -80,7 +80,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
   backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 0.5px solid var(--separator);
 }
-.nav .in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; gap: 22px; }
+.nav .in { max-width: 1900px; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; gap: 22px; }
 .nav .brand { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--label);
   display: inline-flex; align-items: center; gap: 7px; }
 .nav .brand img { width: 26px; height: 26px; display: block; }
@@ -93,7 +93,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 .nav .linkbtn:hover { color: var(--label); }
 
 /* ---------- layout & type ---------- */
-main { max-width: 1120px; margin: 0 auto; padding: 40px 24px 96px; }
+main { max-width: 1900px; margin: 0 auto; padding: 40px 24px 96px; }
 main.narrow { max-width: 420px; padding-top: 72px; }
 h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.024em; line-height: 1.12; margin: 0 0 6px; }
 h2 { font-size: 24px; font-weight: 650; letter-spacing: -0.018em; margin: 48px 0 14px; }
@@ -232,7 +232,8 @@ select.input { appearance: none; padding-right: 34px;
 .progress-item.done .bar i { background: var(--green); }
 .progress-item.fail { color: var(--red); }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 20px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 20px; }
+@media (max-width: 1000px) { .grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); } }
 .card-wrap { position: relative; }
 .card { display: block; color: var(--label); border-radius: var(--r-card); transition: transform .18s cubic-bezier(.2,.7,.3,1); }
 .card:hover { text-decoration: none; transform: translateY(-3px); }
