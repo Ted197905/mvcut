@@ -25,8 +25,6 @@ STATUS = re.compile(r"^/([A-Za-z0-9_]{1,15})/status/(\d+)")
 
 # X uses the probe account's own UI language, so match English and Korean
 HIDDEN_REPLIES = re.compile(r"show (probable spam|more replies|additional replies)|스팸|답글 더 보기|추가 답글", re.I)
-# empty search page that blames the viewer's "hide sensitive content" setting
-SENSITIVE_HINT = re.compile(r"sensitive content|민감한 콘텐츠", re.I)
 
 
 def load_cookies(path: str) -> list[dict]:
@@ -158,9 +156,6 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             wait_timeline(page, ms)
             found = [a for a in articles(page) if a["handle"].lower() == me]
             res["search"] = {"ban": (not found) if prof["has_tweets"] else None, "count": len(found)}
-            if not found and SENSITIVE_HINT.search(body_text(page)):
-                # the probe hides sensitive content, so an empty result says nothing about a ban
-                res["search"] = {"ban": None, "count": 0, "note": "probe_sensitive_filter"}
 
             # 3. search suggestion ban: does @handle come up in the search box typeahead?
             try:
