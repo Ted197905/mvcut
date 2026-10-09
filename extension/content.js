@@ -30,7 +30,7 @@
       flushTimer = setTimeout(() => {
         flushTimer = null;
         const batch = pending; pending = [];
-        try { chrome.runtime.sendMessage({ type: 'posts', posts: batch }); } catch (e) { dead(); }
+        live(() => chrome.runtime.sendMessage({ type: 'posts', posts: batch }).catch(() => {}));
       }, 1200);
     }
   }
@@ -73,8 +73,8 @@
   function scan() {
     if (!handle) handle = viewerHandle();
     const v = viewerHandle();
-    if (!chrome.runtime || !chrome.runtime.id) { dead(); return; }
-    if (v) chrome.storage.local.set({ viewer: v });
+    if (gone) return;
+    if (v) live(() => chrome.storage.local.set({ viewer: v }).catch(() => {}));
     if (!handle) return;
     const me = handle.toLowerCase();
     const threadPage = /\/with_replies|\/status\//.test(location.pathname);
@@ -119,10 +119,19 @@
 
   // the extension was reloaded or updated: this copy can no longer report anything
   let gone = false;
+  // every extension API call goes through here: after a reload they throw synchronously
+  function live(fn) {
+    if (gone) return;
+    try {
+      if (!chrome.runtime || !chrome.runtime.id) { dead(); return; }
+      fn();
+    } catch (e) { dead(); }
+  }
   function dead() {
     if (gone) return;
     gone = true;
     obs.disconnect();
+    clearInterval(pillTimer);
     const el = document.getElementById('mvx-pill');
     if (el && el.dataset.owner === token) {
       el.textContent = 'MV Cut 확장이 업데이트되었습니다. 이 탭을 새로고침하세요.';
@@ -133,14 +142,14 @@
   // ---- on-page pill: can I post now? ----
   const token = String(Math.random());
   let pill = null;
+  let pillTimer = null;
   function fmtHM(ts) {
     const d = new Date(ts * 1000);
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
   function renderPill(st) {
     if (gone) return;
-    if (!chrome.runtime || !chrome.runtime.id) { dead(); return; }
-    chrome.storage.local.get(['status', 'local'], (s) => {
+    live(() => chrome.storage.local.get(['status', 'local'], (s) => {
       st = st || s.status;
       const loc = s.local;
       if (!document.body) return;
@@ -165,14 +174,14 @@
       else { text = '지금 게시 가능'; bg = '#1d8a3a'; }
       pill.textContent = 'MV Cut · ' + text;
       pill.style.background = bg;
-    });
+    }));
   }
 
   function start() {
     obs.observe(document.body, { childList: true, subtree: true });
     scan();
     renderPill();
-    setInterval(() => renderPill(), 30000);
+    pillTimer = setInterval(() => renderPill(), 30000);
   }
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
