@@ -433,6 +433,10 @@ main.wide.settings.xwatch { max-width: 860px; }
 /* library + X watch sidebar */
 main.lib-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
 .lib-col { min-width: 0; }
+/* the sidebar takes ~370px, so cards may be a bit narrower to keep the column count */
+main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+@media (max-width: 1000px) { main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); } }
+@media (max-width: 640px) { main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
 .xw-side { position: sticky; top: calc(var(--nav-h) + 16px); max-height: calc(100vh - var(--nav-h) - 32px); display: flex; flex-direction: column; gap: 10px;
   background: var(--bg-grouped); border-radius: var(--r-card); padding: 14px 12px; font-size: 13px; }
 .xw-side-head { display: flex; gap: 8px; align-items: baseline; padding: 0 4px; font-size: 15px; }
