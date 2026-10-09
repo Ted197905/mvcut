@@ -166,7 +166,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   return false;
 });
 
+// After an install, update or reload, x.com tabs that were already open keep a dead copy of
+// the content script that can no longer reach this worker; give them a live one.
+async function injectOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
+  for (const t of tabs) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['hook.js'], world: 'MAIN' });
+      await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content.js'] });
+    } catch (e) { /* discarded or restricted tab */ }
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
+  injectOpenTabs();
   chrome.alarms.create('poll', { periodInMinutes: 5 });
   chrome.alarms.create('badge', { periodInMinutes: 1 });
   poll();

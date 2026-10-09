@@ -30,7 +30,7 @@
       flushTimer = setTimeout(() => {
         flushTimer = null;
         const batch = pending; pending = [];
-        try { chrome.runtime.sendMessage({ type: 'posts', posts: batch }); } catch (e) { /* extension reloaded */ }
+        try { chrome.runtime.sendMessage({ type: 'posts', posts: batch }); } catch (e) { dead(); }
       }, 1200);
     }
   }
@@ -73,6 +73,7 @@
   function scan() {
     if (!handle) handle = viewerHandle();
     const v = viewerHandle();
+    if (!chrome.runtime || !chrome.runtime.id) { dead(); return; }
     if (v) chrome.storage.local.set({ viewer: v });
     if (!handle) return;
     const me = handle.toLowerCase();
@@ -116,19 +117,38 @@
     scanTimer = setTimeout(() => { scanTimer = null; scan(); }, 800);
   });
 
+  // the extension was reloaded or updated: this copy can no longer report anything
+  let gone = false;
+  function dead() {
+    if (gone) return;
+    gone = true;
+    obs.disconnect();
+    const el = document.getElementById('mvx-pill');
+    if (el && el.dataset.owner === token) {
+      el.textContent = 'MV Cut 확장이 업데이트되었습니다. 이 탭을 새로고침하세요.';
+      el.style.background = '#6e6e73';
+    }
+  }
+
   // ---- on-page pill: can I post now? ----
+  const token = String(Math.random());
   let pill = null;
   function fmtHM(ts) {
     const d = new Date(ts * 1000);
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
   function renderPill(st) {
+    if (gone) return;
+    if (!chrome.runtime || !chrome.runtime.id) { dead(); return; }
     chrome.storage.local.get(['status', 'local'], (s) => {
       st = st || s.status;
       const loc = s.local;
       if (!document.body) return;
+      if (!pill) pill = document.getElementById('mvx-pill');
+      if (pill) pill.dataset.owner = token;
       if (!pill) {
         pill = document.createElement('div');
+        pill.dataset.owner = token;
         pill.id = 'mvx-pill';
         pill.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:2147483646;font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;' +
           'padding:8px 12px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer;color:#fff;max-width:320px';
