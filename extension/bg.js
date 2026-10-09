@@ -10,7 +10,7 @@ const set = (obj) => new Promise((r) => chrome.storage.local.set(obj, r));
 
 async function settings() {
   const s = await get(['server', 'token']);
-  return { server: (s.server || DEFAULT_SERVER).replace(/\/+$/, ''), token: s.token || '' };
+  return { server: (s.server || DEFAULT_SERVER).replace(/\/+$/, ''), token: (s.token || '') };
 }
 
 async function api(path, opts = {}) {
