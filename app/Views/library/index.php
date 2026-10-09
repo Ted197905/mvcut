@@ -16,7 +16,7 @@
   <div class="progress-list" id="progressList"></div>
 
   <section class="import-panel" id="importPanel">
-    <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram</span></div>
+    <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram · TikTok</span></div>
     <div class="import-row">
       <input class="input" type="url" id="importUrl" placeholder="게시물 링크를 붙여 넣으세요" autocomplete="off">
       <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">Paste</button>

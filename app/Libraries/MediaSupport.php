@@ -10,6 +10,7 @@ class MediaSupport
         'x.com', 'twitter.com', 'www.x.com', 'www.twitter.com', 'mobile.twitter.com',
         'threads.net', 'www.threads.net', 'threads.com', 'www.threads.com',
         'youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com',
+        'tiktok.com', 'www.tiktok.com', 'm.tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
     ];
 
     /** Can the browser <video> play the original as-is? */
@@ -46,6 +47,7 @@ class MediaSupport
         'facebook'  => ['label' => 'Facebook',  'level' => 'full'],
         'instagram' => ['label' => 'Instagram', 'level' => 'login'],
         'threads'   => ['label' => 'Threads',   'level' => 'none'],
+        'tiktok'    => ['label' => 'TikTok',    'level' => 'full'],
     ];
 
     /**
@@ -89,6 +91,7 @@ class MediaSupport
         if (str_contains($host, 'twitter') || $host === 'x.com' || $host === 'www.x.com') return 'x';
         if (str_contains($host, 'threads')) return 'threads';
         if (str_contains($host, 'youtu')) return 'youtube';
+        if (str_contains($host, 'tiktok')) return 'tiktok';
         return null;
     }
 
@@ -98,6 +101,7 @@ class MediaSupport
         'twimg.com', 'twitter.com', 'x.com',
         'threads.net', 'threads.com',
         'ytimg.com', 'ggpht.com', 'googleusercontent.com', 'youtube.com',
+        'tiktokcdn.com', 'tiktokcdn-us.com', 'tiktok.com', 'ibyteimg.com', 'byteimg.com',
     ];
 
     /** True when the URL is https, on an allowed CDN host, and not pointing at a private address. */
@@ -348,6 +352,7 @@ class MediaSupport
             'instagram'=> 'https://www.instagram.com/explore/tags/',
             'threads'  => 'https://www.threads.com/search?q=%23',
             'facebook' => 'https://www.facebook.com/hashtag/',
+            'tiktok'   => 'https://www.tiktok.com/tag/',
             default    => null,
         };
         $out = esc($text);

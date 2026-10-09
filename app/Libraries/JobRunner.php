@@ -458,7 +458,8 @@ class JobRunner
             return $this->importVideo($job, $mediaId, $dir, $p, $log);
         }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
-                 '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
+                 // TikTok serves single files in H.265 and H.264; X takes only the latter
+                 '-f', $platform === 'tiktok' ? 'b[vcodec^=h264]/b' : 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
                  '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title'];
         if ($c = MediaSupport::cookieFile($platform)) array_push($args, '--cookies', $c);
         $args[] = $p['url'];
