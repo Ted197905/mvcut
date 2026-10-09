@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\XWatch;
 use App\Libraries\Ffmpeg;
 use App\Libraries\MediaIntake;
 use App\Libraries\MediaSupport;
@@ -84,6 +85,7 @@ class Library extends BaseController
 
         return view('library/index', [
             'title'   => '라이브러리',
+            'xwatch'  => self::xwatchPanel($userId),
             'items'   => $items,
             'sizes'   => $sizes,
             'ffmpeg'  => Ffmpeg::available(),
@@ -177,5 +179,19 @@ class Library extends BaseController
             $media->delete($row['id']);
         }
         return count($rows);
+    }
+
+    /** X watch summary for the library sidebar; null when no X account is set up. */
+    public static function xwatchPanel(int $userId): ?array
+    {
+        $w = XWatch::forUser($userId);
+        if ($w['handle'] === '') return null;
+        return XWatch::status($w) + ['row' => XWatch::history($userId, 1)[0] ?? null];
+    }
+
+    /** GET /xwatch/panel - sidebar fragment, refreshed by the library page */
+    public function xwatchFragment()
+    {
+        return view('xwatch/side', ['xw' => self::xwatchPanel((int) session()->get('user_id'))]);
     }
 }

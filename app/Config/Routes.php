@@ -27,6 +27,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('settings/cookies/([a-z]+)/delete', 'Settings::deleteCookie/$1');
 
     $routes->get('xwatch', 'XWatchPage::index');
+    $routes->get('xwatch/panel', 'Library::xwatchFragment');
     $routes->post('xwatch/settings', 'XWatchPage::save');
     $routes->post('xwatch/token', 'XWatchPage::token');
     $routes->post('xwatch/check', 'XWatchPage::checkNow');

@@ -1,6 +1,7 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
-<main>
+<main class="lib-layout">
+<div class="lib-col">
   <?= view('partials/alerts') ?>
   <?php if (! $ffmpeg): ?>
     <div class="alert error">서버에 ffmpeg가 없어 메타데이터와 썸네일을 만들 수 없습니다. <code>sudo apt install ffmpeg</code></div>
@@ -109,11 +110,20 @@
   <?php if (empty($items)): ?>
     <div class="empty" id="empty"><?= $total > 0 ? '조건에 맞는 항목이 없습니다.' : '아직 라이브러리가 비어 있습니다.' ?></div>
   <?php endif ?>
+</div>
+<?= view('xwatch/side', ['xw' => $xwatch]) ?>
 </main>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
 <script>
+setInterval(() => {
+  const side = document.getElementById('xwSide');
+  if (!side || document.hidden) return;
+  fetch('<?= site_url('xwatch/panel') ?>', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then((r) => r.ok ? r.text() : null).then((h) => { if (h && h.trim()) side.outerHTML = h; }).catch(() => {});
+}, 60000);
+
 (function () {
   const $ = (id) => document.getElementById(id);
   const csrf = MV.csrf();
