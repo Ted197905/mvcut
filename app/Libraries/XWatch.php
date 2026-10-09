@@ -103,7 +103,7 @@ class XWatch
 
     /**
      * Posts of the last $hours with the gap to the previous counted post, plus cadence warnings.
-     * Reposts are listed but do not count toward the limits.
+     * Posts and quotes count toward the limits; replies only when count_replies is on; reposts never.
      */
     public static function timeline(array $watch, int $hours = 48): array
     {
@@ -111,19 +111,22 @@ class XWatch
         $since = gmdate('Y-m-d H:i:s', time() - $hours * 3600);
         $rows  = self::db()->table('x_posts')->where('user_id', $uid)->where('posted_at >=', $since)
             ->orderBy('posted_at', 'ASC')->get()->getResultArray();
+        $kinds  = self::countedKinds($watch);
         $before = self::db()->table('x_posts')->where('user_id', $uid)->where('posted_at <', $since)
-            ->where('kind !=', 'repost')->orderBy('posted_at', 'DESC')->limit(1)->get()->getRowArray();
+            ->whereIn('kind', $kinds)->orderBy('posted_at', 'DESC')->limit(1)->get()->getRowArray();
 
         $gapMin = max(0, (int) $watch['gap_min']);
         $prev   = $before ? strtotime($before['posted_at'] . ' UTC') : null;
         $times  = [];
         $posts  = [];
+        $replyTimes = [];
         foreach ($rows as $r) {
             $ts = strtotime($r['posted_at'] . ' UTC');
-            $counted = $r['kind'] !== 'repost';
+            $counted = in_array($r['kind'], $kinds, true);
+            if ($r['kind'] === 'reply') $replyTimes[] = $ts;
             $gap = ($counted && $prev) ? intdiv($ts - $prev, 60) : null;
             $posts[] = ['id' => $r['tweet_id'], 'kind' => $r['kind'], 'ts' => $ts, 'text' => $r['text'],
-                        'reply_to' => $r['reply_to'], 'gap' => $gap, 'short' => $gap !== null && $gap < $gapMin];
+                        'reply_to' => $r['reply_to'], 'gap' => $gap, 'short' => $gap !== null && $gap < $gapMin, 'counted' => $counted];
             if ($counted) { $prev = $ts; $times[] = $ts; }
         }
 
@@ -153,8 +156,15 @@ class XWatch
         $short = count(array_filter($posts, static fn ($p) => $p['short']));
         if ($short) $warn[] = sprintf('최근 %d시간 동안 %d분 미만 간격 %d회', $hours, $gapMin, $short);
 
-        return ['posts' => array_reverse($posts), 'hour' => $hour, 'day' => $day, 'last' => $last,
+        $replyHour = count(array_filter($replyTimes, static fn ($t) => $t > $now - 3600));
+        return ['posts' => array_reverse($posts), 'hour' => $hour, 'day' => $day, 'last' => $last, 'reply_hour' => $replyHour,
                 'next_ok' => $next, 'can_post' => $next <= $now, 'warnings' => $warn];
+    }
+
+    /** @return string[] kinds that count toward the cadence limits */
+    public static function countedKinds(array $watch): array
+    {
+        return ! empty($watch['count_replies']) ? ['post', 'quote', 'reply'] : ['post', 'quote'];
     }
 
     public static function latestCheck(int $userId): ?array
@@ -261,7 +271,8 @@ class XWatch
         return [
             'handle'   => $watch['handle'],
             'enabled'  => (bool) $watch['enabled'],
-            'limits'   => ['gap_min' => (int) $watch['gap_min'], 'hour_max' => (int) $watch['hour_max'], 'day_max' => (int) $watch['day_max']],
+            'limits'   => ['gap_min' => (int) $watch['gap_min'], 'hour_max' => (int) $watch['hour_max'], 'day_max' => (int) $watch['day_max'],
+                           'count_replies' => ! empty($watch['count_replies'])],
             'probe'    => self::probeReady(),
             'check'    => $c ? ['id' => (int) $c['id'], 'status' => $c['status'], 'summary' => $c['summary'], 'at' => $c['ts'],
                                'tests' => array_map(static fn ($k) => $c['result'][$k]['ban'] ?? null, array_combine(array_keys(self::TESTS), array_keys(self::TESTS)))] : null,

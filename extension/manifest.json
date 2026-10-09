@@ -1,35 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "MV Cut - Send to X",
-  "version": "1.0.2",
-  "description": "MV Cut 라이브러리에서 고른 영상과 본문을 X 새 글 작성 창에 올려 둡니다. 게시는 직접 누릅니다.",
-  "host_permissions": [
-    "https://mvcut.blackout.kr/*",
-    "https://x.com/*",
-    "https://twitter.com/*"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
+  "name": "MV Cut X 관리",
+  "version": "1.0.0",
+  "description": "내 X 게시 시간과 간격을 기록하고, MV Cut 서버의 서치밴 검사 결과를 알려 줍니다.",
+  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" },
+  "permissions": ["storage", "alarms", "notifications"],
+  "host_permissions": ["https://mvcut.blackout.kr/*", "http://localhost/*"],
+  "background": { "service_worker": "bg.js" },
+  "action": { "default_popup": "popup.html", "default_title": "MV Cut X 관리" },
+  "options_page": "options.html",
   "content_scripts": [
     {
-      "matches": [
-        "https://mvcut.blackout.kr/*"
-      ],
-      "js": [
-        "content-mvcut.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     },
     {
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ],
-      "js": [
-        "content-x.js"
-      ],
-      "run_at": "document_idle"
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
     }
   ]
 }

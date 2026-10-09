@@ -59,6 +59,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <div class="stat"><b><?= $tl['hour'] ?></b><span>최근 1시간 (기준 <?= (int) $w['hour_max'] ?> 미만)</span></div>
       <div class="stat"><b><?= $tl['day'] ?></b><span>최근 24시간 (기준 <?= (int) $w['day_max'] ?> 미만)</span></div>
       <div class="stat"><b><?= $tl['last'] ? esc($ago($tl['last'])) : '-' ?></b><span>마지막 게시</span></div>
+      <div class="stat"><b><?= (int) $tl['reply_hour'] ?></b><span>최근 1시간 답글</span></div>
     </div>
     <?php foreach ($tl['warnings'] as $m): ?><p class="ck-alert warn" style="margin:0 0 8px"><?= esc($m) ?></p><?php endforeach ?>
 
@@ -67,7 +68,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php else: ?>
       <div class="xw-posts">
         <?php foreach ($tl['posts'] as $p): ?>
-          <div class="xw-post<?= $p['short'] ? ' short' : '' ?>">
+          <div class="xw-post<?= $p['short'] ? ' short' : '' ?><?= $p['counted'] ? '' : ' dim' ?>">
             <div class="xw-time"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><span><?= esc(XWatch::kst($p['ts'], 'm-d')) ?></span></div>
             <div class="xw-body">
               <div class="xw-meta">
@@ -109,7 +110,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <div class="field"><label for="day_max">24시간 경고 개수</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
       </div>
       <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 1시간마다 자동 검사</label>
-      <p class="muted small">재게시(리포스트)는 목록에만 표시하고 개수/간격 계산에서는 뺍니다.</p>
+      <label class="xw-check"><input type="checkbox" name="count_replies" value="1" <?= ! empty($w['count_replies']) ? 'checked' : '' ?>> 답글도 간격/개수 계산에 포함</label>
+      <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
       <button class="btn" type="submit">저장</button>
     </form>
   </section>

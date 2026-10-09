@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="popup">
+  <header>
+    <b>MV Cut X 관리</b>
+    <span id="handle" class="muted"></span>
+  </header>
+  <div id="setup" class="card" hidden>
+    <p>확장 설정에서 서버 주소와 토큰을 입력하세요.</p>
+    <button id="openOptions" class="btn">설정 열기</button>
+  </div>
+  <div id="main" hidden>
+    <div class="card">
+      <div class="row"><span>제한 검사</span><span id="checkBadge" class="badge"></span></div>
+      <div id="checkSummary" class="small"></div>
+      <div id="tests" class="tests"></div>
+    </div>
+    <div class="card">
+      <div class="row"><span>다음 게시</span><span id="postBadge" class="badge"></span></div>
+      <div class="stats">
+        <div><b id="hour">-</b><span>1시간</span></div>
+        <div><b id="day">-</b><span>24시간</span></div>
+        <div><b id="last">-</b><span>마지막</span></div>
+      </div>
+      <div id="warnings"></div>
+    </div>
+    <div class="card list" id="posts"></div>
+  </div>
+  <footer>
+    <span id="sync" class="muted small"></span>
+    <span class="spacer"></span>
+    <a href="#" id="refresh">새로고침</a>
+    <a href="#" id="dash">대시보드</a>
+    <a href="#" id="opts">설정</a>
+  </footer>
+  <script src="popup.js"></script>
+</body>
+</html>

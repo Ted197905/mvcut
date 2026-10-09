@@ -35,6 +35,7 @@ class XWatchPage extends BaseController
         $data = [
             'handle'   => $handle,
             'enabled'  => $this->request->getPost('enabled') ? 1 : 0,
+            'count_replies' => $this->request->getPost('count_replies') ? 1 : 0,
             'gap_min'  => $int('gap_min', 0, 720, 15),
             'hour_max' => $int('hour_max', 1, 100, 4),
             'day_max'  => $int('day_max', 1, 500, 30),

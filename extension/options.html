@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MV Cut X 관리 설정</title>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body class="options">
+  <h1>MV Cut X 관리</h1>
+  <p class="muted">MV Cut의 <b>X 관리</b> 화면에서 토큰을 발급해 붙여 넣으세요.</p>
+  <label>서버 주소<input id="server" class="input" placeholder="https://mvcut.blackout.kr"></label>
+  <label>확장 토큰<input id="token" class="input" placeholder="mvx_..." autocomplete="off" spellcheck="false"></label>
+  <div class="actions"><button id="save" class="btn">저장하고 연결 확인</button><span id="msg" class="small"></span></div>
+  <hr>
+  <h2>동작 방식</h2>
+  <ul class="small">
+    <li>x.com을 볼 때 화면에 이미 표시된 내 게시물과 X가 이미 받아 온 응답만 읽습니다. 추가 요청을 보내지 않으므로 계정 활동으로 잡히지 않습니다.</li>
+    <li>게시 기록은 MV Cut 서버로 보내 간격/개수를 계산합니다. 내 프로필의 게시물·답글 탭을 가끔 열어 두면 빠짐없이 기록됩니다.</li>
+    <li>서치밴 검사는 MV Cut 서버가 1시간마다 <b>부계정</b> 세션으로 합니다. 결과가 바뀌면 데스크톱 알림을 띄웁니다(5분마다 확인).</li>
+  </ul>
+  <button id="clear" class="btn secondary">이 브라우저의 게시 기록 지우기</button>
+  <script src="options.js"></script>
+</body>
+</html>
