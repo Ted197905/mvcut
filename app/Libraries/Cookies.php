@@ -13,6 +13,8 @@ class Cookies
         'threads'   => ['label' => 'Threads',   'domains' => ['threads.com', 'threads.net'], 'site' => 'https://www.threads.com/'],
         'facebook'  => ['label' => 'Facebook',  'domains' => ['facebook.com'], 'site' => 'https://www.facebook.com/', 'session' => ['c_user', 'xs']],
         'x'         => ['label' => 'X',         'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
+        // a second X account used only by the X watch restriction checks (never the watched account)
+        'xprobe'    => ['label' => 'X 검사용 부계정', 'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
     ];
 
     /** Cookies that carry the session; used for the expiry readout. */

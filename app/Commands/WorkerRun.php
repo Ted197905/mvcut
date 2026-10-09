@@ -4,6 +4,7 @@ namespace App\Commands;
 
 use App\Libraries\Cleanup;
 use App\Libraries\JobRunner;
+use App\Libraries\XWatch;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 
@@ -22,6 +23,7 @@ class WorkerRun extends BaseCommand
         $log    = static fn (string $m) => CLI::write('[' . date('H:i:s') . '] ' . $m);
         $log('worker started (pid ' . getmypid() . ')');
         $nextCleanup = time() + 300;
+        $nextXWatch  = time() + 20;
         while (true) {
             $job = $runner->claim();
             if ($job) {
@@ -41,6 +43,15 @@ class WorkerRun extends BaseCommand
                     }
                 } catch (\Throwable $e) {
                     $log('cleanup failed: ' . $e->getMessage());
+                }
+            }
+            // X watch restriction checks (hourly per account; "check now" sets the due time to now)
+            if (time() >= $nextXWatch) {
+                $nextXWatch = time() + 15;
+                try {
+                    XWatch::runDue($log);
+                } catch (\Throwable $e) {
+                    $log('xwatch failed: ' . $e->getMessage());
                 }
             }
             sleep($sleep);

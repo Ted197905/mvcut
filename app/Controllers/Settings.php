@@ -54,6 +54,10 @@ class Settings extends BaseController
     /** POST /settings/cookies/{platform} - store an exported cookies.txt */
     public function uploadCookie(string $platform)
     {
+        if ($this->request->getPost('back') === 'xwatch') {
+            $r = $this->storeCookie($platform);
+            return redirect()->to('/xwatch')->with($r[0] ? 'flash' : 'errors', $r[0] ? $r[1] : ['cookie' => $r[1]]);
+        }
         if (! Cookies::known($platform)) return redirect()->to('/settings')->with('errors', ['cookie' => '알 수 없는 플랫폼입니다.']);
         $file = $this->request->getFile('cookies');
         if (! $file || ! $file->isValid()) {
@@ -67,6 +71,17 @@ class Settings extends BaseController
             return redirect()->to('/settings')->with('errors', ['cookie' => $err]);
         }
         return redirect()->to('/settings')->with('flash', Cookies::PLATFORMS[$platform]['label'] . ' 쿠키를 등록했습니다.');
+    }
+
+    /** @return array{0:bool,1:string} saved, message */
+    private function storeCookie(string $platform): array
+    {
+        if (! Cookies::known($platform)) return [false, '알 수 없는 플랫폼입니다.'];
+        $file = $this->request->getFile('cookies');
+        if (! $file || ! $file->isValid()) return [false, '파일을 읽지 못했습니다.'];
+        if ($file->getSize() > 256 * 1024) return [false, '쿠키 파일이 너무 큽니다(최대 256KB).'];
+        if ($err = Cookies::save($platform, (string) file_get_contents($file->getTempName()))) return [false, $err];
+        return [true, Cookies::PLATFORMS[$platform]['label'] . ' 쿠키를 등록했습니다.'];
     }
 
     /** POST /settings/cookies/{platform}/delete */

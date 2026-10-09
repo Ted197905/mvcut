@@ -15,12 +15,22 @@ $routes->post('logout', 'Auth::logout');
 $routes->get('session/expired', 'Auth::expired');
 $routes->get('share/(:num)/(:num)/([a-f0-9]{64})', 'Media::share/$1/$2/$3');
 
+// Chrome extension (token auth, no session/CSRF)
+$routes->get('xapi/status', 'XApi::status');
+$routes->post('xapi/posts', 'XApi::posts');
+
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
     $routes->get('account', 'Settings::index');
     $routes->get('settings', 'Settings::index');
     $routes->post('settings/account', 'Settings::account');
     $routes->post('settings/cookies/([a-z]+)', 'Settings::uploadCookie/$1');
     $routes->post('settings/cookies/([a-z]+)/delete', 'Settings::deleteCookie/$1');
+
+    $routes->get('xwatch', 'XWatchPage::index');
+    $routes->post('xwatch/settings', 'XWatchPage::save');
+    $routes->post('xwatch/token', 'XWatchPage::token');
+    $routes->post('xwatch/check', 'XWatchPage::checkNow');
+    $routes->post('xwatch/posts/(:num)/delete', 'XWatchPage::deletePost/$1');
 
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
