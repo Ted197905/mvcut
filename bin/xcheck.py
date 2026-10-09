@@ -23,8 +23,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 CH_UA = '"Chromium";v="153", "Google Chrome";v="153", "Not_A Brand";v="8"'
 STATUS = re.compile(r"^/([A-Za-z0-9_]{1,15})/status/(\d+)")
 
-# label of the thread buttons that reveal hidden replies (en-US UI)
-HIDDEN_REPLIES = re.compile(r"show (probable spam|more replies|additional replies)", re.I)
+# X uses the probe account's own UI language, so match English and Korean
+HIDDEN_REPLIES = re.compile(r"show (probable spam|more replies|additional replies)|스팸|답글 더 보기|추가 답글", re.I)
+# empty search page that blames the viewer's "hide sensitive content" setting
+SENSITIVE_HINT = re.compile(r"sensitive content|민감한 콘텐츠", re.I)
 
 
 def load_cookies(path: str) -> list[dict]:
@@ -59,7 +61,7 @@ ARTICLES_JS = """() => [...document.querySelectorAll('article[data-testid="tweet
   const head = (a.innerText || '').slice(0, 300);
   return { href: link ? link.getAttribute('href') : null,
            time: t ? t.getAttribute('datetime') : null,
-           reply: /Replying to/.test(head) };
+           reply: /Replying to|님에게 보내는 답글/.test(head) };
 })"""
 
 
@@ -134,13 +136,13 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             text = body_text(page)
             posts = [a for a in articles(page) if a["handle"].lower() == me]
             prof = {"exists": True, "suspended": False, "protected": False, "has_tweets": bool(posts)}
-            if re.search(r"This account doesn.t exist", text):
+            if re.search(r"This account doesn.t exist|계정이 존재하지 않", text):
                 prof["exists"] = False
-            elif re.search(r"Account suspended", text):
+            elif re.search(r"Account suspended|계정이 정지|계정 정지", text):
                 prof["suspended"] = True
-            elif re.search(r"These posts are protected", text):
+            elif re.search(r"These posts are protected|게시물은 비공개|비공개 게시물", text):
                 prof["protected"] = True
-            m = re.search(r"([\d.,]+[KM]?) posts", text)
+            m = re.search(r"([\d.,]+[KM만천]?) (?:posts|게시물)", text)
             if m:
                 prof["posts"] = m.group(1)
                 prof["has_tweets"] = prof["has_tweets"] or m.group(1) not in ("0",)
@@ -156,6 +158,9 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             wait_timeline(page, ms)
             found = [a for a in articles(page) if a["handle"].lower() == me]
             res["search"] = {"ban": (not found) if prof["has_tweets"] else None, "count": len(found)}
+            if not found and SENSITIVE_HINT.search(body_text(page)):
+                # the probe hides sensitive content, so an empty result says nothing about a ban
+                res["search"] = {"ban": None, "count": 0, "note": "probe_sensitive_filter"}
 
             # 3. search suggestion ban: does @handle come up in the search box typeahead?
             try:

@@ -259,6 +259,9 @@ class XWatch
             if (($j[$k]['ban'] ?? null) === true) $bad[] = $label;
         }
         if ($bad) return ['banned', implode(', ', $bad)];
+        if (($j['search']['note'] ?? '') === 'probe_sensitive_filter') {
+            return ['error', '부계정의 "민감한 콘텐츠 숨기기" 설정 때문에 검색 결과가 비어 판정 불가 (x.com/settings/search 에서 해제 필요)'];
+        }
         $unknown = array_keys(array_filter(self::TESTS, static fn ($l, $k) => ($j[$k]['ban'] ?? null) === null, ARRAY_FILTER_USE_BOTH));
         return ['ok', $unknown ? '제한 없음 (일부 검사 불가: ' . implode(', ', $unknown) . ')' : '제한 없음'];
     }
