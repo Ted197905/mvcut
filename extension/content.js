@@ -16,9 +16,11 @@
   });
 
   function queue(posts, src) {
+    if (!handle) handle = viewerHandle();
+    if (!handle) return; // not yet known whose posts are ours
     for (const p of posts) {
       if (!p || !p.id || !p.handle || !p.time) continue;
-      if (handle && p.handle.toLowerCase() !== handle.toLowerCase()) continue;
+      if (p.handle.toLowerCase() !== handle.toLowerCase()) continue;
       const key = p.id + ':' + p.kind + ':' + (p.reply_to || '');
       if (sent.has(key)) continue;
       sent.add(key);

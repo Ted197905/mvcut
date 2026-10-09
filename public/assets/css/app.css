@@ -399,7 +399,8 @@ main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; 
 
 /* X account watch (/xwatch) */
 main.wide.settings.xwatch { max-width: 860px; }
-.xw-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.xw-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 14px; }
+.xw-head .ck-badge { white-space: nowrap; }
 .xw-head h2 { margin: 0; }
 .xw-tests { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .xw-test { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--bg-elev); border-radius: var(--r-group); padding: 12px 14px; font-size: 14px; box-shadow: var(--shadow-sm); }

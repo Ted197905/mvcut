@@ -112,7 +112,7 @@ async function addPosts(list) {
   const cutoff = Date.now() - KEEP_DAYS * 86400000;
   const fresh = [];
   for (const p of list) {
-    if (!p.id || !p.time || (handle && String(p.handle).toLowerCase() !== handle)) continue;
+    if (!handle || !p.id || !p.time || String(p.handle).toLowerCase() !== handle) continue;
     const old = posts[p.id];
     if (!old) {
       posts[p.id] = { id: p.id, handle: p.handle, time: p.time, kind: p.kind || 'post', text: p.text || '', reply_to: p.reply_to || '', synced: false };
