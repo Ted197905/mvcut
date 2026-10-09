@@ -11,7 +11,8 @@ function badge(el, cls, text) { el.className = 'badge ' + cls; el.textContent = 
 
 /** Server timeline when available, otherwise the posts this browser saw. */
 function timeline(st, posts, limits) {
-  if (st && st.timeline) return st.timeline;
+  const recent = Object.values(posts || {}).filter((p) => Date.parse(p.time) > Date.now() - 172800000).length;
+  if (st && st.timeline && st.timeline.posts.length >= recent) return st.timeline;
   const list = Object.values(posts || {}).map((p) => ({ id: p.id, kind: p.kind, ts: Date.parse(p.time) / 1000, text: p.text, reply_to: p.reply_to }))
     .filter((p) => p.ts > Date.now() / 1000 - 172800).sort((a, b) => a.ts - b.ts);
   let prev = null;

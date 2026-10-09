@@ -37,6 +37,11 @@ class XApi extends BaseController
         if (! $w) return $this->deny();
         $body = json_decode((string) $this->request->getBody(), true);
         $posts = is_array($body['posts'] ?? null) ? $body['posts'] : [];
+        // first contact: adopt the logged-in X account the extension reports
+        if ($w['handle'] === '' && ($viewer = XWatch::cleanHandle((string) ($body['viewer'] ?? ''))) !== '') {
+            XWatch::update((int) $w['user_id'], ['handle' => $viewer, 'next_check_at' => null]);
+            $w = XWatch::forUser((int) $w['user_id']);
+        }
         $new = XWatch::savePosts($w, $posts);
         return $this->response->setJSON(['saved' => $new] + XWatch::status($w));
     }

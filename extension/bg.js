@@ -63,7 +63,15 @@ function notify(id, title, message) {
 }
 
 async function handleStatus(st) {
-  const { notified = {} } = await get(['notified']);
+  const { notified = {}, posts = {} } = await get(['notified', 'posts']);
+  // posts the server does not have (e.g. sent before its handle was set) go up again
+  const have = new Set(((st.timeline && st.timeline.posts) || []).map((p) => p.id));
+  const since = Date.now() - 47 * 3600000;
+  let resend = false;
+  for (const p of Object.values(posts)) {
+    if (p.synced && !have.has(p.id) && Date.parse(p.time) > since) { p.synced = false; resend = true; }
+  }
+  if (resend) await set({ posts });
   const c = st.check;
   if (c && c.id !== notified.checkId) {
     if (c.status === 'banned') {
@@ -77,6 +85,7 @@ async function handleStatus(st) {
     notified.status = c.status;
   }
   await set({ status: st, notified, lastSync: Date.now(), lastError: '' });
+  if (resend && st.handle && !uploading) upload();
 }
 
 async function poll() {
@@ -89,18 +98,23 @@ async function poll() {
   await refreshBadge();
 }
 
+let uploading = false;
 async function upload() {
-  const { posts = {} } = await get(['posts']);
+  const { posts = {}, viewer = '' } = await get(['posts', 'viewer']);
   const unsent = Object.values(posts).filter((p) => !p.synced);
-  if (!unsent.length) return;
+  if (!unsent.length || uploading) return;
+  uploading = true;
   try {
-    const st = await api('/xapi/posts', { method: 'POST', body: JSON.stringify({ posts: unsent }) });
+    const st = await api('/xapi/posts', { method: 'POST', body: JSON.stringify({ posts: unsent, viewer }) });
     const cur = (await get(['posts'])).posts || {};
     for (const p of unsent) if (cur[p.id]) cur[p.id].synced = true;
     await set({ posts: cur });
+    uploading = false;
     await handleStatus(st);
   } catch (e) {
     await set({ lastError: String(e.message || e) });
+  } finally {
+    uploading = false;
   }
 }
 
