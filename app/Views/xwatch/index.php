@@ -2,7 +2,7 @@
 use App\Libraries\XWatch;
 
 $tl    = $st['timeline'];
-$check = $st['check'];
+$check = $history[0] ?? null; // decoded row (result, ts); $st['check'] is the compact API shape
 $badge = static fn ($ban) => $ban === true ? ['bad', '제한'] : ($ban === false ? ['ok', '정상'] : ['none', '확인 불가']);
 $kinds = ['post' => '게시', 'reply' => '답글', 'quote' => '인용', 'repost' => '재게시'];
 $ago   = static function (int $ts): string {
