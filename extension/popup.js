@@ -77,7 +77,7 @@ async function render() {
     row.querySelector('em').textContent = KINDS[p.kind] || p.kind;
     row.querySelector('em').className = p.kind;
     row.querySelector('small').textContent = '간격 ' + gapTxt(p.gap);
-    row.querySelector('.x').textContent = (p.reply_to ? '@' + p.reply_to + ' · ' : '') + (p.text || '(미디어)');
+    row.querySelector('.x').textContent = (p.reply_to && !(p.text || '').startsWith('@' + p.reply_to) ? '@' + p.reply_to + ' · ' : '') + (p.text || '(미디어)');
     box.appendChild(row);
   }
 
