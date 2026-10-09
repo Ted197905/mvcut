@@ -477,3 +477,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
   :root:not([data-theme="light"]) .xw-warn, :root:not([data-theme="light"]) .xw-item.short small { color: #ffb340; }
 }
 :root[data-theme="dark"] .xw-warn, :root[data-theme="dark"] .xw-item.short small { color: #ffb340; }
+
+/* posts that kept the minimum gap */
+.xw-post.kept, .xw-item.kept { background: var(--blue-tint); }
+.xw-post.kept .xw-gap, .xw-item.kept small { color: var(--blue); font-weight: 600; }

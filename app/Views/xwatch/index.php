@@ -68,7 +68,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php else: ?>
       <div class="xw-posts">
         <?php foreach ($tl['posts'] as $p): ?>
-          <div class="xw-post<?= $p['short'] ? ' short' : '' ?><?= $p['counted'] ? '' : ' dim' ?>">
+          <div class="xw-post<?= $p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '') ?><?= $p['counted'] ? '' : ' dim' ?>">
             <div class="xw-time"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><span><?= esc(XWatch::kst($p['ts'], 'm-d')) ?></span></div>
             <div class="xw-body">
               <div class="xw-meta">

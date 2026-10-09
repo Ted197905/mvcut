@@ -52,7 +52,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <p class="muted small" style="margin:0;padding:10px 12px">최근 48시간 기록 없음</p>
     <?php endif ?>
     <?php foreach (array_slice($tl['posts'], 0, 40) as $p): ?>
-      <a class="xw-item<?= $p['short'] ? ' short' : '' ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
+      <a class="xw-item<?= $p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '') ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
         <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
         <span class="b">
           <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small>간격 <?= esc($gapTxt($p['gap'])) ?></small></span>
