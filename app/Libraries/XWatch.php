@@ -260,7 +260,7 @@ class XWatch
         }
         if ($bad) return ['banned', implode(', ', $bad)];
         if (($j['search']['note'] ?? '') === 'probe_sensitive_filter') {
-            return ['error', '부계정의 "민감한 콘텐츠 숨기기" 설정 때문에 검색 결과가 비어 판정 불가 (x.com/settings/search 에서 해제 필요)'];
+            return ['error', '부계정 검색에 감시 계정 글이 하나도 안 나와 판정 불가. 부계정 설정 확인: 개인정보 및 보안 > 표시되는 콘텐츠 > "민감한 내용이 포함될 수 있는 미디어 표시" 켜기, 검색 설정 "민감한 내용 숨기기" 끄기'];
         }
         $unknown = array_keys(array_filter(self::TESTS, static fn ($l, $k) => ($j[$k]['ban'] ?? null) === null, ARRAY_FILTER_USE_BOTH));
         return ['ok', $unknown ? '제한 없음 (일부 검사 불가: ' . implode(', ', $unknown) . ')' : '제한 없음'];
