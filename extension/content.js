@@ -133,14 +133,14 @@
     obs.disconnect();
     clearInterval(pillTimer);
     const el = document.getElementById('mvx-pill');
-    if (el && el.dataset.owner === token) {
+    if (el && el.dataset.owner === ownerId) {
       el.textContent = 'MV Cut 확장이 업데이트되었습니다. 이 탭을 새로고침하세요.';
       el.style.background = '#6e6e73';
     }
   }
 
   // ---- on-page pill: can I post now? ----
-  const token = String(Math.random());
+  const ownerId = String(Math.random());
   let pill = null;
   let pillTimer = null;
   function fmtHM(ts) {
@@ -154,10 +154,10 @@
       const loc = s.local;
       if (!document.body) return;
       if (!pill) pill = document.getElementById('mvx-pill');
-      if (pill) pill.dataset.owner = token;
+      if (pill) pill.dataset.owner = ownerId;
       if (!pill) {
         pill = document.createElement('div');
-        pill.dataset.owner = token;
+        pill.dataset.owner = ownerId;
         pill.id = 'mvx-pill';
         pill.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:2147483646;font:600 12px/1.3 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;' +
           'padding:8px 12px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.18);cursor:pointer;color:#fff;max-width:320px';
