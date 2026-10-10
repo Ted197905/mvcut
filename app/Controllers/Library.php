@@ -62,8 +62,14 @@ class Library extends BaseController
                           . ' ORDER BY m2.post_order ASC, m2.id ASC LIMIT 1)', null, false)
                 ->groupEnd();
 
-        // 4 columns x 4 rows per page
-        $perPage = 16;
+        // items per page, remembered per account like the category; ?per= changes it
+        $per = $this->request->getGet('per');
+        if ($per !== null && $per !== '') {
+            $perPage = max(1, min(500, (int) $per));
+            $users->savePref($userId, 'library_per_page', $perPage === 16 ? null : $perPage);
+        } else {
+            $perPage = max(1, min(500, (int) ($users->prefs($userId)['library_per_page'] ?? 16)));
+        }
         $matched = $builder->countAllResults(false);   // false: keep the conditions for findAll()
         $pages   = max(1, (int) ceil($matched / $perPage));
         $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
@@ -93,6 +99,7 @@ class Library extends BaseController
             'sort'    => $sort ?: 'newest',
             'kind'    => $kind ?: 'all',
             'cat'     => $cat,
+            'perPage' => $perPage,
             'cats'    => $cats,
             'page'    => $page,
             'pages'   => $pages,

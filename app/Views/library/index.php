@@ -54,6 +54,7 @@
       <option value="largest"<?= $sort === 'largest' ? ' selected' : '' ?>>용량순</option>
       <option value="longest"<?= $sort === 'longest' ? ' selected' : '' ?>>길이순</option>
     </select>
+    <label class="per-page small muted">표시 <input class="input" type="number" name="per" min="1" max="500" step="1" value="<?= (int) $perPage ?>" onchange="filterForm.submit()" aria-label="페이지당 표시 개수">개</label>
     <?php if ($q !== '' || $kind !== 'all' || $sort !== 'newest'): ?>
       <a class="btn sm ghost" href="<?= site_url('library') ?>">초기화</a>
     <?php endif ?>

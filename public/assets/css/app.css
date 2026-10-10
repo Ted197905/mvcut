@@ -253,6 +253,8 @@ select.input { appearance: none; padding-right: 34px;
 .lib-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 28px 0 18px; }
 .lib-toolbar .input { width: auto; min-height: 36px; padding: 6px 12px; font-size: 14px; border-radius: 9px; }
 .lib-toolbar select.input { padding-right: 30px; }
+.lib-toolbar .per-page { display: inline-flex; align-items: center; gap: 6px; }
+.lib-toolbar .per-page .input { width: 72px; text-align: right; }
 .lib-toolbar .search { min-width: 180px; flex: 1 1 180px; max-width: 280px; }
 .lib-toolbar .spacer { flex: 1; }
 .bulkbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--bg-grouped); border-radius: var(--r-group); padding: 11px 16px; margin-bottom: 16px; }
