@@ -233,7 +233,8 @@ select.input { appearance: none; padding-right: 34px;
 .dropzone { border: 1.5px dashed var(--separator); border-radius: 22px; padding: 30px 24px; text-align: center; color: var(--label2); font-size: 14px; transition: border-color .15s, background .15s; margin-bottom: 20px; }
 .dropzone.over { border-color: var(--blue); background: var(--blue-tint); }
 .dropzone strong { color: var(--label); font-size: 16px; font-weight: 600; display: block; margin-bottom: 12px; letter-spacing: -0.012em; }
-.progress-list { display: grid; gap: 8px; margin-bottom: 20px; }
+.progress-list { display: grid; gap: 8px; margin: 12px 0 0; }
+.progress-list:empty { display: none; }
 .progress-item { background: var(--bg-grouped); border-radius: var(--r-group); padding: 11px 15px; font-size: 13px; }
 .progress-item .bar { height: 3px; border-radius: 2px; background: var(--fill2); margin-top: 9px; overflow: hidden; }
 .progress-item .bar i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .25s; }

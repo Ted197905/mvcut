@@ -7,8 +7,6 @@
     <div class="alert error">서버에 ffmpeg가 없어 메타데이터와 썸네일을 만들 수 없습니다. <code>sudo apt install ffmpeg</code></div>
   <?php endif ?>
 
-  <div class="progress-list" id="progressList"></div>
-
   <section class="import-panel" id="importPanel">
     <div class="drop-hint" aria-hidden="true">여기에 놓으면 업로드합니다 <span class="small">mp4 · mov · mkv · webm · gif · jpg · png · 최대 4GB</span></div>
     <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram · TikTok · 파일은 이 영역에 끌어다 놓기</span>
@@ -31,6 +29,7 @@
       <button class="btn sm" type="button" id="btnImport">선택한 리소스 가져오기</button>
     </div>
   </section>
+  <div class="progress-list" id="progressList"></div>
 
   <div class="segmented cat-filter" role="radiogroup" aria-label="카테고리">
     <?php foreach (array_merge(['ALL' => 'ALL'], array_combine($cats, $cats) ?: [], ['_none' => '미지정']) as $v => $labelText): ?>
