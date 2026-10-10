@@ -28,7 +28,7 @@ class MediaSupport
     {
         if ($m['media_type'] !== 'video') return '';
         $ext = strtoupper(pathinfo((string) $m['filename'], PATHINFO_EXTENSION));
-        return implode(' · ', array_filter([$ext, strtoupper((string) $m['vcodec'])]));
+        return implode(' · ', array_unique(array_filter([$ext, strtoupper((string) $m['vcodec'])])));
     }
 
     /**
