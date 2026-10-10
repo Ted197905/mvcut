@@ -164,6 +164,14 @@ select.input { appearance: none; padding-right: 34px;
 .alert { border-radius: var(--r-group); padding: 13px 16px; margin-bottom: 20px; font-size: 14px; background: var(--fill3); }
 .alert.error { background: var(--red-tint); color: var(--red); }
 .alert.ok { background: color-mix(in srgb, var(--green) 14%, transparent); }
+/* flash message: slides down at the top centre, then leaves on its own */
+.toast { position: fixed; top: calc(var(--nav-h) + 12px); left: 50%; z-index: 100; max-width: min(560px, calc(100vw - 32px));
+  padding: 11px 18px; border-radius: 12px; font-size: 14px; line-height: 1.45; color: var(--label);
+  background: color-mix(in srgb, var(--green) 16%, var(--bg-elev)); box-shadow: var(--shadow-md);
+  animation: toast-in .35s cubic-bezier(.2, .8, .2, 1) both, toast-out .35s ease-in 3.2s forwards; }
+@keyframes toast-in { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes toast-out { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation-duration: .01s, .01s; } }
 
 /* ---------- inset grouped list ---------- */
 .list { background: var(--bg-grouped); border-radius: var(--r-group); overflow: hidden; margin: 0; }
