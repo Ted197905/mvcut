@@ -51,6 +51,21 @@ class MediaModel extends Model
         return $this->db->affectedRows();
     }
 
+    /**
+     * Deletes a converted original once nothing is waiting on it: files, row, and the
+     * "원본 미디어" link of its results. Returns false (keeps it) while it has queued/running jobs.
+     */
+    public function removeSource(array $src, int $exceptJob = 0): bool
+    {
+        $busy = $this->db->table('jobs')->where('media_id', $src['id'])->whereIn('status', ['queued', 'running'])
+                         ->where('id !=', $exceptJob)->countAllResults();
+        if ($busy > 0) return false;
+        $this->db->table('media')->where('parent_id', $src['id'])->update(['parent_id' => null]);
+        \App\Libraries\MediaIntake::removeDir(self::dir($src));
+        $this->delete($src['id']);
+        return true;
+    }
+
     /** Storage directory for a media row (outside web root). */
     public static function dir(array $media): string
     {

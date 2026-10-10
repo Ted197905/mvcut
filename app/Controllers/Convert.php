@@ -56,20 +56,27 @@ class Convert extends BaseController
         if (! in_array($format, self::VIDEO_FORMATS, true)) return redirect()->to($back)->with('flash', '지원하지 않는 포맷입니다.');
         $ids = array_values(array_filter(array_map('intval', (array) $this->request->getPost('ids')), static fn ($i) => $i > 0));
         $rows = $ids === [] ? [] : (new MediaModel())->whereIn('id', $ids)->where('user_id', $userId)->findAll();
-        $queued = $cached = $skipped = 0;
+        $drop   = (bool) $this->request->getPost('delete_source');
+        $queued = $cached = $skipped = $removed = 0;
         foreach ($rows as $item) {
             if ($item['media_type'] !== 'video') { $skipped++; continue; }
-            $r = $this->queue($item, ['format' => $format, 'height' => 0, 'quality' => 'high']);
-            isset($r['media']) ? $cached++ : $queued++;
+            $r = $this->queue($item, ['format' => $format, 'height' => 0, 'quality' => 'high'], $drop);
+            if (isset($r['media'])) {
+                $cached++;
+                if ($drop && (new MediaModel())->removeSource($item)) $removed++;
+            } else {
+                $queued++;
+            }
         }
         $msg = strtoupper($format) . ' 변환: ' . $queued . '개 작업 등록';
-        if ($cached)  $msg .= ', ' . $cached . '개는 이미 변환됨';
+        if ($cached)  $msg .= ', ' . $cached . '개는 이미 변환됨' . ($removed ? '(원본 ' . $removed . '개 삭제)' : '');
         if ($skipped) $msg .= ', 영상이 아닌 ' . $skipped . '개 제외';
+        if ($drop && $queued) $msg .= '. 원본은 변환이 끝나면 삭제됩니다';
         return redirect()->to($back)->with('flash', $msg . '. 완료되면 라이브러리에 결과가 추가됩니다.');
     }
 
     /** Existing result for the same settings (['media' => row]) or a new queued job (['job' => row]). */
-    private function queue(array $item, array $params): array
+    private function queue(array $item, array $params, bool $dropSource = false): array
     {
         $media  = new MediaModel();
         $key    = json_encode(['convert' => $params]);
@@ -82,7 +89,8 @@ class Convert extends BaseController
             return ['media' => $cached];
         }
         $jobs  = new JobModel();
-        $jobId = $jobs->insert(['user_id' => $item['user_id'], 'media_id' => $item['id'], 'type' => 'convert', 'params' => json_encode($params), 'status' => 'queued']);
+        $jobId = $jobs->insert(['user_id' => $item['user_id'], 'media_id' => $item['id'], 'type' => 'convert',
+                                'params' => json_encode($params + ($dropSource ? ['delete_source' => true] : [])), 'status' => 'queued']);
         return ['job' => $jobs->find($jobId)];
     }
 }

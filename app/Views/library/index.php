@@ -7,16 +7,15 @@
     <div class="alert error">서버에 ffmpeg가 없어 메타데이터와 썸네일을 만들 수 없습니다. <code>sudo apt install ffmpeg</code></div>
   <?php endif ?>
 
-  <div class="dropzone" id="dropzone">
-    <strong>파일을 여기에 끌어다 놓으세요</strong><br>
-    <span class="small">또는</span> <button class="btn sm" type="button" id="pickBtn">파일 선택</button>
-    <input type="file" id="fileInput" multiple accept="video/*,image/*,audio/*,.mkv,.mov,.ts" hidden>
-    <div class="small muted" style="margin-top:12px">mp4 · mov · mkv · webm · gif · jpg · png · 최대 4GB</div>
-  </div>
   <div class="progress-list" id="progressList"></div>
 
   <section class="import-panel" id="importPanel">
-    <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram · TikTok</span></div>
+    <div class="drop-hint" aria-hidden="true">여기에 놓으면 업로드합니다 <span class="small">mp4 · mov · mkv · webm · gif · jpg · png · 최대 4GB</span></div>
+    <div class="import-head"><b>SNS 링크로 가져오기</b> <span class="muted small">YouTube · X · Facebook · Threads · Instagram · TikTok · 파일은 이 영역에 끌어다 놓기</span>
+      <span class="spacer"></span>
+      <button class="btn sm ghost" type="button" id="pickBtn">파일 선택</button>
+      <input type="file" id="fileInput" multiple accept="video/*,image/*,audio/*,.mkv,.mov,.ts" hidden>
+    </div>
     <div class="import-row">
       <input class="input" type="url" id="importUrl" placeholder="게시물 링크를 붙여 넣으세요" autocomplete="off">
       <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">Paste</button>
@@ -63,6 +62,12 @@
     <button class="btn sm secondary" type="button" id="btnSelectMode">선택</button>
   </form>
 
+  <section class="job-queue" id="jobQueue" hidden>
+    <div class="jq-head"><b>작업 큐</b> <span class="muted small" id="jqCount"></span><span class="spacer"></span>
+      <button class="btn sm secondary" type="button" id="jqReload" hidden>목록 새로고침</button></div>
+    <div class="jq-list" id="jqList"></div>
+  </section>
+
   <form method="post" action="<?= site_url('library/delete') ?>" id="bulkForm">
     <?= csrf_field() ?>
     <div class="bulkbar" id="bulkBar" hidden>
@@ -82,6 +87,7 @@
           <option value="webm">WebM</option>
           <option value="gif">GIF</option>
         </select>
+        <label class="switch small"><input type="checkbox" name="delete_source" value="1"> <span>변환 후 원본 삭제</span></label>
         <button class="btn sm secondary" type="submit" id="btnBulkConvert" formaction="<?= site_url('library/convert') ?>" disabled>일괄 변환</button>
       </span>
       <button class="btn sm secondary" type="button" id="btnCancelSelect">취소</button>
@@ -141,12 +147,22 @@ setInterval(() => {
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   /* ---------------- chunked upload ---------------- */
-  const dz = $('dropzone'), input = $('fileInput');
+  // files are dropped on the link panel; it lights up only while files are dragged over it
+  const dz = $('importPanel'), input = $('fileInput');
   $('pickBtn').addEventListener('click', () => input.click());
   input.addEventListener('change', () => { queue([...input.files]); input.value = ''; });
-  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('over'); }));
-  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('over'); }));
-  dz.addEventListener('drop', e => queue([...e.dataTransfer.files]));
+  const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+  let depth = 0;
+  dz.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); depth++; dz.classList.add('over'); });
+  dz.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  dz.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; dz.classList.remove('over'); } });
+  dz.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); depth = 0; dz.classList.remove('over');
+    queue([...e.dataTransfer.files]);
+  });
+  // a file dropped anywhere else must not make the browser open it
+  ['dragover', 'drop'].forEach(ev => window.addEventListener(ev, e => { if (hasFiles(e) && !dz.contains(e.target)) e.preventDefault(); }));
 
   const q = []; let busy = false;
   function queue(files) { files.forEach(f => q.push(f)); next(); }
@@ -243,6 +259,61 @@ setInterval(() => {
       '<span class="badge">' + esc(it.source) + '</span></div><div class="body"><div class="title">' + esc(it.title) +
       '</div><div class="meta">' + esc(meta) + '</div></div></a></div>';
   }
+
+  /* ---------------- job queue (edit / convert) ---------------- */
+  const jq = { rows: new Map(), timer: null };
+  const jqLabel = (j) => {
+    let p = {}; try { p = JSON.parse(j.params || '{}'); } catch (e) {}
+    if (j.type === 'convert') return '변환 ' + String(p.format || '').toUpperCase() + (p.delete_source ? ' · 원본 삭제' : '');
+    return '편집';
+  };
+  function jqRow(j) {
+    let el = jq.rows.get(j.id);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'progress-item';
+      el.innerHTML = '<div><span class="name"></span> <span class="muted small kind"></span> <span class="muted small pct"></span></div><div class="bar"><i></i></div>';
+      el.querySelector('.name').textContent = j.title || ('미디어 ' + j.media_id);
+      el.querySelector('.kind').textContent = '· ' + jqLabel(j);
+      $('jqList').append(el); jq.rows.set(j.id, el);
+    }
+    return el;
+  }
+  async function jqPoll() {
+    let active = [];
+    try {
+      const r = await fetch(base + 'api/jobs?active=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (r.ok) active = (await r.json()).jobs || [];
+    } catch (e) {}
+    const ids = new Set(active.map(j => +j.id));
+    active.forEach((j, i) => {
+      const el = jqRow({ ...j, id: +j.id });
+      const running = j.status === 'running';
+      el.querySelector('.pct').textContent = running ? (+j.progress || 0) + '%' : '대기 ' + (i + 1) + '번째';
+      el.querySelector('.bar i').style.width = (running ? +j.progress || 0 : 0) + '%';
+    });
+    // rows that left the active list have finished or failed
+    for (const [id, el] of jq.rows) {
+      if (ids.has(id) || el.dataset.end) continue;
+      el.dataset.end = '1';
+      try {
+        const j = (await (await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json()).job || {};
+        if (j.status === 'done') {
+          el.classList.add('done'); el.querySelector('.bar i').style.width = '100%';
+          el.querySelector('.pct').innerHTML = '완료' + (j.result_media_id ? ' · <a href="' + base + 'library/' + (+j.result_media_id) + '">결과 보기</a>' : '');
+        } else {
+          el.classList.add('fail'); el.querySelector('.pct').textContent = '실패' + (j.error ? ': ' + j.error.slice(0, 120) : '');
+        }
+      } catch (e) {}
+      $('jqReload').hidden = false;
+    }
+    $('jobQueue').hidden = jq.rows.size === 0;
+    const run = active.filter(j => j.status === 'running').length;
+    $('jqCount').textContent = active.length ? '진행 ' + run + ' · 대기 ' + (active.length - run) : '모두 끝났습니다';
+    clearTimeout(jq.timer);
+    if (active.length) jq.timer = setTimeout(jqPoll, 2000);
+  }
+  $('jqReload').addEventListener('click', () => location.reload());
+  jqPoll();
 
   /* ---------------- select mode ---------------- */
   let selectMode = false;

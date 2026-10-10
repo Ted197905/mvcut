@@ -63,6 +63,8 @@ class JobRunner
         $src = $this->media->find($job['media_id']);
         if (! $src) throw new \RuntimeException('source media missing');
         $c = json_decode($job['params'], true) ?: [];
+        $drop = ! empty($c['delete_source']);   // bulk convert: remove the original once converted
+        unset($c['delete_source']);             // not part of the cache key
         $key = json_encode(['convert' => $c]);
         if ($src['media_type'] === 'image') {
             return $this->convertImage($job, $src, $c, $key, $log);
@@ -72,7 +74,9 @@ class JobRunner
             'output' => ['format' => $c['format'] ?? 'mp4', 'height' => (int) ($c['height'] ?? 0), 'quality' => $c['quality'] ?? 'high'],
         ], $src);
         $suffix = ' - ' . strtoupper($p['output']['format']) . ($p['output']['height'] ? ' ' . $p['output']['height'] . 'p' : '');
-        return $this->encode($job, $src, $p, 'convert', $suffix, $key, $log);
+        $result = $this->encode($job, $src, $p, 'convert', $suffix, $key, $log);
+        if ($drop && $this->media->removeSource($src, (int) $job['id'])) $log("job {$job['id']} removed source media {$src['id']}");
+        return $result;
     }
 
     private function convertImage(array $job, array $src, array $c, string $key, callable $log): int
