@@ -37,6 +37,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('library/upload', 'Library::upload');
     $routes->post('library/delete', 'Library::bulkDelete');
     $routes->post('library/category', 'Library::bulkCategory');
+    $routes->post('library/convert', 'Convert::bulk');
     $routes->post('api/upload/init', 'Upload::init');
     $routes->post('api/upload/chunk', 'Upload::chunk');
     $routes->post('api/upload/finish', 'Upload::finish');

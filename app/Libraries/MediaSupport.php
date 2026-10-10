@@ -23,6 +23,26 @@ class MediaSupport
         return $containerOk && $codecOk && $audioOk;
     }
 
+    /** "MP4 · H264" for a video, "" otherwise. */
+    public static function formatLabel(array $m): string
+    {
+        if ($m['media_type'] !== 'video') return '';
+        $ext = strtoupper(pathinfo((string) $m['filename'], PATHINFO_EXTENSION));
+        return implode(' · ', array_filter([$ext, strtoupper((string) $m['vcodec'])]));
+    }
+
+    /**
+     * Why X would refuse this video ("AV1", "WEBM"), or null when it can be posted as is.
+     * X takes MP4/MOV (and GIF); AV1 and VP9 streams are rejected even inside MP4.
+     */
+    public static function xUnsupported(array $m): ?string
+    {
+        if ($m['media_type'] !== 'video') return null;
+        if (in_array($m['vcodec'], ['av1', 'vp9'], true)) return strtoupper((string) $m['vcodec']);
+        $ext = strtolower(pathinfo((string) $m['filename'], PATHINFO_EXTENSION));
+        return in_array($ext, ['mp4', 'mov', 'm4v', 'gif'], true) ? null : strtoupper($ext);
+    }
+
     /** Should we build a lightweight proxy for editing? */
     public static function needsProxy(array $m): bool
     {

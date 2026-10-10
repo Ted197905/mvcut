@@ -76,6 +76,14 @@
         </select>
         <button class="btn sm secondary" type="submit" id="btnBulkCat" formaction="<?= site_url('library/category') ?>" disabled>카테고리 지정</button>
       </span>
+      <span class="cat-pick">
+        <select class="input sm" name="format" aria-label="변환 포맷">
+          <option value="mp4">MP4 (H.264)</option>
+          <option value="webm">WebM</option>
+          <option value="gif">GIF</option>
+        </select>
+        <button class="btn sm secondary" type="submit" id="btnBulkConvert" formaction="<?= site_url('library/convert') ?>" disabled>일괄 변환</button>
+      </span>
       <button class="btn sm secondary" type="button" id="btnCancelSelect">취소</button>
       <button class="btn sm danger" type="button" id="btnBulkDelete" disabled>선택 삭제</button>
     </div>
@@ -252,6 +260,7 @@ setInterval(() => {
     $('bulkCount').textContent = n + '개 선택';
     $('btnBulkDelete').disabled = !n;
     $('btnBulkCat').disabled = !n;
+    $('btnBulkConvert').disabled = !n;
     $('btnBulkDelete').textContent = n ? '선택 ' + n + '개 삭제' : '선택 삭제';
   }
   $('btnSelectMode').addEventListener('click', () => setSelectMode(!selectMode));

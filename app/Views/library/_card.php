@@ -12,9 +12,13 @@
       <?php if (($postSize ?? 1) > 1): ?><span class="stack"><?= (int) $postSize ?>개</span><?php endif ?>
     </div>
     <div class="body">
-      <?php $label = ($it['category'] !== '' ? $it['category'] . ' | ' : '') . $it['title']; ?>
-      <div class="title" title="<?= esc($label, 'attr') ?>"><?= esc($label) ?></div>
-      <div class="meta"><?= $it['width'] ? esc($it['width'] . '×' . $it['height']) . ' · ' : '' ?><?= esc(\App\Libraries\MediaSupport::size((int) $it['size'])) ?></div>
+      <?php
+        $label = ($it['category'] !== '' ? $it['category'] . ' | ' : '') . $it['title'];
+        $fmt   = \App\Libraries\MediaSupport::formatLabel($it);
+        $noX   = \App\Libraries\MediaSupport::xUnsupported($it);
+      ?>
+      <div class="title<?= $noX ? ' no-x' : '' ?>" title="<?= esc($label . ($noX ? ' (X 업로드 불가: ' . $noX . ')' : ''), 'attr') ?>"><?= esc($label) ?></div>
+      <div class="meta"><?= $fmt !== '' ? '<span' . ($noX ? ' class="no-x"' : '') . '>' . esc($fmt) . '</span> · ' : '' ?><?= $it['width'] ? esc($it['width'] . '×' . $it['height']) . ' · ' : '' ?><?= esc(\App\Libraries\MediaSupport::size((int) $it['size'])) ?></div>
     </div>
   </a>
 </div>

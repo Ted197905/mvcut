@@ -41,18 +41,48 @@ class Convert extends BaseController
             $params  = ['format' => $format, 'height' => $height, 'quality' => $quality];
         }
 
-        // cached?
-        $key = json_encode(['convert' => $params]);
+        $r = $this->queue($item, $params);
+        return $this->response->setJSON(isset($r['media'])
+            ? ['ok' => true, 'cached' => true, 'media' => $r['media']]
+            : ['ok' => true, 'job' => $r['job']]);
+    }
+
+    /** POST /library/convert  ids[]=1&ids[]=2&format=mp4 - converts the selected videos at original size */
+    public function bulk()
+    {
+        $userId = (int) session()->get('user_id');
+        $format = strtolower((string) $this->request->getPost('format'));
+        $back   = site_url('library') . (($qs = (string) session()->get('library_back')) !== '' ? '?' . $qs : '');
+        if (! in_array($format, self::VIDEO_FORMATS, true)) return redirect()->to($back)->with('flash', '지원하지 않는 포맷입니다.');
+        $ids = array_values(array_filter(array_map('intval', (array) $this->request->getPost('ids')), static fn ($i) => $i > 0));
+        $rows = $ids === [] ? [] : (new MediaModel())->whereIn('id', $ids)->where('user_id', $userId)->findAll();
+        $queued = $cached = $skipped = 0;
+        foreach ($rows as $item) {
+            if ($item['media_type'] !== 'video') { $skipped++; continue; }
+            $r = $this->queue($item, ['format' => $format, 'height' => 0, 'quality' => 'high']);
+            isset($r['media']) ? $cached++ : $queued++;
+        }
+        $msg = strtoupper($format) . ' 변환: ' . $queued . '개 작업 등록';
+        if ($cached)  $msg .= ', ' . $cached . '개는 이미 변환됨';
+        if ($skipped) $msg .= ', 영상이 아닌 ' . $skipped . '개 제외';
+        return redirect()->to($back)->with('flash', $msg . '. 완료되면 라이브러리에 결과가 추가됩니다.');
+    }
+
+    /** Existing result for the same settings (['media' => row]) or a new queued job (['job' => row]). */
+    private function queue(array $item, array $params): array
+    {
+        $media  = new MediaModel();
+        $key    = json_encode(['convert' => $params]);
         $cached = $media->where('parent_id', $item['id'])->where('source', 'convert')->where('status', 'ready')->where('edit_params', $key)->first();
         if ($cached) {
             if ($cached['category'] !== $item['category']) {
                 $media->update($cached['id'], ['category' => $item['category']]);
                 $cached['category'] = $item['category'];
             }
-            return $this->response->setJSON(['ok' => true, 'cached' => true, 'media' => $cached]);
+            return ['media' => $cached];
         }
         $jobs  = new JobModel();
-        $jobId = $jobs->insert(['user_id' => $userId, 'media_id' => $item['id'], 'type' => 'convert', 'params' => json_encode($params), 'status' => 'queued']);
-        return $this->response->setJSON(['ok' => true, 'job' => $jobs->find($jobId)]);
+        $jobId = $jobs->insert(['user_id' => $item['user_id'], 'media_id' => $item['id'], 'type' => 'convert', 'params' => json_encode($params), 'status' => 'queued']);
+        return ['job' => $jobs->find($jobId)];
     }
 }
