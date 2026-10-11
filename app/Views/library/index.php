@@ -19,6 +19,7 @@
       <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">Paste</button>
       <button class="btn ghost" type="button" id="btnClearUrl" title="링크 지우기">Del</button>
       <button class="btn" type="button" id="btnInspect">리소스 확인</button>
+      <button class="btn secondary" type="button" id="btnQuick" title="리소스 확인 없이 링크의 영상만 모두 가져옵니다 (이미지는 제외)">영상 바로 다운</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
     <div class="import-list" id="importList" hidden></div>
@@ -409,22 +410,39 @@ setInterval(() => {
     const on = all.every(x => x.classList.contains('on'));
     all.forEach(x => x.classList.toggle('on', !on)); count();
   });
-  $('btnImport').addEventListener('click', async () => {
-    const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index);
-    if (!items.length || !inspected) return;
+  async function submitImport(ins, items) {
     const titles = {}, images = {}, media = {}, audio = {};
-    inspected.entries.forEach(e => {
+    ins.entries.forEach(e => {
       titles[e.index] = e.title;
       if (e.image_url) images[e.index] = e.image_url;
       else if (e.media_url) { media[e.index] = e.media_url; if (e.audio_url) audio[e.index] = e.audio_url; }
     });
-    istatus('가져오기 요청 중...'); $('btnImport').disabled = true;
+    istatus('가져오기 요청 중...');
+    const j = await post(base + 'api/import', { url: ins.url, items, titles, images, media, audio, desc: ins.desc, post: ins.post });
+    il.hidden = ia.hidden = true;
+    istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
+    j.job_ids.forEach(id => pollImport(id));
+  }
+  $('btnImport').addEventListener('click', async () => {
+    const items = [...il.querySelectorAll('.import-item.on')].map(x => +x.dataset.index);
+    if (!items.length || !inspected) return;
+    $('btnImport').disabled = true;
+    try { await submitImport(inspected, items); } catch (e) { istatus(e.message, 'error'); $('btnImport').disabled = false; }
+  });
+  // one click: look the link up and import every video in it, skipping images
+  $('btnQuick').addEventListener('click', async () => {
+    const url = $('importUrl').value.trim(); if (!url) return;
+    const b = $('btnQuick'); b.disabled = $('btnInspect').disabled = true;
+    il.hidden = ia.hidden = true; il.innerHTML = ''; inspected = null;
+    istatus('영상을 찾는 중... (몇 초 걸립니다)');
     try {
-      const j = await post(base + 'api/import', { url: inspected.url, items, titles, images, media, audio, desc: inspected.desc, post: inspected.post });
-      il.hidden = ia.hidden = true;
-      istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
-      j.job_ids.forEach(id => pollImport(id));
-    } catch (e) { istatus(e.message, 'error'); $('btnImport').disabled = false; }
+      const j = await post(base + 'api/import/inspect', { url });
+      const ins = { url, entries: j.entries || [], desc: j.desc || '', post: j.post || null };
+      const items = ins.entries.filter(e => e.kind !== 'image').map(e => e.index);
+      if (!items.length) throw new Error('이 링크에는 가져올 영상이 없습니다.' + (ins.entries.length ? ' (이미지 ' + ins.entries.length + '개는 제외)' : ''));
+      await submitImport(ins, items);
+    } catch (e) { istatus(e.message, 'error'); }
+    b.disabled = $('btnInspect').disabled = false;
   });
   let pending = 0;
   function pollImport(id) {
