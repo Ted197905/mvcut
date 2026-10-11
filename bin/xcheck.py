@@ -27,6 +27,10 @@ STATUS = re.compile(r"^/([A-Za-z0-9_]{1,15})/status/(\d+)")
 HIDDEN_REPLIES = re.compile(r"show (probable spam|more replies|additional replies)|스팸|답글 더 보기|추가 답글", re.I)
 
 
+# tombstone shown in place of a parent the viewer cannot see
+UNAVAILABLE = r"This post is unavailable|This Post is unavailable|이 게시물을 볼 수 없습니다|게시물을 사용할 수 없습니다"
+
+
 def load_cookies(path: str) -> list[dict]:
     out = []
     try:
@@ -182,19 +186,29 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
                 res["deboost"] = {"ban": None, "stage": "no reply found"}
                 res["ok"] = True
                 return res
-            reply = replies[0]
-            pause(page)
-            page.goto(f"https://x.com/{handle}/status/{reply['id']}", wait_until="domcontentloaded", timeout=ms)
-            wait_timeline(page, ms)
-            thread = articles(page)
-            parent = None
-            for i, a in enumerate(thread):
-                if a["id"] == reply["id"] and i > 0:
-                    parent = thread[i - 1]
+            # The newest reply's parent is often not viewable (deleted, author blocked the probe,
+            # limited audience): X then shows "This post is unavailable" above it. Try the next
+            # replies until one has a parent we can open.
+            reply = parent = None
+            skipped = []
+            for cand in replies[:5]:
+                pause(page)
+                page.goto(f"https://x.com/{handle}/status/{cand['id']}", wait_until="domcontentloaded", timeout=ms)
+                wait_timeline(page, ms)
+                thread = articles(page)
+                for i, a in enumerate(thread):
+                    if a["id"] == cand["id"] and i > 0:
+                        parent = thread[i - 1]
+                        break
+                if parent:
+                    reply = cand
                     break
+                gone = re.search(UNAVAILABLE, body_text(page))
+                skipped.append({"reply": cand["id"], "why": "parent unavailable" if gone else "parent not found"})
             if not parent:
-                res["ghost"] = {"ban": None, "stage": "parent not found", "reply": reply["id"]}
-                res["deboost"] = {"ban": None, "stage": "parent not found", "reply": reply["id"]}
+                stage = {"ban": None, "stage": "no reply with a viewable parent", "tried": skipped}
+                res["ghost"] = dict(stage)
+                res["deboost"] = dict(stage)
                 res["ok"] = True
                 return res
 
@@ -209,6 +223,8 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
                 page.mouse.wheel(0, 1400)
                 page.wait_for_timeout(1300)
             info = {"reply": reply["id"], "parent": parent["id"], "parent_handle": parent["handle"]}
+            if skipped:
+                info["skipped"] = skipped
             if seen:
                 res["ghost"] = {"ban": False, **info}
                 res["deboost"] = {"ban": False, **info}
