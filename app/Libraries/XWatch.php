@@ -3,13 +3,13 @@
 namespace App\Libraries;
 
 /**
- * X account watch: posting cadence (from the Chrome extension) and hourly restriction checks
+ * X account watch: posting cadence (from the Chrome extension) and restriction checks every :00 and :30
  * (bin/xcheck.py with the probe account's cookies). Times are stored in UTC.
  */
 class XWatch
 {
     public const PROBE = 'xprobe';            // Cookies platform key of the probe account
-    public const INTERVAL = 3600;             // seconds between checks
+    public const INTERVAL = 1800;             // checks run on every :00 and :30 (KST is a whole-hour offset)
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
     private static function db(): \CodeIgniter\Database\BaseConnection
@@ -192,6 +192,12 @@ class XWatch
         return $p && is_readable($p) && filesize($p) > 0;
     }
 
+    /** Next :00 or :30 after now (unix time). */
+    public static function nextSlot(): int
+    {
+        return intdiv(time(), self::INTERVAL) * self::INTERVAL + self::INTERVAL;
+    }
+
     /** Runs every enabled watch whose check is due. Called from the worker loop. */
     public static function runDue(callable $log): void
     {
@@ -202,7 +208,7 @@ class XWatch
             ->get()->getResultArray();
         foreach ($due as $w) {
             // push the next run first so a crash inside the check cannot make it loop
-            self::update((int) $w['user_id'], ['next_check_at' => gmdate('Y-m-d H:i:s', time() + self::INTERVAL + random_int(0, 240))]);
+            self::update((int) $w['user_id'], ['next_check_at' => gmdate('Y-m-d H:i:s', self::nextSlot())]);
             $c = self::check($w);
             $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}");
         }
