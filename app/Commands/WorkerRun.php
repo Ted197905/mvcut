@@ -45,7 +45,7 @@ class WorkerRun extends BaseCommand
                     $log('cleanup failed: ' . $e->getMessage());
                 }
             }
-            // X watch restriction checks (every :00 and :30 per account; "check now" sets the due time to now)
+            // X watch restriction checks (every 10 minutes (:00, :10, ...) per account; "check now" sets the due time to now)
             if (time() >= $nextXWatch) {
                 $nextXWatch = time() + 15;
                 try {

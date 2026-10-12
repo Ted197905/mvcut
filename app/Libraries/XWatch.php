@@ -3,13 +3,13 @@
 namespace App\Libraries;
 
 /**
- * X account watch: posting cadence (from the Chrome extension) and restriction checks every :00 and :30
+ * X account watch: posting cadence (from the Chrome extension) and restriction checks every 10 minutes (:00, :10, ...)
  * (bin/xcheck.py with the probe account's cookies). Times are stored in UTC.
  */
 class XWatch
 {
     public const PROBE = 'xprobe';            // Cookies platform key of the probe account
-    public const INTERVAL = 1800;             // checks run on every :00 and :30 (KST is a whole-hour offset)
+    public const INTERVAL = 600;              // checks run on :00, :10, :20 ... (KST is a whole-hour offset)
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
     private static function db(): \CodeIgniter\Database\BaseConnection
