@@ -134,12 +134,29 @@
 
 <?= $this->section('scripts') ?>
 <script>
-setInterval(() => {
-  const side = document.getElementById('xwSide');
-  if (!side || document.hidden) return;
-  fetch('<?= site_url('xwatch/panel') ?>', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then((r) => r.ok ? r.text() : null).then((h) => { if (h && h.trim()) side.outerHTML = h; }).catch(() => {});
-}, 60000);
+// X watch sidebar: refreshed every second while the tab is visible (one request at a time,
+// and the DOM is swapped only when the content changed, keeping the post list's scroll)
+(function () {
+  let busy = false, last = '';
+  setInterval(() => {
+    const side = document.getElementById('xwSide');
+    if (!side || document.hidden || busy) return;
+    busy = true;
+    fetch('<?= site_url('xwatch/panel') ?>', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then((r) => r.ok ? r.text() : null)
+      .then((h) => {
+        if (!h || !h.trim() || h === last) return;
+        last = h;
+        const cur = document.getElementById('xwSide');
+        const top = cur.querySelector('.xw-list')?.scrollTop || 0;
+        cur.outerHTML = h;
+        const list = document.querySelector('#xwSide .xw-list');
+        if (list) list.scrollTop = top;
+      })
+      .catch(() => {})
+      .finally(() => { busy = false; });
+  }, 1000);
+})();
 
 (function () {
   const $ = (id) => document.getElementById(id);

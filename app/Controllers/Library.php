@@ -196,7 +196,7 @@ class Library extends BaseController
         return XWatch::status($w) + ['row' => XWatch::history($userId, 1)[0] ?? null];
     }
 
-    /** GET /xwatch/panel - sidebar fragment, refreshed by the library page */
+    /** GET /xwatch/panel - sidebar fragment, refreshed every second by the library page */
     public function xwatchFragment()
     {
         return view('xwatch/side', ['xw' => self::xwatchPanel((int) session()->get('user_id'))]);
