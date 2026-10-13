@@ -15,11 +15,13 @@
       <input type="file" id="fileInput" multiple accept="video/*,image/*,audio/*,.mkv,.mov,.ts" hidden>
     </div>
     <div class="import-row">
-      <input class="input" type="url" id="importUrl" placeholder="게시물 링크를 붙여 넣으세요" autocomplete="off">
-      <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">Paste</button>
-      <button class="btn ghost" type="button" id="btnClearUrl" title="링크 지우기">Del</button>
-      <button class="btn" type="button" id="btnInspect">리소스 확인</button>
+      <div class="url-field">
+        <input class="input" type="url" id="importUrl" placeholder="게시물 링크를 붙여 넣으세요" autocomplete="off">
+        <button class="url-clear" type="button" id="btnClearUrl" title="링크 지우기" aria-label="링크 지우기" hidden>&times;</button>
+      </div>
+      <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">붙여넣기</button>
       <button class="btn secondary" type="button" id="btnQuick" title="리소스 확인 없이 링크의 영상만 모두 가져옵니다 (이미지는 제외)">영상 바로 다운</button>
+      <button class="btn" type="button" id="btnInspect">리소스 확인</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
     <div class="import-list" id="importList" hidden></div>
@@ -364,7 +366,7 @@ setInterval(() => {
     const el = $('importUrl');
     try {
       const t = (await navigator.clipboard.readText()).trim();
-      if (t) { el.value = t; istatus(''); el.focus(); return; }
+      if (t) { el.value = t; syncClear(); istatus(''); el.focus(); return; }
       istatus('클립보드가 비어 있습니다.', 'error');
     } catch (e) {
       el.focus();
@@ -372,9 +374,12 @@ setInterval(() => {
     }
   });
   $('btnClearUrl').addEventListener('click', () => {
-    $('importUrl').value = ''; $('importUrl').focus();
+    $('importUrl').value = ''; syncClear(); $('importUrl').focus();
     il.hidden = ia.hidden = true; il.innerHTML = ''; inspected = null; istatus('');
   });
+  const syncClear = () => { $('btnClearUrl').hidden = !$('importUrl').value; };
+  $('importUrl').addEventListener('input', syncClear);
+  syncClear();
   $('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inspect(); } });
   async function inspect() {
     const url = $('importUrl').value.trim(); if (!url) return;
