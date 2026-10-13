@@ -305,7 +305,7 @@ select.input { appearance: none; padding-right: 34px;
 .url-clear:hover { background: var(--fill1); color: var(--label); }
 .url-clear[hidden] { display: none; }
 /* the three actions share one shape */
-.import-row .btn { min-width: 112px; }
+.import-row .btn { min-width: 144px; }
 .import-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-top: 14px; }
 .import-item { display: flex; gap: 11px; align-items: center; background: var(--bg-elev); border: 1.5px solid transparent; box-shadow: var(--shadow-sm); border-radius: 12px; padding: 8px; cursor: pointer; font-size: 13px; transition: border-color .15s; }
 .import-item.on { border-color: var(--blue); }
