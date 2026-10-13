@@ -132,7 +132,8 @@ class Library extends BaseController
         $media = new MediaModel();
         $item  = $media->findOwned($id, (int) session()->get('user_id'));
         if (! $item) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+            // deleted (or someone else's): back to the list with a toast instead of a 404 page
+            return redirect()->to($this->backUrl())->with('flash', '존재하지 않는 게시물입니다.');
         }
         $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
