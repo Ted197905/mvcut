@@ -268,10 +268,49 @@ class XWatch
     {
         helper('url');   // the worker runs from the CLI
         $src = self::SOURCES[json_decode((string) $c['result'], true)['source'] ?? 'probe'] ?? '';
-        $at  = self::kst(strtotime($c['checked_at'] . ' UTC'), 'm-d H:i');
-        return $restricted
-            ? "[제한 감지] @{$w['handle']}\n{$c['summary']}\n{$at} · {$src}\n풀릴 때까지 1시간마다 부계정으로 검사합니다.\n" . site_url('xwatch/checks')
-            : "[제한 풀림] @{$w['handle']}\n{$c['summary']}\n{$at} · {$src}\n10분 주기 검사로 돌아갑니다.\n" . site_url('xwatch/checks');
+        $now = strtotime($c['checked_at'] . ' UTC');
+        $fmt = 'Y-m-d H:i';
+        if ($restricted) {
+            $start = self::restrictionStart((int) $w['user_id'], $now) ?? $now;
+            return "[제한 감지] @{$w['handle']}\n{$c['summary']} ({$src})\n"
+                 . '제한 발견 일시: ' . self::kst($start, $fmt) . "\n"
+                 . "풀릴 때까지 1시간마다 부계정으로 검사합니다.\n" . site_url('xwatch/checks');
+        }
+        $start = self::restrictionStart((int) $w['user_id'], $now);
+        $lines = "[제한 풀림] @{$w['handle']}\n{$c['summary']} ({$src})\n";
+        if ($start) {
+            $lines .= '시작 일시: ' . self::kst($start, $fmt) . "\n"
+                    . '종료 일시: ' . self::kst($now, $fmt) . "\n"
+                    . '제한 기간: ' . self::span($now - $start) . "\n";
+        } else {
+            $lines .= '종료 일시: ' . self::kst($now, $fmt) . "\n";
+        }
+        return $lines . "10분 주기 검사로 돌아갑니다.\n" . site_url('xwatch/checks');
+    }
+
+    /**
+     * When the restriction that is current at $before began, from the check log: the first
+     * "banned" check after the last "ok" check earlier than $before (failed checks ignored).
+     */
+    public static function restrictionStart(int $userId, int $before): ?int
+    {
+        $db  = self::db();
+        $cut = gmdate('Y-m-d H:i:s', $before);
+        $ok  = $db->table('x_checks')->select('checked_at')->where('user_id', $userId)->where('status', 'ok')
+                  ->where('checked_at <', $cut)->orderBy('checked_at', 'DESC')->limit(1)->get()->getRowArray();
+        $q = $db->table('x_checks')->select('checked_at')->where('user_id', $userId)->where('status', 'banned')
+                ->where('checked_at <=', $cut);
+        if ($ok) $q->where('checked_at >', $ok['checked_at']);
+        $first = $q->orderBy('checked_at', 'ASC')->limit(1)->get()->getRowArray();
+        return $first ? strtotime($first['checked_at'] . ' UTC') : null;
+    }
+
+    /** "2일 3시간 20분" */
+    public static function span(int $sec): string
+    {
+        $sec = max(0, $sec);
+        $d = intdiv($sec, 86400); $h = intdiv($sec % 86400, 3600); $m = intdiv($sec % 3600, 60);
+        return trim(($d ? $d . '일 ' : '') . ($d || $h ? $h . '시간 ' : '') . $m . '분');
     }
 
     /** Next full hour (unix time). */
