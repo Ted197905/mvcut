@@ -79,7 +79,7 @@ async function render() {
     row.querySelector('i').textContent = md(p.ts);
     row.querySelector('em').textContent = KINDS[p.kind] || p.kind;
     row.querySelector('em').className = p.kind;
-    row.querySelector('small').textContent = '간격 ' + gapTxt(p.gap) + ' · 인용제외 ' + gapTxt(p.gap_noquote);
+    row.querySelector('small').textContent = '간격 ' + gapTxt(p.gap) + (p.dim || p.counted === false ? '' : ' · 인용제외 ' + gapTxt(p.gap_noquote));
     row.querySelector('.x').textContent = (p.reply_to && !(p.text || '').startsWith('@' + p.reply_to) ? '@' + p.reply_to + ' · ' : '') + (p.text || '(미디어)');
     box.appendChild(row);
   }
