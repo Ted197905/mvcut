@@ -179,7 +179,7 @@ class XWatch
         return array_map([self::class, 'decodeCheck'], $rows);
     }
 
-    private static function decodeCheck(array $r): array
+    public static function decodeCheck(array $r): array
     {
         $r['result'] = json_decode((string) $r['result'], true) ?: [];
         $r['ts'] = strtotime($r['checked_at'] . ' UTC');

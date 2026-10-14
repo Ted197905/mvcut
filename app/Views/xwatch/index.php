@@ -86,7 +86,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   </section>
 
   <section class="set-card">
-    <h2>검사 이력</h2>
+    <h2>검사 이력 <a class="small" href="<?= site_url('xwatch/checks') ?>" style="font-weight:400;margin-left:8px">전체 기록 보기 &rsaquo;</a></h2>
     <?php if (! $history): ?>
       <p class="muted small">없음</p>
     <?php else: ?>

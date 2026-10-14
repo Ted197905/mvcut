@@ -475,6 +475,20 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .xw-box { background: var(--bg-elev); border-radius: var(--r-group); padding: 10px 12px; box-shadow: var(--shadow-sm); }
 .xw-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px; }
 .xw-row .ck-badge { white-space: nowrap; }
+.xw-row a { color: var(--label); }
+.xw-filter { margin: 14px 0 16px; }
+.xw-filter a { display: block; padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--label); text-decoration: none; }
+.xw-filter a.on { background: var(--bg-elev); box-shadow: var(--shadow-sm); }
+.xw-log { background: var(--bg-elev); border-radius: var(--r-group); box-shadow: var(--shadow-sm); overflow: hidden; }
+.xw-log-row + .xw-log-row { box-shadow: inset 0 0.5px 0 var(--separator); }
+.xw-log-row summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 11px 14px; cursor: pointer; list-style: none; }
+.xw-log-row summary::-webkit-details-marker { display: none; }
+.xw-log-row[open] summary { background: var(--bg-grouped); }
+.xw-log-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 84px; }
+.xw-log-tests { display: flex; gap: 4px; flex-wrap: wrap; }
+.xw-log-tests .ck-badge { font-size: 11px; padding: 2px 7px; }
+.xw-log-sum { flex-basis: 100%; }
+.xw-log-row dl { margin: 0; padding: 4px 14px 12px; }
 .xw-sum { font-size: 12px; margin: 0 0 8px; line-height: 1.45; }
 .xw-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 .xw-mini div { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }

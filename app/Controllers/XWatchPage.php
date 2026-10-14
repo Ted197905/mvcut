@@ -26,6 +26,31 @@ class XWatchPage extends BaseController
         ]);
     }
 
+    /** GET /xwatch/checks?status=ok|banned|error&page=N - every stored restriction check (30 days) */
+    public function checks()
+    {
+        $uid    = $this->uid();
+        $status = (string) $this->request->getGet('status');
+        if (! in_array($status, ['ok', 'banned', 'error'], true)) $status = '';
+        $db     = db_connect();
+        $counts = array_column($db->table('x_checks')->select('status, COUNT(*) AS n')->where('user_id', $uid)
+                                  ->groupBy('status')->get()->getResultArray(), 'n', 'status');
+        $b = $db->table('x_checks')->where('user_id', $uid);
+        if ($status !== '') $b->where('status', $status);
+        $matched = $b->countAllResults(false);
+        $per     = 50;
+        $pages   = max(1, (int) ceil($matched / $per));
+        $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
+        $rows    = $b->orderBy('id', 'DESC')->limit($per, ($page - 1) * $per)->get()->getResultArray();
+        return view('xwatch/checks', [
+            'title'  => '제한 검사 기록',
+            'handle' => XWatch::forUser($uid)['handle'] ?? '',
+            'rows'   => array_map([XWatch::class, 'decodeCheck'], $rows),
+            'counts' => $counts, 'total' => array_sum($counts),
+            'status' => $status, 'page' => $page, 'pages' => $pages,
+        ]);
+    }
+
     public function save()
     {
         $handle = XWatch::cleanHandle((string) $this->request->getPost('handle'));
