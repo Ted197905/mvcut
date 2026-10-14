@@ -51,6 +51,35 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     </div>
   </section>
 
+  <section class="set-card" id="telegram">
+    <h2>텔레그램 알림 <?php if (! empty($tg['chat_id'])): ?><span class="ck-badge ok">연결됨</span><?php elseif (! empty($tg['token'])): ?><span class="ck-badge warn">채팅 연결 필요</span><?php else: ?><span class="ck-badge none">미설정</span><?php endif ?></h2>
+    <p class="muted small" style="margin-bottom:14px">제한이 감지되거나 풀리면 휴대폰 텔레그램으로 알려줍니다.</p>
+    <?php if (empty($tg['token'])): ?>
+      <ol class="small" style="margin:0 0 14px;padding-left:20px;line-height:1.7">
+        <li>텔레그램에서 <b>@BotFather</b>를 열고 <code>/newbot</code> 을 보냅니다.</li>
+        <li>봇 이름과 아이디(끝이 bot)를 정하면 <b>토큰</b>(숫자:문자열)을 줍니다.</li>
+        <li>그 토큰을 아래에 붙여 넣고 저장합니다.</li>
+      </ol>
+      <form method="post" action="<?= site_url('xwatch/telegram') ?>" class="ck-actions"><?= csrf_field() ?>
+        <input type="hidden" name="action" value="token">
+        <input class="input" name="token" placeholder="123456789:AA..." autocomplete="off" required style="max-width:420px">
+        <button class="btn sm" type="submit">토큰 저장</button>
+      </form>
+    <?php else: ?>
+      <p class="small" style="margin:0 0 12px">봇: <b>@<?= esc($tg['bot'] ?? '') ?></b><?php if (! empty($tg['chat_id'])): ?> · 받는 사람: <?= esc($tg['chat'] ?? $tg['chat_id']) ?><?php endif ?></p>
+      <?php if (empty($tg['chat_id'])): ?>
+        <p class="small" style="margin:0 0 12px">텔레그램에서 <a href="https://t.me/<?= esc($tg['bot'] ?? '', 'attr') ?>" target="_blank" rel="noopener">@<?= esc($tg['bot'] ?? '') ?></a> 을 열고 <b>시작</b>을 누른 다음 "채팅 연결"을 누르세요.</p>
+      <?php endif ?>
+      <div class="ck-actions">
+        <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="link"><button class="btn sm" type="submit"><?= empty($tg['chat_id']) ? '채팅 연결' : '채팅 다시 연결' ?></button></form>
+        <?php if (! empty($tg['chat_id'])): ?>
+          <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="test"><button class="btn sm secondary" type="submit">테스트 보내기</button></form>
+        <?php endif ?>
+        <form method="post" action="<?= site_url('xwatch/telegram') ?>" onsubmit="return confirm('텔레그램 알림 설정을 삭제할까요?')"><?= csrf_field() ?><input type="hidden" name="action" value="off"><button class="btn sm ghost" type="submit">해제</button></form>
+      </div>
+    <?php endif ?>
+  </section>
+
   <section class="set-card">
     <div class="xw-head">
       <h2>게시 간격 (최근 48시간)</h2>
@@ -117,35 +146,6 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
       <button class="btn" type="submit">저장</button>
     </form>
-  </section>
-
-  <section class="set-card" id="telegram">
-    <h2>텔레그램 알림 <?php if (! empty($tg['chat_id'])): ?><span class="ck-badge ok">연결됨</span><?php elseif (! empty($tg['token'])): ?><span class="ck-badge warn">채팅 연결 필요</span><?php else: ?><span class="ck-badge none">미설정</span><?php endif ?></h2>
-    <p class="muted small" style="margin-bottom:14px">제한이 감지되거나 풀리면 휴대폰 텔레그램으로 알려줍니다.</p>
-    <?php if (empty($tg['token'])): ?>
-      <ol class="small" style="margin:0 0 14px;padding-left:20px;line-height:1.7">
-        <li>텔레그램에서 <b>@BotFather</b>를 열고 <code>/newbot</code> 을 보냅니다.</li>
-        <li>봇 이름과 아이디(끝이 bot)를 정하면 <b>토큰</b>(숫자:문자열)을 줍니다.</li>
-        <li>그 토큰을 아래에 붙여 넣고 저장합니다.</li>
-      </ol>
-      <form method="post" action="<?= site_url('xwatch/telegram') ?>" class="ck-actions"><?= csrf_field() ?>
-        <input type="hidden" name="action" value="token">
-        <input class="input" name="token" placeholder="123456789:AA..." autocomplete="off" required style="max-width:420px">
-        <button class="btn sm" type="submit">토큰 저장</button>
-      </form>
-    <?php else: ?>
-      <p class="small" style="margin:0 0 12px">봇: <b>@<?= esc($tg['bot'] ?? '') ?></b><?php if (! empty($tg['chat_id'])): ?> · 받는 사람: <?= esc($tg['chat'] ?? $tg['chat_id']) ?><?php endif ?></p>
-      <?php if (empty($tg['chat_id'])): ?>
-        <p class="small" style="margin:0 0 12px">텔레그램에서 <a href="https://t.me/<?= esc($tg['bot'] ?? '', 'attr') ?>" target="_blank" rel="noopener">@<?= esc($tg['bot'] ?? '') ?></a> 을 열고 <b>시작</b>을 누른 다음 "채팅 연결"을 누르세요.</p>
-      <?php endif ?>
-      <div class="ck-actions">
-        <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="link"><button class="btn sm" type="submit"><?= empty($tg['chat_id']) ? '채팅 연결' : '채팅 다시 연결' ?></button></form>
-        <?php if (! empty($tg['chat_id'])): ?>
-          <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="test"><button class="btn sm secondary" type="submit">테스트 보내기</button></form>
-        <?php endif ?>
-        <form method="post" action="<?= site_url('xwatch/telegram') ?>" onsubmit="return confirm('텔레그램 알림 설정을 삭제할까요?')"><?= csrf_field() ?><input type="hidden" name="action" value="off"><button class="btn sm ghost" type="submit">해제</button></form>
-      </div>
-    <?php endif ?>
   </section>
 
   <section class="set-card">
