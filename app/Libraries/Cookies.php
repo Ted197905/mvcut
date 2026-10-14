@@ -14,7 +14,9 @@ class Cookies
         'facebook'  => ['label' => 'Facebook',  'domains' => ['facebook.com'], 'site' => 'https://www.facebook.com/', 'session' => ['c_user', 'xs']],
         'x'         => ['label' => 'X',         'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
         // age-restricted / sensitive videos ("Log in for access") need a session
-        'tiktok'    => ['label' => 'TikTok',    'domains' => ['tiktok.com'], 'site' => 'https://www.tiktok.com/', 'session' => ['sessionid']],
+        // _waftokenid is TikTok's bot-check token bound to the browser it came from; sent from the
+        // server it gets every page answered with 403, so it is dropped on upload
+        'tiktok'    => ['label' => 'TikTok',    'domains' => ['tiktok.com'], 'site' => 'https://www.tiktok.com/', 'session' => ['sessionid'], 'drop' => ['_waftokenid']],
         // a second X account used only by the X watch restriction checks (never the watched account)
         'xprobe'    => ['label' => 'X 검사용 부계정', 'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
     ];
@@ -90,6 +92,8 @@ class Cookies
         if ($missing !== []) {
             return '로그인 세션 쿠키(' . implode(', ', $missing) . ')가 없습니다. 로그인한 상태에서 내보냈는지 확인해 주세요.';
         }
+        $drop = self::PLATFORMS[$platform]['drop'] ?? [];
+        if ($drop) $rows = array_values(array_filter($rows, static fn ($r) => ! in_array($r['name'], $drop, true)));
         $dir = ROOTPATH . 'secrets';
         if (! is_dir($dir) && ! @mkdir($dir, 0770, true)) return '서버에 secrets 디렉터리를 만들 수 없습니다.';
         $p = self::path($platform);
