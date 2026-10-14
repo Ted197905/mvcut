@@ -40,34 +40,49 @@ $detail = static function (array $t): string {
   <?php if (! $rows): ?>
     <p class="muted" style="margin-top:24px">기록이 없습니다.</p>
   <?php else: ?>
-    <div class="xw-log">
-      <?php foreach ($rows as $h): $r = $h['result']; ?>
-        <details class="xw-log-row">
-          <summary>
-            <span class="xw-log-time"><?= esc(XWatch::kst($h['ts'], 'm/d H:i')) ?></span>
-            <span class="ck-badge <?= $stCls[$h['status']] ?? 'none' ?>"><?= $stTxt[$h['status']] ?? esc($h['status']) ?></span>
-            <span class="xw-kind"><?= esc(XWatch::SOURCES[$r['source'] ?? 'probe'] ?? ($r['source'] ?? '')) ?></span>
-            <span class="xw-log-tests">
-              <?php foreach ($short as $k => $label): [$c, $t] = $badge($r[$k]['ban'] ?? null); ?>
-                <span class="ck-badge <?= $c ?>" title="<?= esc($label, 'attr') ?>"><?= $label ?> <?= $t ?></span>
-              <?php endforeach ?>
-            </span>
-            <span class="xw-log-sum muted small"><?= esc($h['summary']) ?></span>
-          </summary>
-          <dl class="list">
-            <div class="row"><dt>검사 방법</dt><dd><?= ['yuzurisa' => 'shadowban.yuzurisa.com', 'banchecker' => 'banchecker.org'][$r['source'] ?? ''] ?? ('부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '')) ?></dd></div>
-            <?php foreach (XWatch::TESTS as $k => $label): $t = is_array($r[$k] ?? null) ? $r[$k] : []; [$c, $tx] = $badge($t['ban'] ?? null); ?>
-              <div class="row"><dt><?= esc($label) ?></dt><dd><span class="ck-badge <?= $c ?>"><?= $tx === '-' ? '확인 불가' : $tx ?></span>
-                <?php if ($d = $detail($t)): ?> <span class="muted small"><?= esc($d) ?></span><?php endif ?>
-                <?php if (! empty($t['reply'])): ?> <a class="small" href="https://x.com/i/status/<?= esc($t['reply'], 'attr') ?>" target="_blank" rel="noopener">답글</a><?php endif ?>
-                <?php if (! empty($t['parent'])): ?> <a class="small" href="https://x.com/i/status/<?= esc($t['parent'], 'attr') ?>" target="_blank" rel="noopener">원글</a><?php endif ?>
-              </dd></div>
+    <div class="xw-table-wrap">
+      <table class="xw-table">
+        <thead>
+          <tr><th>시각</th><th>결과</th><th>검사 방법</th>
+            <?php foreach ($short as $label): ?><th class="c"><?= $label ?></th><?php endforeach ?>
+            <th></th></tr>
+        </thead>
+        <tbody>
+        <?php foreach ($rows as $i => $h): $r = $h['result']; ?>
+          <tr class="xw-tr" data-row="<?= $i ?>">
+            <td class="t"><?= esc(XWatch::kst($h['ts'], 'm/d H:i')) ?></td>
+            <td><span class="ck-badge <?= $stCls[$h['status']] ?? 'none' ?>"><?= $stTxt[$h['status']] ?? esc($h['status']) ?></span></td>
+            <td><span class="xw-kind"><?= esc(XWatch::SOURCES[$r['source'] ?? 'probe'] ?? ($r['source'] ?? '')) ?></span></td>
+            <?php foreach ($short as $k => $label): [$c, $t] = $badge($r[$k]['ban'] ?? null); ?>
+              <td class="c"><span class="ck-badge <?= $c ?>"><?= $t ?></span></td>
             <?php endforeach ?>
-            <?php if (! empty($r['error'])): ?><div class="row"><dt>오류</dt><dd><?= esc($r['error']) ?></dd></div><?php endif ?>
-          </dl>
-        </details>
-      <?php endforeach ?>
+            <td class="c more" aria-hidden="true">&rsaquo;</td>
+          </tr>
+          <tr class="xw-detail" data-for="<?= $i ?>" hidden>
+            <td colspan="<?= 4 + count($short) ?>">
+              <dl class="list">
+                <div class="row"><dt>검사 방법</dt><dd><?= ['yuzurisa' => 'shadowban.yuzurisa.com', 'banchecker' => 'banchecker.org'][$r['source'] ?? ''] ?? ('부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '')) ?></dd></div>
+                <?php foreach (XWatch::TESTS as $k => $label): $t = is_array($r[$k] ?? null) ? $r[$k] : []; [$c, $tx] = $badge($t['ban'] ?? null); ?>
+                  <div class="row"><dt><?= esc($label) ?></dt><dd><span class="ck-badge <?= $c ?>"><?= $tx === '-' ? '확인 불가' : $tx ?></span>
+                    <?php if ($d = $detail($t)): ?> <span class="muted small"><?= esc($d) ?></span><?php endif ?>
+                    <?php if (! empty($t['reply'])): ?> <a class="small" href="https://x.com/i/status/<?= esc($t['reply'], 'attr') ?>" target="_blank" rel="noopener">답글</a><?php endif ?>
+                    <?php if (! empty($t['parent'])): ?> <a class="small" href="https://x.com/i/status/<?= esc($t['parent'], 'attr') ?>" target="_blank" rel="noopener">원글</a><?php endif ?>
+                  </dd></div>
+                <?php endforeach ?>
+                <?php if (! empty($r['error'])): ?><div class="row"><dt>오류</dt><dd><?= esc($r['error']) ?></dd></div><?php endif ?>
+              </dl>
+            </td>
+          </tr>
+        <?php endforeach ?>
+        </tbody>
+      </table>
     </div>
+    <script>
+    document.querySelectorAll('.xw-tr').forEach((tr) => tr.addEventListener('click', () => {
+      const d = document.querySelector('.xw-detail[data-for="' + tr.dataset.row + '"]');
+      d.hidden = !d.hidden; tr.classList.toggle('open', !d.hidden);
+    }));
+    </script>
 
     <?php if ($pages > 1): ?>
       <nav class="pager">
