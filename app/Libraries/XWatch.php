@@ -231,11 +231,38 @@ class XWatch
             ->groupStart()->where('next_check_at', null)->orWhere('next_check_at <=', $now)->groupEnd()
             ->get()->getResultArray();
         foreach ($due as $w) {
+            $uid  = (int) $w['user_id'];
+            $hold = self::restricted($uid);
             // push the next run first so a crash inside the check cannot make it loop
-            self::update((int) $w['user_id'], ['next_check_at' => gmdate('Y-m-d H:i:s', self::nextSlot())]);
-            $c = self::check($w);
-            $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}");
+            self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $hold ? self::nextHour() : self::nextSlot())]);
+            $c = self::check($w, $hold ? 'probe' : null);
+            $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}" . ($hold ? ' (restricted mode)' : ''));
+            // entering or leaving restricted mode changes the schedule right away
+            $now = self::restricted($uid);
+            if ($now !== $hold) {
+                self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot())]);
+                $log("xwatch @{$w['handle']}: " . ($now ? 'restriction detected, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
+            }
         }
+    }
+
+    /**
+     * Restricted mode: the latest conclusive check (ok or banned, failures skipped) found a
+     * restriction. Then only the probe account checks, once an hour, until it reports clear.
+     * Without a usable probe account the normal rotation keeps running.
+     */
+    public static function restricted(int $userId): bool
+    {
+        if (! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py'))) return false;
+        $row = self::db()->table('x_checks')->select('status')->where('user_id', $userId)->where('status !=', 'error')
+            ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(1)->get()->getRowArray();
+        return ($row['status'] ?? '') === 'banned';
+    }
+
+    /** Next full hour (unix time). */
+    public static function nextHour(): int
+    {
+        return intdiv(time(), 3600) * 3600 + 3600;
     }
 
     /** Checks one watch now (with the slot's checker unless $source is given) and records the result. */
@@ -399,6 +426,7 @@ class XWatch
             'check'    => $c ? ['id' => (int) $c['id'], 'status' => $c['status'], 'summary' => $c['summary'], 'at' => $c['ts'],
                                'tests' => array_map(static fn ($k) => $c['result'][$k]['ban'] ?? null, array_combine(array_keys(self::TESTS), array_keys(self::TESTS)))] : null,
             'next_check' => $watch['next_check_at'] ? strtotime($watch['next_check_at'] . ' UTC') : null,
+            'restricted' => self::restricted((int) $watch['user_id']),
             'timeline' => $tl,
             'now'      => time(),
         ];

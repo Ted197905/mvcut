@@ -33,6 +33,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <?php endforeach ?>
       </div>
     <?php endif ?>
+    <?php if (! empty($xw['restricted'])): ?><p class="xw-warn" style="margin:8px 0 0">제한 감지 모드 · 1시간마다 부계정 검사<?= $xw['next_check'] ? ' (다음 ' . esc(XWatch::kst($xw['next_check'], 'H:i')) . ')' : '' ?></p><?php endif ?>
     <a class="btn sm secondary xw-more" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
   </div>
 

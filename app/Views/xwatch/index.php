@@ -46,7 +46,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <form method="post" action="<?= site_url('xwatch/check') ?>"><?= csrf_field() ?><button class="btn sm" type="submit">지금 검사</button></form>
       <a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
       <span class="muted small">
-        <?= $w['enabled'] ? '10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)' : '자동 검사 꺼짐' ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
+        <?= ! $w['enabled'] ? '자동 검사 꺼짐' : ($st['restricted'] ? '제한 감지 모드: 풀릴 때까지 1시간마다 부계정으로만 검사' : '10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)') ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
       </span>
     </div>
   </section>
@@ -112,6 +112,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <div class="field"><label for="day_max">24시간 경고 개수</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
       </div>
       <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)</label>
+      <p class="muted small">제한이 감지되면 풀릴 때까지 매시 정각에 부계정으로만 검사하고, 부계정 검사에서 정상이 나오면 10분 주기로 돌아갑니다.</p>
       <label class="xw-check"><input type="checkbox" name="count_replies" value="1" <?= ! empty($w['count_replies']) ? 'checked' : '' ?>> 답글도 간격/개수 계산에 포함</label>
       <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
       <button class="btn" type="submit">저장</button>
