@@ -245,7 +245,9 @@ class Import extends BaseController
         if (str_contains($message, '공개 대상')) return $message;
         $login = str_contains($message, '로그인') || str_contains($message, 'cookies') || str_contains($message, 'empty media response');
         if (! $login || ! Cookies::known($platform)) return $message;
-        if (! Cookies::path($platform) || ! is_file((string) Cookies::path($platform))) return $message;
+        if (! Cookies::path($platform) || ! is_file((string) Cookies::path($platform))) {
+            return $message . ' 설정 화면에서 ' . Cookies::PLATFORMS[$platform]['label'] . ' 로그인 쿠키를 등록하면 가져올 수 있습니다.';
+        }
         Cookies::markFailure($platform, $message);
         return $message . ' 등록된 쿠키가 만료되었을 수 있습니다. 설정 화면에서 쿠키를 다시 등록해 주세요.';
     }
