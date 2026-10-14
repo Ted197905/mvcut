@@ -266,6 +266,7 @@ class XWatch
     /** Telegram text for entering ($restricted) or leaving restricted mode. */
     public static function alertText(array $w, array $c, bool $restricted): string
     {
+        helper('url');   // the worker runs from the CLI
         $src = self::SOURCES[json_decode((string) $c['result'], true)['source'] ?? 'probe'] ?? '';
         $at  = self::kst(strtotime($c['checked_at'] . ' UTC'), 'm-d H:i');
         return $restricted
