@@ -45,6 +45,7 @@ $detail = static function (array $t): string {
           <summary>
             <span class="xw-log-time"><?= esc(XWatch::kst($h['ts'], 'm/d H:i')) ?></span>
             <span class="ck-badge <?= $stCls[$h['status']] ?? 'none' ?>"><?= $stTxt[$h['status']] ?? esc($h['status']) ?></span>
+            <span class="xw-kind"><?= esc(XWatch::SOURCES[$r['source'] ?? 'probe'] ?? ($r['source'] ?? '')) ?></span>
             <span class="xw-log-tests">
               <?php foreach ($short as $k => $label): [$c, $t] = $badge($r[$k]['ban'] ?? null); ?>
                 <span class="ck-badge <?= $c ?>" title="<?= esc($label, 'attr') ?>"><?= $label ?> <?= $t ?></span>
@@ -53,7 +54,7 @@ $detail = static function (array $t): string {
             <span class="xw-log-sum muted small"><?= esc($h['summary']) ?></span>
           </summary>
           <dl class="list">
-            <?php if (! empty($r['probe'])): ?><div class="row"><dt>검사 계정</dt><dd>@<?= esc($r['probe']) ?></dd></div><?php endif ?>
+            <div class="row"><dt>검사 방법</dt><dd><?= ($r['source'] ?? 'probe') === 'yuzurisa' ? 'shadowban.yuzurisa.com' : '부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '') ?></dd></div>
             <?php foreach (XWatch::TESTS as $k => $label): $t = is_array($r[$k] ?? null) ? $r[$k] : []; [$c, $tx] = $badge($t['ban'] ?? null); ?>
               <div class="row"><dt><?= esc($label) ?></dt><dd><span class="ck-badge <?= $c ?>"><?= $tx === '-' ? '확인 불가' : $tx ?></span>
                 <?php if ($d = $detail($t)): ?> <span class="muted small"><?= esc($d) ?></span><?php endif ?>

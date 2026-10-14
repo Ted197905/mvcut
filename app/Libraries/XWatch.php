@@ -3,13 +3,16 @@
 namespace App\Libraries;
 
 /**
- * X account watch: posting cadence (from the Chrome extension) and restriction checks every :00 and :30
+ * X account watch: posting cadence (from the Chrome extension) and restriction checks every 10 minutes
+ * (probe account on :00/:30, shadowban.yuzurisa.com in between)
  * (bin/xcheck.py with the probe account's cookies). Times are stored in UTC.
  */
 class XWatch
 {
     public const PROBE = 'xprobe';            // Cookies platform key of the probe account
-    public const INTERVAL = 1800;             // checks run on every :00 and :30 (KST is a whole-hour offset)
+    public const INTERVAL = 600;              // a check on :00, :10, :20 ... (KST is a whole-hour offset)
+    public const SOURCES  = ['probe' => '부계정', 'yuzurisa' => 'yuzurisa'];
+    private const YUZURISA = 'https://shadowban-api.yuzurisa.com:444/';
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
     private static function db(): \CodeIgniter\Database\BaseConnection
@@ -198,10 +201,19 @@ class XWatch
         return intdiv(time(), self::INTERVAL) * self::INTERVAL + self::INTERVAL;
     }
 
+    /**
+     * Checker for the slot that contains $t: the probe account on :00 and :30 (so it still runs
+     * only every 30 minutes), shadowban.yuzurisa.com on the four slots in between.
+     */
+    public static function sourceAt(int $t): string
+    {
+        $src = intdiv($t, self::INTERVAL) % 3 === 0 ? 'probe' : 'yuzurisa';
+        return $src === 'probe' && ! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py')) ? 'yuzurisa' : $src;
+    }
+
     /** Runs every enabled watch whose check is due. Called from the worker loop. */
     public static function runDue(callable $log): void
     {
-        if (! self::probeReady() || ! is_file(ROOTPATH . 'bin/xcheck.py')) return;
         $now = gmdate('Y-m-d H:i:s');
         $due = self::db()->table('x_watch')->where('enabled', 1)->where('handle !=', '')
             ->groupStart()->where('next_check_at', null)->orWhere('next_check_at <=', $now)->groupEnd()
@@ -214,9 +226,13 @@ class XWatch
         }
     }
 
-    /** Checks one watch now and records the result. */
-    public static function check(array $watch): array
+    /** Checks one watch now (with the slot's checker unless $source is given) and records the result. */
+    public static function check(array $watch, ?string $source = null): array
     {
+        $source ??= self::sourceAt(time());
+        if ($source === 'yuzurisa') {
+            return self::record($watch, self::yuzurisa((string) $watch['handle']));
+        }
         $env = [
             'PLAYWRIGHT_BROWSERS_PATH' => rtrim(ROOTPATH, '/') . '/browsers',
             'HOME'                     => rtrim(WRITEPATH, '/'),
@@ -228,12 +244,62 @@ class XWatch
         if (! is_array($j)) {
             $j = ['ok' => false, 'error' => 'checker failed: ' . mb_substr(trim($r['stderr']), -300)];
         }
-        [$status, $summary] = self::judge($j);
-        if ($status === 'error' && str_contains((string) ($j['error'] ?? ''), 'not logged in')) {
+        $j['source'] = 'probe';
+        if (empty($j['ok']) && str_contains((string) ($j['error'] ?? ''), 'not logged in')) {
             Cookies::markFailure(self::PROBE, '검사용 부계정 로그인이 풀렸습니다. 쿠키를 다시 등록해 주세요.');
-        } elseif ($status !== 'error') {
+        } elseif (! empty($j['ok'])) {
             Cookies::clearFailure(self::PROBE);
         }
+        return self::record($watch, $j);
+    }
+
+    /**
+     * shadowban.yuzurisa.com (shadowban.eu rebuild) JSON API, mapped to the probe's result shape.
+     * tests.search is a found tweet id or false; typeahead true/false; ghost / more_replies carry ban.
+     */
+    public static function yuzurisa(string $handle): array
+    {
+        $res = ['ok' => false, 'source' => 'yuzurisa', 'handle' => $handle];
+        $ch  = curl_init(self::YUZURISA . rawurlencode($handle));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_HTTPHEADER => ['Origin: https://shadowban.yuzurisa.com', 'Referer: https://shadowban.yuzurisa.com/', 'Accept: application/json'],
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        $j = is_string($body) ? json_decode($body, true) : null;
+        if ($code !== 200 || ! is_array($j) || ! isset($j['profile'])) {
+            $res['error'] = 'yuzurisa ' . ($err !== '' ? $err : 'HTTP ' . $code);
+            return $res;
+        }
+        $p = $j['profile'];
+        if (! empty($p['error']) && empty($p['exists'])) {
+            $res['error'] = 'yuzurisa: ' . $p['error'];
+            return $res;
+        }
+        $t    = is_array($j['tests'] ?? null) ? $j['tests'] : [];
+        $bool = static fn ($v) => is_bool($v) ? $v : null;
+        $reply = static fn ($x) => is_array($x)
+            ? array_filter(['ban' => $bool($x['ban'] ?? null), 'reply' => $x['tweet'] ?? null, 'parent' => $x['in_reply_to'] ?? null], static fn ($v) => $v !== null) + ['ban' => null]
+            : ['ban' => null];
+        $res['ok']      = true;
+        $res['profile'] = ['exists' => (bool) ($p['exists'] ?? false), 'suspended' => ! empty($p['suspended']),
+                           'protected' => ! empty($p['protected']), 'has_tweets' => (bool) ($p['has_tweets'] ?? false)];
+        $search = $t['search'] ?? null;
+        $res['search']    = $search === false ? ['ban' => true] : (is_string($search) && $search !== '' ? ['ban' => false, 'tweet' => $search] : ['ban' => null]);
+        $res['typeahead'] = ['ban' => is_bool($t['typeahead'] ?? null) ? ! $t['typeahead'] : null];
+        $res['ghost']     = $reply($t['ghost'] ?? null);
+        $res['deboost']   = $reply($t['more_replies'] ?? null);
+        return $res;
+    }
+
+    /** Stores one check result (either checker) and trims rows older than 30 days. */
+    private static function record(array $watch, array $j): array
+    {
+        [$status, $summary] = self::judge($j);
         $row = ['user_id' => $watch['user_id'], 'handle' => $watch['handle'], 'status' => $status,
                 'summary' => mb_substr($summary, 0, 200), 'result' => json_encode($j, JSON_UNESCAPED_UNICODE),
                 'checked_at' => gmdate('Y-m-d H:i:s')];

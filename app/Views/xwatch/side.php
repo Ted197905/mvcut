@@ -26,7 +26,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <?php else: ?><span class="ck-badge none">기록 없음</span><?php endif ?>
     </div>
     <?php if ($c): ?>
-      <p class="xw-sum"><?= esc($c['summary']) ?> <span class="muted">· <?= esc(XWatch::kst($c['ts'], 'H:i')) ?> (<?= $ago($c['ts']) ?> 전)</span></p>
+      <p class="xw-sum"><?= esc($c['summary']) ?> <span class="muted">· <?= esc(XWatch::kst($c['ts'], 'H:i')) ?> (<?= $ago($c['ts']) ?> 전)<?= ! empty($c['result']['source']) ? ' · ' . esc(XWatch::SOURCES[$c['result']['source']] ?? $c['result']['source']) : '' ?></span></p>
       <div class="xw-mini">
         <?php foreach ($short as $k => $label): $v = $c['result'][$k]['ban'] ?? null; ?>
           <div><span><?= $label ?></span><span class="ck-badge <?= $v === true ? 'bad' : ($v === false ? 'ok' : 'none') ?>"><?= $v === true ? '제한' : ($v === false ? '정상' : '-') ?></span></div>

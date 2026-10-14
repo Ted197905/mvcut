@@ -20,7 +20,7 @@ class XWatchCheck extends BaseCommand
         if (isset($params[0])) $q->where('user_id', (int) $params[0]); else $q->where('enabled', 1);
         foreach ($q->get()->getResultArray() as $w) {
             CLI::write("@{$w['handle']} (user {$w['user_id']}) ...");
-            $c = XWatch::check($w);
+            $c = XWatch::check($w, $params[1] ?? null);   // optional 2nd arg: probe | yuzurisa
             CLI::write("  {$c['status']}: {$c['summary']}");
             CLI::write('  ' . $c['result']);
         }
