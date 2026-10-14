@@ -41,7 +41,7 @@ class XWatchPage extends BaseController
         $per     = 50;
         $pages   = max(1, (int) ceil($matched / $per));
         $page    = min(max(1, (int) $this->request->getGet('page')), $pages);
-        $rows    = $b->orderBy('id', 'DESC')->limit($per, ($page - 1) * $per)->get()->getResultArray();
+        $rows    = $b->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit($per, ($page - 1) * $per)->get()->getResultArray();
         return view('xwatch/checks', [
             'title'  => '제한 검사 기록',
             'handle' => XWatch::forUser($uid)['handle'] ?? '',
