@@ -106,7 +106,22 @@ class MediaSupport
     {
         if (! preg_match('/^[a-z]+$/', $platform)) return null;
         $p = ROOTPATH . 'secrets/cookies_' . $platform . '.txt';
-        return is_readable($p) && filesize($p) > 0 ? $p : null;
+        if (! is_readable($p) || filesize($p) === 0) return null;
+        // yt-dlp writes its cookie jar back into the --cookies file after every run, which put
+        // TikTok's browser-bound _waftokenid into the uploaded file and 403'd every later import.
+        // Hand out a fresh working copy (minus the platform's dropped cookies) instead.
+        $dir = WRITEPATH . 'cookies';
+        if (! is_dir($dir) && ! @mkdir($dir, 0770, true)) return $p;
+        $drop = \App\Libraries\Cookies::PLATFORMS[$platform]['drop'] ?? [];
+        $raw  = (string) file_get_contents($p);
+        if ($drop) {
+            $raw = implode("\n", array_filter(preg_split('/\r\n|\n/', $raw),
+                static fn ($l) => ! in_array(explode("\t", $l)[5] ?? '', $drop, true))) . "\n";
+        }
+        $copy = $dir . '/cookies_' . $platform . '.txt';
+        if (@file_put_contents($copy, $raw) === false) return $p;
+        @chmod($copy, 0660);
+        return $copy;
     }
 
     /** Support level for a platform: full | login | none. Cookies raise a login-gated platform to full. */
