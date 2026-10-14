@@ -251,6 +251,9 @@ select.input { appearance: none; padding-right: 34px;
 .card:hover .thumb { box-shadow: var(--shadow-md); }
 /* whole frame visible in a square tile: the long side fits, the short side letterboxes */
 .card .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.card .thumb video.preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; opacity: 0; transition: opacity .2s; }
+.card .thumb.previewing video.preview { opacity: 1; }
+.card .thumb.previewing .badge, .card .thumb.previewing .stack, .card .thumb.previewing .dur { z-index: 1; }
 .card .dur { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.62); color: #fff; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(6px); font-variant-numeric: tabular-nums; }
 .card .badge { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.5); color: #fff; font-size: 10px; font-weight: 600; letter-spacing: .05em; padding: 3px 7px; border-radius: 6px; text-transform: uppercase; backdrop-filter: blur(6px); }
 .card .body { padding: 11px 3px 0; }

@@ -1,7 +1,13 @@
 <div class="card-wrap">
   <label class="pick"><input type="checkbox" name="ids[]" value="<?= (int) $it['id'] ?>"></label>
   <a class="card" href="<?= site_url('library/' . $it['id']) ?>">
-    <div class="thumb">
+    <?php
+      // hover preview: the light 720p proxy when there is one, else the original if the browser plays it
+      $preview = $it['media_type'] !== 'video' ? null
+          : ($it['has_proxy'] ? site_url('media/' . $it['id'] . '/proxy')
+          : (\App\Libraries\MediaSupport::browserPlayable($it) ? site_url('media/' . $it['id'] . '/file') : null));
+    ?>
+    <div class="thumb"<?= $preview ? ' data-preview="' . esc($preview, 'attr') . '"' : '' ?>>
       <?php if ($it['has_thumb']): ?>
         <img src="<?= site_url('media/' . $it['id'] . '/thumb') ?>" alt="" loading="lazy">
       <?php else: ?>

@@ -335,6 +335,35 @@
   $('jqReload').addEventListener('click', () => location.reload());
   jqPoll();
 
+  /* ---------------- hover preview (YouTube style) ---------------- */
+  // after a short hover the thumbnail turns into the muted video; leaving restores the image
+  const canHover = window.matchMedia('(hover: hover)').matches;
+  if (canHover) {
+    let timer = null;
+    grid.addEventListener('mouseover', (e) => {
+      const th = e.target.closest('.thumb[data-preview]');
+      if (!th || th.dataset.playing || grid.classList.contains('picking')) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!th.matches(':hover')) return;
+        const v = document.createElement('video');
+        v.className = 'preview'; v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
+        v.src = th.dataset.preview;
+        v.addEventListener('playing', () => th.classList.add('previewing'), { once: true });
+        th.appendChild(v); th.dataset.playing = '1';
+        v.play().catch(() => {});
+      }, 350);
+    });
+    grid.addEventListener('mouseout', (e) => {
+      const th = e.target.closest('.thumb[data-preview]');
+      if (!th || th.contains(e.relatedTarget)) return;
+      clearTimeout(timer);
+      const v = th.querySelector('video.preview');
+      if (v) { v.pause(); v.removeAttribute('src'); v.load(); v.remove(); }
+      th.classList.remove('previewing'); delete th.dataset.playing;
+    });
+  }
+
   /* ---------------- select mode ---------------- */
   let selectMode = false;
   const bulkBar = $('bulkBar');
