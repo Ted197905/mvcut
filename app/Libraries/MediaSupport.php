@@ -23,6 +23,34 @@ class MediaSupport
         return $containerOk && $codecOk && $audioOk;
     }
 
+    /**
+     * Comparable identity of a post link, so the same post shared with different tracking
+     * parameters or hosts (youtu.be / youtube.com, twitter.com / x.com, m.) still matches.
+     */
+    public static function urlKey(string $url): string
+    {
+        $u = parse_url(trim($url));
+        if (! $u || empty($u['host'])) return strtolower(trim($url));
+        $host = preg_replace('/^(www\.|m\.|mobile\.|vm\.|vt\.)/', '', strtolower($u['host']));
+        $path = rtrim((string) ($u['path'] ?? ''), '/');
+        parse_str((string) ($u['query'] ?? ''), $q);
+        if ($host === 'youtu.be') return 'yt:' . ltrim($path, '/');
+        if (str_ends_with($host, 'youtube.com')) {
+            if (! empty($q['v'])) return 'yt:' . $q['v'];
+            if (preg_match('#/(shorts|live|embed)/([\w-]+)#', $path, $m)) return 'yt:' . $m[2];
+        }
+        if (in_array($host, ['x.com', 'twitter.com'], true) && preg_match('#/status(?:es)?/(\d+)#', $path, $m)) return 'x:' . $m[1];
+        if ($host === 'instagram.com' && preg_match('#/(?:p|reels?|tv)/([\w-]+)#', $path, $m)) return 'ig:' . $m[1];
+        if (str_ends_with($host, 'tiktok.com') && preg_match('#/(?:video|photo)/(\d+)#', $path, $m)) return 'tt:' . $m[1];
+        if (str_starts_with($host, 'threads.') && preg_match('#/post/([\w-]+)#', $path, $m)) return 'th:' . $m[1];
+        if (str_contains($host, 'facebook.com') || $host === 'fb.watch') {
+            foreach (['story_fbid', 'v', 'fbid'] as $k) if (! empty($q[$k])) return 'fb:' . $q[$k];
+            if (preg_match('#/(?:reel|videos|posts)/([\w.-]+)$#', $path, $m)) return 'fb:' . $m[1];
+            return 'fb:' . $host . $path;
+        }
+        return $host . $path;   // other sites: host + path, query dropped
+    }
+
     /** "MP4 · H264" for a video, "" otherwise. */
     public static function formatLabel(array $m): string
     {

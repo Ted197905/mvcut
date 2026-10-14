@@ -363,6 +363,7 @@ select.input { appearance: none; padding-right: 34px;
   .nav .in { padding: 0 18px; gap: 16px; }
 }
 .import-status.warn { color: var(--label); background: var(--fill3); border-radius: 10px; padding: 10px 12px; line-height: 1.55; }
+.dup-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 /* ---- settings ---- */
 main.wide.settings { max-width: 680px; margin: 0 auto; padding: 96px 24px 80px; }

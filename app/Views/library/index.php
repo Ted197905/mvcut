@@ -427,8 +427,30 @@
   $('importUrl').addEventListener('input', syncClear);
   syncClear();
   $('importUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inspect(); } });
+  // Asks before importing a post that is already in the library; resolves true to go on.
+  async function confirmDuplicate(url) {
+    let items = [];
+    try { items = (await post(base + 'api/import/duplicates', { url })).items || []; } catch (e) { return true; }
+    if (!items.length) return true;
+    return new Promise((resolve) => {
+      st.hidden = false; st.className = 'import-status warn';
+      st.innerHTML = '이미 라이브러리에 있는 링크입니다: ' +
+        items.slice(0, 3).map(i => '<a href="' + base + 'library/' + i.id + '" target="_blank">' + esc(i.title) + '</a> <span class="muted">(' + esc(i.created_at) + ')</span>').join(', ') +
+        (items.length > 3 ? ' 외 ' + (items.length - 3) + '개' : '') +
+        '<div class="dup-actions"><button class="btn sm" type="button" data-go="1">그래도 가져오기</button> <button class="btn sm secondary" type="button" data-go="0">취소</button></div>';
+      st.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => {
+        const go = btn.dataset.go === '1';
+        if (!go) istatus('가져오기를 취소했습니다.');
+        resolve(go);
+      }, { once: true }));
+    });
+  }
   async function inspect() {
     const url = $('importUrl').value.trim(); if (!url) return;
+    $('btnInspect').disabled = true;
+    const go = await confirmDuplicate(url);
+    $('btnInspect').disabled = false;
+    if (!go) return;
     istatus('리소스를 확인하는 중... (몇 초 걸립니다)'); il.hidden = ia.hidden = true; il.innerHTML = '';
     $('btnInspect').disabled = true;
     try {
@@ -484,6 +506,7 @@
   $('btnQuick').addEventListener('click', async () => {
     const url = $('importUrl').value.trim(); if (!url) return;
     const b = $('btnQuick'); b.disabled = $('btnInspect').disabled = true;
+    if (!(await confirmDuplicate(url))) { b.disabled = $('btnInspect').disabled = false; return; }
     il.hidden = ia.hidden = true; il.innerHTML = ''; inspected = null;
     istatus('영상을 찾는 중... (몇 초 걸립니다)');
     try {

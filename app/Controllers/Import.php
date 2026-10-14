@@ -13,6 +13,28 @@ class Import extends BaseController
     private const RENDER_FIRST = ['instagram', 'threads'];
 
     /** POST /api/import/inspect {url} -> list of downloadable entries */
+    /** POST /api/import/duplicates {url} - originals in the library already imported from the same post */
+    public function duplicates()
+    {
+        $url = trim((string) (($this->request->getJSON(true) ?: [])['url'] ?? ''));
+        if ($url === '') return $this->response->setJSON(['items' => []]);
+        $key  = MediaSupport::urlKey($url);
+        $rows = db_connect()->table('media')->select('id, title, source_url, created_at, post_key')
+            ->where('user_id', (int) session()->get('user_id'))->where('kind', 'original')
+            ->where('source_url IS NOT NULL', null, false)->where('source_url !=', '')
+            ->orderBy('id', 'DESC')->get()->getResultArray();
+        $items = []; $posts = [];
+        foreach ($rows as $r) {
+            if (MediaSupport::urlKey((string) $r['source_url']) !== $key) continue;
+            // one entry per imported post (a carousel import is several rows)
+            $pk = $r['post_key'] ?: 'm' . $r['id'];
+            if (isset($posts[$pk])) continue;
+            $posts[$pk] = true;
+            $items[] = ['id' => (int) $r['id'], 'title' => $r['title'], 'created_at' => substr((string) $r['created_at'], 0, 16)];
+        }
+        return $this->response->setJSON(['items' => $items]);
+    }
+
     public function inspect()
     {
         $in  = $this->request->getJSON(true) ?: [];
