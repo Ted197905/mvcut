@@ -75,7 +75,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
               <div class="xw-meta">
                 <span class="xw-kind <?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></span>
                 <?php if ($p['reply_to']): ?><span class="muted small">@<?= esc($p['reply_to']) ?>에게</span><?php endif ?>
-                <span class="xw-gap">간격 <?= esc($gapTxt($p['gap'])) ?></span>
+                <span class="xw-gap">간격(인용 포함) <?= esc($gapTxt($p['gap'])) ?> · 인용 제외 <?= esc($gapTxt($p['gap_noquote'] ?? null)) ?></span>
               </div>
               <a class="xw-text" href="https://x.com/<?= esc($w['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener"><?= $p['text'] !== '' ? esc($p['text']) : '<span class="muted">(본문 없음 / 미디어)</span>' ?></a>
             </div>

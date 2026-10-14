@@ -15,9 +15,12 @@ function timeline(st, posts, limits) {
   if (st && st.timeline && st.timeline.posts.length >= recent) return st.timeline;
   const list = Object.values(posts || {}).map((p) => ({ id: p.id, kind: p.kind, ts: Date.parse(p.time) / 1000, text: p.text, reply_to: p.reply_to }))
     .filter((p) => p.ts > Date.now() / 1000 - 172800).sort((a, b) => a.ts - b.ts);
-  let prev = null;
+  let prev = null, prevPlain = null;
   for (const p of list) {
     const counts = p.kind === 'post' || p.kind === 'quote' || (p.kind === 'reply' && limits.count_replies);
+    const plain = counts && p.kind !== 'quote';
+    p.gap_noquote = plain && prevPlain ? Math.floor((p.ts - prevPlain) / 60) : null;
+    if (plain) prevPlain = p.ts;
     if (!counts) { p.gap = null; p.dim = true; continue; }
     p.gap = prev ? Math.floor((p.ts - prev) / 60) : null;
     p.short = p.gap != null && p.gap < limits.gap_min;
@@ -76,7 +79,7 @@ async function render() {
     row.querySelector('i').textContent = md(p.ts);
     row.querySelector('em').textContent = KINDS[p.kind] || p.kind;
     row.querySelector('em').className = p.kind;
-    row.querySelector('small').textContent = '간격 ' + gapTxt(p.gap);
+    row.querySelector('small').textContent = '간격 ' + gapTxt(p.gap) + ' · 인용제외 ' + gapTxt(p.gap_noquote);
     row.querySelector('.x').textContent = (p.reply_to && !(p.text || '').startsWith('@' + p.reply_to) ? '@' + p.reply_to + ' · ' : '') + (p.text || '(미디어)');
     box.appendChild(row);
   }

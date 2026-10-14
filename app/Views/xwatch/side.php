@@ -56,7 +56,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <a class="xw-item<?= $p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '') ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
         <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
         <span class="b">
-          <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small>간격 <?= esc($gapTxt($p['gap'])) ?></small></span>
+          <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small title="인용 포함 간격 / 인용 제외 간격">간격 <?= esc($gapTxt($p['gap'])) ?> · 인용제외 <?= esc($gapTxt($p['gap_noquote'] ?? null)) ?></small></span>
           <span class="x"><?= $p['reply_to'] && ! str_starts_with($p['text'], '@' . $p['reply_to']) ? '@' . esc($p['reply_to']) . ' · ' : '' ?><?= $p['text'] !== '' ? esc($p['text']) : '(미디어)' ?></span>
         </span>
       </a>

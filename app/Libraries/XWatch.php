@@ -120,6 +120,12 @@ class XWatch
         $before = self::db()->table('x_posts')->where('user_id', $uid)->where('posted_at <', $since)
             ->whereIn('kind', $kinds)->orderBy('posted_at', 'DESC')->limit(1)->get()->getRowArray();
 
+        // second gap that ignores quote posts, shown next to the counted gap
+        $plain  = array_values(array_diff($kinds, ['quote']));
+        $beforePlain = $plain ? self::db()->table('x_posts')->where('user_id', $uid)->where('posted_at <', $since)
+            ->whereIn('kind', $plain)->orderBy('posted_at', 'DESC')->limit(1)->get()->getRowArray() : null;
+        $prevPlain = $beforePlain ? strtotime($beforePlain['posted_at'] . ' UTC') : null;
+
         $gapMin = max(0, (int) $watch['gap_min']);
         $prev   = $before ? strtotime($before['posted_at'] . ' UTC') : null;
         $times  = [];
@@ -130,9 +136,13 @@ class XWatch
             $counted = in_array($r['kind'], $kinds, true);
             if ($r['kind'] === 'reply') $replyTimes[] = $ts;
             $gap = ($counted && $prev) ? intdiv($ts - $prev, 60) : null;
+            $isPlain  = in_array($r['kind'], $plain, true);
+            $gapPlain = ($isPlain && $prevPlain) ? intdiv($ts - $prevPlain, 60) : null;
             $posts[] = ['id' => $r['tweet_id'], 'kind' => $r['kind'], 'ts' => $ts, 'text' => $r['text'],
-                        'reply_to' => $r['reply_to'], 'gap' => $gap, 'short' => $gap !== null && $gap < $gapMin, 'counted' => $counted];
+                        'reply_to' => $r['reply_to'], 'gap' => $gap, 'gap_noquote' => $gapPlain,
+                        'short' => $gap !== null && $gap < $gapMin, 'counted' => $counted];
             if ($counted) { $prev = $ts; $times[] = $ts; }
+            if ($isPlain) $prevPlain = $ts;
         }
 
         $now   = time();
