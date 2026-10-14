@@ -46,7 +46,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <form method="post" action="<?= site_url('xwatch/check') ?>"><?= csrf_field() ?><button class="btn sm" type="submit">지금 검사</button></form>
       <a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
       <span class="muted small">
-        <?= $w['enabled'] ? '10분마다 자동 검사 (부계정: 매시 정각·30분, 그 사이: yuzurisa)' : '자동 검사 꺼짐' ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
+        <?= $w['enabled'] ? '10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)' : '자동 검사 꺼짐' ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
       </span>
     </div>
   </section>
@@ -111,7 +111,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <div class="field"><label for="hour_max">1시간 경고 개수</label><input class="input" type="number" id="hour_max" name="hour_max" min="1" max="100" value="<?= (int) $w['hour_max'] ?>"></div>
         <div class="field"><label for="day_max">24시간 경고 개수</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
       </div>
-      <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (부계정: 매시 정각·30분, 그 사이: yuzurisa)</label>
+      <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)</label>
       <label class="xw-check"><input type="checkbox" name="count_replies" value="1" <?= ! empty($w['count_replies']) ? 'checked' : '' ?>> 답글도 간격/개수 계산에 포함</label>
       <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
       <button class="btn" type="submit">저장</button>

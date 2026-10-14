@@ -18,6 +18,7 @@ $detail = static function (array $t): string {
     if (! empty($t['stage'])) $out[] = $t['stage'];
     if (! empty($t['skipped'])) $out[] = '건너뛴 답글 ' . count($t['skipped']) . '개';
     if (! empty($t['uncertain'])) $out[] = '긴 스레드라 불확실';
+    if (! empty($t['note'])) $out[] = $t['note'];
     if (! empty($t['error'])) $out[] = $t['error'];
     return implode(' · ', $out);
 };
@@ -54,7 +55,7 @@ $detail = static function (array $t): string {
             <span class="xw-log-sum muted small"><?= esc($h['summary']) ?></span>
           </summary>
           <dl class="list">
-            <div class="row"><dt>검사 방법</dt><dd><?= ($r['source'] ?? 'probe') === 'yuzurisa' ? 'shadowban.yuzurisa.com' : '부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '') ?></dd></div>
+            <div class="row"><dt>검사 방법</dt><dd><?= ['yuzurisa' => 'shadowban.yuzurisa.com', 'banchecker' => 'banchecker.org'][$r['source'] ?? ''] ?? ('부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '')) ?></dd></div>
             <?php foreach (XWatch::TESTS as $k => $label): $t = is_array($r[$k] ?? null) ? $r[$k] : []; [$c, $tx] = $badge($t['ban'] ?? null); ?>
               <div class="row"><dt><?= esc($label) ?></dt><dd><span class="ck-badge <?= $c ?>"><?= $tx === '-' ? '확인 불가' : $tx ?></span>
                 <?php if ($d = $detail($t)): ?> <span class="muted small"><?= esc($d) ?></span><?php endif ?>

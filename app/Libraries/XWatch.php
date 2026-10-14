@@ -4,15 +4,17 @@ namespace App\Libraries;
 
 /**
  * X account watch: posting cadence (from the Chrome extension) and restriction checks every 10 minutes
- * (probe account on :00/:30, shadowban.yuzurisa.com in between)
+ * (rotating probe account / shadowban.yuzurisa.com / banchecker.org)
  * (bin/xcheck.py with the probe account's cookies). Times are stored in UTC.
  */
 class XWatch
 {
     public const PROBE = 'xprobe';            // Cookies platform key of the probe account
     public const INTERVAL = 600;              // a check on :00, :10, :20 ... (KST is a whole-hour offset)
-    public const SOURCES  = ['probe' => '부계정', 'yuzurisa' => 'yuzurisa'];
-    private const YUZURISA = 'https://shadowban-api.yuzurisa.com:444/';
+    public const SOURCES  = ['probe' => '부계정', 'yuzurisa' => 'yuzurisa', 'banchecker' => 'banchecker'];
+    private const YUZURISA   = 'https://shadowban-api.yuzurisa.com:444/';
+    private const BANCHECKER = 'https://banchecker.org/api/check-twitter?username=';
+    private const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
     private static function db(): \CodeIgniter\Database\BaseConnection
@@ -202,12 +204,12 @@ class XWatch
     }
 
     /**
-     * Checker for the slot that contains $t: the probe account on :00 and :30 (so it still runs
-     * only every 30 minutes), shadowban.yuzurisa.com on the four slots in between.
+     * Checker for the slot that contains $t, rotating every 10 minutes:
+     * :00/:30 probe account, :10/:40 shadowban.yuzurisa.com, :20/:50 banchecker.org.
      */
     public static function sourceAt(int $t): string
     {
-        $src = intdiv($t, self::INTERVAL) % 3 === 0 ? 'probe' : 'yuzurisa';
+        $src = ['probe', 'yuzurisa', 'banchecker'][intdiv($t, self::INTERVAL) % 3];
         return $src === 'probe' && ! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py')) ? 'yuzurisa' : $src;
     }
 
@@ -232,6 +234,9 @@ class XWatch
         $source ??= self::sourceAt(time());
         if ($source === 'yuzurisa') {
             return self::record($watch, self::yuzurisa((string) $watch['handle']));
+        }
+        if ($source === 'banchecker') {
+            return self::record($watch, self::banchecker((string) $watch['handle']));
         }
         $env = [
             'PLAYWRIGHT_BROWSERS_PATH' => rtrim(ROOTPATH, '/') . '/browsers',
@@ -260,17 +265,8 @@ class XWatch
     public static function yuzurisa(string $handle): array
     {
         $res = ['ok' => false, 'source' => 'yuzurisa', 'handle' => $handle];
-        $ch  = curl_init(self::YUZURISA . rawurlencode($handle));
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => 15,
-            CURLOPT_HTTPHEADER => ['Origin: https://shadowban.yuzurisa.com', 'Referer: https://shadowban.yuzurisa.com/', 'Accept: application/json'],
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-        ]);
-        $body = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err  = curl_error($ch);
-        curl_close($ch);
-        $j = is_string($body) ? json_decode($body, true) : null;
+        [$code, $j, $err] = self::getJson(self::YUZURISA . rawurlencode($handle),
+                                          ['Origin: https://shadowban.yuzurisa.com', 'Referer: https://shadowban.yuzurisa.com/']);
         if ($code !== 200 || ! is_array($j) || ! isset($j['profile'])) {
             $res['error'] = 'yuzurisa ' . ($err !== '' ? $err : 'HTTP ' . $code);
             return $res;
@@ -293,6 +289,50 @@ class XWatch
         $res['typeahead'] = ['ban' => is_bool($t['typeahead'] ?? null) ? ! $t['typeahead'] : null];
         $res['ghost']     = $reply($t['ghost'] ?? null);
         $res['deboost']   = $reply($t['more_replies'] ?? null);
+        return $res;
+    }
+
+    /** GET returning [http code, decoded JSON or null, curl error]. */
+    private static function getJson(string $url, array $headers): array
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers), CURLOPT_USERAGENT => self::UA,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        return [$code, is_string($body) ? json_decode($body, true) : null, $err];
+    }
+
+    /**
+     * banchecker.org API. Its tasks carry its own verdict (ok | limited | unknown) per test; that is
+     * what the site shows, so it is used as is. The raw upstream result is kept alongside.
+     */
+    public static function banchecker(string $handle): array
+    {
+        $res = ['ok' => false, 'source' => 'banchecker', 'handle' => $handle];
+        [$code, $j, $err] = self::getJson(self::BANCHECKER . rawurlencode($handle), ['Referer: https://banchecker.org/twitter-ban-checker']);
+        if ($code !== 200 || ! is_array($j) || empty($j['ok']) || ! is_array($j['tasks'] ?? null)) {
+            $res['error'] = 'banchecker ' . ($err !== '' ? $err : 'HTTP ' . $code . (is_array($j) && ! empty($j['error']) ? ' ' . $j['error'] : ''));
+            return $res;
+        }
+        $p = is_array($j['profile'] ?? null) ? $j['profile'] : [];
+        $res['ok']      = true;
+        $res['profile'] = ['exists' => (bool) ($p['exists'] ?? false), 'suspended' => ! empty($p['suspended']),
+                           'protected' => ! empty($p['protected']), 'has_tweets' => (bool) ($p['hasTweets'] ?? false)];
+        $map = ['search' => 'search', 'typeahead' => 'typeahead', 'ghost' => 'ghost', 'moreReplies' => 'deboost'];
+        foreach ($map as $k) $res[$k] = ['ban' => null];
+        foreach ($j['tasks'] as $t) {
+            $k = $map[$t['id'] ?? ''] ?? null;
+            if (! $k) continue;
+            $st = (string) ($t['status'] ?? '');
+            $res[$k] = ['ban' => $st === 'ok' ? false : ($st === 'limited' || $st === 'banned' || $st === 'restricted' ? true : null),
+                        'status' => $st, 'note' => (string) ($t['summary'] ?? '')];
+        }
+        if (isset($j['raw'])) $res['raw'] = $j['raw'];
         return $res;
     }
 
