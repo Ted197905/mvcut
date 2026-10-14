@@ -44,6 +44,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php endif ?>
     <div class="ck-actions">
       <form method="post" action="<?= site_url('xwatch/check') ?>"><?= csrf_field() ?><button class="btn sm" type="submit">지금 검사</button></form>
+      <a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
       <span class="muted small">
         <?= $w['enabled'] ? '30분마다 자동 검사 (매시 정각·30분)' : '자동 검사 꺼짐' ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
       </span>
@@ -86,7 +87,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   </section>
 
   <section class="set-card">
-    <h2>검사 이력 <a class="small" href="<?= site_url('xwatch/checks') ?>" style="font-weight:400;margin-left:8px">전체 기록 보기 &rsaquo;</a></h2>
+    <h2>검사 이력</h2>
+    <p><a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">전체 검사 기록 보기</a></p>
     <?php if (! $history): ?>
       <p class="muted small">없음</p>
     <?php else: ?>

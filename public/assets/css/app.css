@@ -475,7 +475,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .xw-box { background: var(--bg-elev); border-radius: var(--r-group); padding: 10px 12px; box-shadow: var(--shadow-sm); }
 .xw-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 6px; }
 .xw-row .ck-badge { white-space: nowrap; }
-.xw-row a { color: var(--label); }
+.xw-more { width: 100%; margin-top: 8px; }
 .xw-filter { margin: 14px 0 16px; }
 .xw-filter a { display: block; padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--label); text-decoration: none; }
 .xw-filter a.on { background: var(--bg-elev); box-shadow: var(--shadow-sm); }

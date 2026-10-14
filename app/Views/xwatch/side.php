@@ -20,7 +20,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   </div>
 
   <div class="xw-box">
-    <div class="xw-row"><a href="<?= site_url('xwatch/checks') ?>" title="제한 검사 기록">제한 검사 &rsaquo;</a>
+    <div class="xw-row"><span>제한 검사</span>
       <?php if ($c): $cls = ['ok' => 'ok', 'banned' => 'bad', 'error' => 'warn'][$c['status']] ?? 'none'; ?>
         <span class="ck-badge <?= $cls ?>"><?= $c['status'] === 'ok' ? '정상' : ($c['status'] === 'banned' ? '제한 감지' : '검사 실패') ?></span>
       <?php else: ?><span class="ck-badge none">기록 없음</span><?php endif ?>
@@ -33,6 +33,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <?php endforeach ?>
       </div>
     <?php endif ?>
+    <a class="btn sm secondary xw-more" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
   </div>
 
   <div class="xw-box">
