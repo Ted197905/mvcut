@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\Cookies;
+use App\Libraries\Telegram;
 use App\Libraries\XWatch;
 
 /** /xwatch - X account cadence and restriction dashboard. */
@@ -22,6 +23,7 @@ class XWatchPage extends BaseController
             'st'      => XWatch::status($w),
             'history' => XWatch::history($this->uid(), 48),
             'probe'   => Cookies::status(XWatch::PROBE),
+            'tg'      => Telegram::config($this->uid()),
             'token'   => session()->getFlashdata('xtoken'),
         ]);
     }
@@ -83,6 +85,27 @@ class XWatchPage extends BaseController
         if ($w['handle'] === '') return redirect()->to('/xwatch')->with('errors', ['handle' => '먼저 X 아이디를 저장하세요.']);
         XWatch::update($this->uid(), ['next_check_at' => gmdate('Y-m-d H:i:s', time() - 1)]);
         return redirect()->to('/xwatch')->with('flash', '검사를 예약했습니다. 1~2분 뒤 새로고침하세요.');
+    }
+
+    /** POST /xwatch/telegram  action=token (token=...) | link | test | off */
+    public function telegram()
+    {
+        $uid = $this->uid();
+        $err = match ((string) $this->request->getPost('action')) {
+            'token' => Telegram::setToken($uid, (string) $this->request->getPost('token')),
+            'link'  => Telegram::linkChat($uid),
+            'test'  => Telegram::send($uid, 'MV Cut 테스트 알림입니다.'),
+            'off'   => (Telegram::forget($uid) ?? null),
+            default => '알 수 없는 요청입니다.',
+        };
+        if ($err) return redirect()->to('/xwatch#telegram')->with('errors', ['telegram' => $err]);
+        $msg = match ((string) $this->request->getPost('action')) {
+            'token' => '봇 토큰을 저장했습니다. 텔레그램에서 봇에게 "시작"을 누른 뒤 "채팅 연결"을 누르세요.',
+            'link'  => '텔레그램 채팅을 연결하고 확인 메시지를 보냈습니다.',
+            'test'  => '테스트 메시지를 보냈습니다.',
+            default => '텔레그램 알림을 해제했습니다.',
+        };
+        return redirect()->to('/xwatch#telegram')->with('flash', $msg);
     }
 
     public function deletePost(string $id)

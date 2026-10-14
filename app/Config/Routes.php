@@ -29,6 +29,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('xwatch', 'XWatchPage::index');
     $routes->get('xwatch/panel', 'Library::xwatchFragment');
     $routes->get('xwatch/checks', 'XWatchPage::checks');
+    $routes->post('xwatch/telegram', 'XWatchPage::telegram');
     $routes->post('xwatch/settings', 'XWatchPage::save');
     $routes->post('xwatch/token', 'XWatchPage::token');
     $routes->post('xwatch/check', 'XWatchPage::checkNow');

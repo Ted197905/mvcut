@@ -242,6 +242,10 @@ class XWatch
             if ($now !== $hold) {
                 self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot())]);
                 $log("xwatch @{$w['handle']}: " . ($now ? 'restriction detected, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
+                if (Telegram::ready($uid)) {
+                    $err = Telegram::send($uid, self::alertText($w, $c, $now));
+                    $log('xwatch telegram: ' . ($err ?? 'sent'));
+                }
             }
         }
     }
@@ -257,6 +261,16 @@ class XWatch
         $row = self::db()->table('x_checks')->select('status')->where('user_id', $userId)->where('status !=', 'error')
             ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(1)->get()->getRowArray();
         return ($row['status'] ?? '') === 'banned';
+    }
+
+    /** Telegram text for entering ($restricted) or leaving restricted mode. */
+    public static function alertText(array $w, array $c, bool $restricted): string
+    {
+        $src = self::SOURCES[json_decode((string) $c['result'], true)['source'] ?? 'probe'] ?? '';
+        $at  = self::kst(strtotime($c['checked_at'] . ' UTC'), 'm-d H:i');
+        return $restricted
+            ? "[제한 감지] @{$w['handle']}\n{$c['summary']}\n{$at} · {$src}\n풀릴 때까지 1시간마다 부계정으로 검사합니다.\n" . site_url('xwatch/checks')
+            : "[제한 풀림] @{$w['handle']}\n{$c['summary']}\n{$at} · {$src}\n10분 주기 검사로 돌아갑니다.\n" . site_url('xwatch/checks');
     }
 
     /** Next full hour (unix time). */
