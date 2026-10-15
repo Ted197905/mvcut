@@ -1,4 +1,14 @@
 // Attaches the file to the compose window X opened with our text. Posting stays manual.
+
+// The intent URL carries the whole post text, and X sends the page URL as Referer with every
+// API call: a long post makes those headers too large (HTTP 431 on media upload / posting).
+if (location.pathname.startsWith('/intent/')) {
+  const m = document.createElement('meta');
+  m.name = 'referrer';
+  m.content = 'origin';
+  (document.head || document.documentElement).appendChild(m);
+}
+
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
   if (!job) return;
