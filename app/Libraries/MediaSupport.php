@@ -177,7 +177,39 @@ class MediaSupport
      * The account handle, the "3시간" header of a quoted post, our processing notes and
      * the comment section that the scraper swept up are all left out.
      */
+    /** Text for a new X post: the title on top, then the post body (once, never twice). */
     public static function shareText(array $item): string
+    {
+        $body  = self::shareBody($item);
+        $title = self::shareTitle($item);
+        if ($title === '' || $body === '') return $body !== '' ? $body : $title;
+
+        $flat = static fn (string $s) => mb_strtolower(preg_replace('/\s+/u', '', $s));
+        $fb = $flat($body);
+        // an imported title is "account - opening of the post": drop it when it only repeats the body
+        $tail = preg_replace('/(\.{3}|…)$/u', '', trim(preg_split('/\s+-\s+/u', $title, 2)[1] ?? ''));
+        foreach ([$title, $tail] as $t) {
+            if ($t !== '' && str_contains($fb, $flat($t))) return $body;
+        }
+        if (str_contains($flat($title), $fb)) return $title;
+        return $title . "\n\n" . $body;
+    }
+
+    /** The title without what MV Cut appended to it (format, edit or split suffixes) and without an @handle. */
+    public static function shareTitle(array $item): string
+    {
+        $t = trim((string) ($item['title'] ?? ''));
+        do {
+            $before = $t;
+            $t = preg_replace('/\s+-\s+(?:edit|(?:MP4|MOV|WEBM|MKV|GIF|JPG|JPEG|PNG|WEBP)(?:\s+\d+(?:p|px))?)$/iu', '', $t);
+            $t = preg_replace('/\s+#\d+$/u', '', $t);
+            $t = trim(preg_replace('/\s+-$/u', '', $t));
+        } while ($t !== $before);
+        $t = trim(preg_replace('/^@[A-Za-z0-9._]+\s*/u', '', $t));
+        return in_array($t, ['동영상', '이미지', 'video', 'image'], true) ? '' : $t;
+    }
+
+    public static function shareBody(array $item): string
     {
         $body = trim((string) ($item['description'] ?? ''));
         $body = trim(preg_split('/\n*\[(?:적용한 처리|실패한 처리|처리 시간)\]/u', $body)[0]);
@@ -209,8 +241,7 @@ class MediaSupport
         $body = trim(preg_replace('/\n{3,}/u', "\n\n", implode("\n", array_map('rtrim', preg_split('/\R/u', $body)))));
         if ($body !== '') return $body;
 
-        // an upload or an edit result has no post text: use the title, without the handle
-        return trim(preg_replace('/^@[A-Za-z0-9._]+\s*/u', '', (string) ($item['title'] ?? '')));
+        return '';   // an upload or an edit result has no post text: shareText() falls back to the title
     }
 
     public static function imageSizes(array $urls, int $timeout = 10): array
