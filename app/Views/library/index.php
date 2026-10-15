@@ -48,6 +48,7 @@
       <option value="result"<?= $kind === 'result' ? ' selected' : '' ?>>편집 결과만</option>
       <option value="video"<?= $kind === 'video' ? ' selected' : '' ?>>영상만</option>
       <option value="image"<?= $kind === 'image' ? ' selected' : '' ?>>이미지만</option>
+      <option value="xbad"<?= $kind === 'xbad' ? ' selected' : '' ?>>X 미지원만</option>
     </select>
     <select class="input" name="sort" onchange="filterForm.submit()">
       <option value="newest"<?= $sort === 'newest' ? ' selected' : '' ?>>최신순</option>

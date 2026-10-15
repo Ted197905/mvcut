@@ -45,6 +45,11 @@ class Library extends BaseController
             'result'   => $builder->where('kind', 'result'),
             'video'    => $builder->where('media_type', 'video'),
             'image'    => $builder->where('media_type', 'image'),
+            // same rule as MediaSupport::xUnsupported()
+            'xbad'     => $builder->where('media_type', 'video')->groupStart()
+                                  ->whereIn('vcodec', ['av1', 'vp9'])
+                                  ->orWhere("LOWER(SUBSTRING_INDEX(filename, '.', -1)) NOT IN ('mp4','mov','m4v','gif')", null, false)
+                                  ->groupEnd(),
             default    => null,
         };
         match ($sort) {
@@ -56,7 +61,8 @@ class Library extends BaseController
         };
 
         // one card per post: the first item of each imported link stands for the rest
-        $builder->groupStart()
+        // (not for the X-unsupported filter: every such file is listed, wherever it sits in its post)
+        if ($kind !== 'xbad') $builder->groupStart()
                 ->where('post_key', null)
                 ->orWhere('media.id = (SELECT m2.id FROM media m2 WHERE m2.post_key = media.post_key'
                           . ' ORDER BY m2.post_order ASC, m2.id ASC LIMIT 1)', null, false)
