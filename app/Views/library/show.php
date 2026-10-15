@@ -122,12 +122,7 @@ $srcSum = $isImg
     <?php $rest = array_values(array_filter($siblings ?? [], static fn ($s) => (int) $s['id'] !== (int) $item['id'])); ?>
     <?php if ($rest): ?>
       <section class="post-items">
-        <div class="post-items-head">
-          <p class="eyebrow">같은 게시물의 다른 리소스 <?= count($rest) ?>개</p>
-          <form method="post" action="<?= site_url('library/' . $item['id'] . '/split') ?>" onsubmit="return confirm('이 게시물의 리소스 <?= count($rest) + 1 ?>개를 각각 따로 라이브러리 항목으로 분리할까요? 게시물 내용은 모두에 그대로 남습니다.')">
-            <?= csrf_field() ?><button class="btn sm secondary" type="submit">분리</button>
-          </form>
-        </div>
+        <p class="eyebrow">같은 게시물의 다른 리소스 <?= count($rest) ?>개</p>
         <?php foreach ($rest as $n => $s): ?>
           <?php $sVid = $s['media_type'] === 'video'; $sImg = $s['media_type'] === 'image'; ?>
           <article class="post-item">
@@ -167,6 +162,11 @@ $srcSum = $isImg
           <?= csrf_field() ?>
           <button class="btn ghost" type="button" id="btnDelete">삭제</button>
         </form>
+        <?php if (count($siblings ?? []) > 1): ?>
+          <form method="post" action="<?= site_url('library/' . $item['id'] . '/split') ?>" onsubmit="return confirm('이 게시물의 리소스 <?= count($siblings) ?>개를 각각 따로 라이브러리 항목으로 분리할까요? 게시물 내용은 모두에 그대로 남습니다.')">
+            <?= csrf_field() ?><button class="btn ghost" type="submit" title="같은 게시물의 리소스를 각각 따로 라이브러리 항목으로 나눕니다">분리</button>
+          </form>
+        <?php endif ?>
       </div>
       <?php if ($noX): ?>
         <p class="codec-warn"><?= esc($noX) ?> 영상은 X(트위터)에 업로드할 수 없습니다. 아래 "변환해서 받기"에서 MP4(H.264)로 변환한 파일을 올려 주세요.</p>
