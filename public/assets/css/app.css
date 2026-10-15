@@ -534,3 +534,6 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 /* posts that kept the minimum gap */
 .xw-post.kept, .xw-item.kept { background: var(--blue-tint); }
 .xw-post.kept .xw-gap, .xw-item.kept small { color: var(--blue); font-weight: 600; }
+
+.post-items-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.post-items-head form { margin: 0; }

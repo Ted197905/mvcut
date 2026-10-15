@@ -46,6 +46,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/upload/abort', 'Upload::abort');
     $routes->get('library/(:num)', 'Library::show/$1');
     $routes->post('library/(:num)/delete', 'Library::delete/$1');
+    $routes->post('library/(:num)/split', 'Library::split/$1');
     $routes->get('media/(:num)/thumb', 'Media::thumb/$1');
     $routes->get('media/(:num)/file', 'Media::file/$1');
     $routes->get('media/(:num)/proxy', 'Media::proxy/$1');

@@ -156,6 +156,28 @@ class Library extends BaseController
         return redirect()->to($this->backUrl())->with('flash', $n . '개를 삭제했습니다.');
     }
 
+    /**
+     * POST /library/{id}/split - turns one imported post into separate library items: every
+     * item keeps the post's text, uploader, stats, meta, category and link; only the grouping goes.
+     */
+    public function split(int $id)
+    {
+        $media = new MediaModel();
+        $item  = $media->findOwned($id, (int) session()->get('user_id'));
+        if (! $item) return redirect()->to($this->backUrl())->with('flash', '존재하지 않는 게시물입니다.');
+        $items = $media->postItems($item);
+        if (count($items) < 2) return redirect()->to('/library/' . $id)->with('flash', '분리할 리소스가 없습니다.');
+        $lead = $items[0];
+        foreach ($items as $it) {
+            $set = ['post_key' => null, 'post_order' => 0];
+            foreach (['description', 'uploader', 'stats', 'meta', 'source_url', 'category'] as $f) {
+                if (($it[$f] ?? '') === '' || $it[$f] === null) $set[$f] = $lead[$f];
+            }
+            $media->update($it['id'], $set);
+        }
+        return redirect()->to($this->backUrl())->with('flash', '게시물을 ' . count($items) . '개 항목으로 분리했습니다.');
+    }
+
     /** POST /library/category  ids[]=1&ids[]=2&category=IDOL ('' clears it) */
     public function bulkCategory()
     {
