@@ -188,7 +188,7 @@ class MediaSupport
         $fb = $flat($body);
         // an imported title is "account - opening of the post": drop it when it only repeats the body
         $tail = preg_replace('/(\.{3}|…)$/u', '', trim(preg_split('/\s+-\s+/u', $title, 2)[1] ?? ''));
-        foreach ([$title, $tail] as $t) {
+        foreach ([preg_replace('/(\.{3}|…)$/u', '', $title), $tail] as $t) {
             if ($t !== '' && str_contains($fb, $flat($t))) return $body;
         }
         if (str_contains($flat($title), $fb)) return $title;
