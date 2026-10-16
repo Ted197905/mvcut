@@ -62,7 +62,8 @@ class YouTubeTool
             // 2. the video, with its subtitles: every real one, or the auto-generated original
             [$subArgs, $names] = $this->subtitleArgs($info, $log);
             $args = [$bin, '--no-warnings', '--no-playlist', '--socket-timeout', '30', '--retries', '3',
-                     '-f', 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime',
+                     // up to 1080p: a 4K source is many times the size for a page that is about the subtitles
+                     '-f', 'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/b', '--merge-output-format', 'mp4', '--no-mtime',
                      '-o', $dir . '/original.%(ext)s', '-o', 'subtitle:' . $dir . '/sub.%(ext)s',
                      '--sub-format', 'vtt/best', '--convert-subs', 'vtt', ...$subArgs];
             if ($cookies) array_push($args, '--cookies', $cookies);
@@ -223,7 +224,7 @@ class YouTubeTool
         }
         $body = $notes !== []
             ? "자막 요약 메모 (" . count($notes) . " 부분):\n" . implode("\n\n---\n\n", $notes)
-            : ($transcript !== '' ? "자막 전문:\n" . $transcript : '자막: (없음)');
+            : ($transcript !== '' ? "자막 전문:\n" . $transcript : '자막: (없음) - 제목과 설명에 적힌 내용만 정리하고, 거기에 없는 줄거리나 장면은 쓰지 마세요.');
         $ask = $head . "\n\n" . $body . "\n\n위 자료로 다음 JSON 객체 하나만 출력하세요. 키: "
              . '"cast" - 영상에 출연하거나 자막·설명에서 이름이 확인되는 인물의 배열, 각 원소는 {"name": 이름, "role": 역할이나 소속 한 줄}. 확인되지 않으면 빈 배열. '
              . '"summary" - 영상 전체 내용을 한국어로 정리한 요약. 흐름이 보이도록 3~6개 문단으로, 문단 사이는 빈 줄 하나.';
