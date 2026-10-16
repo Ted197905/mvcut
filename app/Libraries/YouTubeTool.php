@@ -61,7 +61,7 @@ class YouTubeTool
 
             // 2. the video, with its subtitles: every real one, or the auto-generated original
             [$subArgs, $names] = $this->subtitleArgs($info, $log);
-            $args = [$bin, '--no-warnings', '--no-playlist', '--socket-timeout', '30', '--retries', '3',
+            $args = [$bin, '--no-warnings', '--no-progress', '--no-playlist', '--socket-timeout', '30', '--retries', '3',
                      // up to 1080p: a 4K source is many times the size for a page that is about the subtitles
                      '-f', 'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/b', '--merge-output-format', 'mp4', '--no-mtime',
                      '-o', $dir . '/original.%(ext)s', '-o', 'subtitle:' . $dir . '/sub.%(ext)s',
@@ -70,11 +70,16 @@ class YouTubeTool
             $args[] = $row['url'];
             $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
             $r = Ffmpeg::run($args, 1800);
-            $files = array_values(array_filter(glob($dir . '/original.*') ?: [], static fn ($f) => ! str_ends_with($f, '.part')));
-            if ($r['code'] !== 0 && $files === []) {
-                throw new \RuntimeException('다운로드 실패: ' . mb_substr(trim(preg_replace('/^ERROR:\s*/m', '', $r['stderr'])), -600));
+            // subtitles land as original.<lang>.vtt until yt-dlp's final move, so only media counts here
+            $files = array_values(array_filter(glob($dir . '/original.*') ?: [],
+                static fn ($f) => preg_match('/\/original\.(mp4|mkv|webm|mov|m4a|mp3)$/', $f)));
+            if ($r['code'] !== 0) {
+                $err = mb_substr(trim(preg_replace('/^ERROR:\s*/m', '', $r['stderr'])), -600);
+                $log('yt-dlp exit ' . $r['code'] . ': ' . $err);
+                if ($files === []) throw new \RuntimeException('다운로드 실패: ' . $err);
             }
             if ($files === []) throw new \RuntimeException('yt-dlp produced no media file');
+            foreach (glob($dir . '/original.*.vtt') ?: [] as $f) @rename($f, $dir . '/sub.' . substr(basename($f), 9));
             $file = $files[0];
             $update = ['filename' => basename($file), 'size' => filesize($file)];
             if ($meta = Ffmpeg::probe($file)) {
