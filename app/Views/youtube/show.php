@@ -148,15 +148,18 @@ $dur  = $item['duration'] ? gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', 
   const fmt = (t) => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
   const parse = (vtt) => {
-    const cues = []; let last = '';
+    const cues = []; let last = [];
     for (const block of vtt.replace(/\r/g, '').split(/\n{2,}/)) {
       const lines = block.split('\n'); const ti = lines.findIndex((l) => l.includes('-->'));
       if (ti < 0) continue;
       const m = lines[ti].match(/(?:(\d+):)?(\d+):(\d+)\.(\d+)/); if (!m) continue;
       const start = (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
-      const text = lines.slice(ti + 1).join(' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
-      if (!text || text === last) continue;   // auto captions repeat each line as it scrolls
-      cues.push([start, text]); last = text;
+      // auto captions scroll: each cue repeats the previous cue's last line, so keep only new lines
+      const clean = lines.slice(ti + 1).map((l) => l.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const fresh = clean.filter((l) => !last.includes(l));
+      last = clean;
+      if (!fresh.length) continue;
+      cues.push([start, fresh.join(' ')]);
     }
     return cues;
   };
