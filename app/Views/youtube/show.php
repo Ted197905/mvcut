@@ -68,6 +68,13 @@ $dur  = $item['duration'] ? gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', 
           <button class="btn ghost sm" type="button" id="descMore" hidden>더보기</button>
         </section>
       <?php endif ?>
+
+      <?php if ($subs): ?>
+        <section class="desc yt-subview" id="subView" hidden>
+          <p class="eyebrow" style="display:flex;gap:10px;align-items:center"><span id="subViewName">자막</span><span class="spacer"></span><button class="linkbtn small" type="button" id="subViewClose">닫기</button></p>
+          <div class="desc-body yt-cues" id="subViewBody"></div>
+        </section>
+      <?php endif ?>
     </div>
 
     <aside class="detail-side">
@@ -85,7 +92,7 @@ $dur  = $item['duration'] ? gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', 
           <div class="yt-subs">
             <?php foreach ($subs as $s): ?>
               <div class="yt-sub">
-                <span class="lang"><?= esc($s['name']) ?> <span class="muted small"><?= esc($s['lang']) ?><?= $s['auto'] ? ' · 자동' : '' ?></span></span>
+                <button class="lang sub-view" type="button" data-lang="<?= esc($s['lang'], 'attr') ?>" data-name="<?= esc($s['name'], 'attr') ?>" title="자막을 아래에 펼쳐 봅니다"><?= esc($s['name']) ?> <span class="muted small"><?= esc($s['lang']) ?><?= $s['auto'] ? ' · 자동' : '' ?></span></button>
                 <span class="fmts">
                   <a class="btn tinted sm" href="<?= $base ?>/sub/<?= esc($s['lang'], 'url') ?>.srt">SRT</a>
                   <a class="btn tinted sm" href="<?= $base ?>/sub/<?= esc($s['lang'], 'url') ?>.vtt">VTT</a>
@@ -134,6 +141,51 @@ $dur  = $item['duration'] ? gmdate($item['duration'] >= 3600 ? 'G:i:s' : 'i:s', 
     };
     setTimeout(tick, 3000);
   }
+  // subtitle viewer: the language name in the side panel opens the cues under the description
+  const view = $('subView'), video = document.querySelector('.viewer video');
+  const cache = {};
+  let shown = null;
+  const fmt = (t) => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+  const parse = (vtt) => {
+    const cues = []; let last = '';
+    for (const block of vtt.replace(/\r/g, '').split(/\n{2,}/)) {
+      const lines = block.split('\n'); const ti = lines.findIndex((l) => l.includes('-->'));
+      if (ti < 0) continue;
+      const m = lines[ti].match(/(?:(\d+):)?(\d+):(\d+)\.(\d+)/); if (!m) continue;
+      const start = (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]);
+      const text = lines.slice(ti + 1).join(' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+      if (!text || text === last) continue;   // auto captions repeat each line as it scrolls
+      cues.push([start, text]); last = text;
+    }
+    return cues;
+  };
+  const render = (cues) => {
+    const body = $('subViewBody'); body.textContent = '';
+    for (const [t, text] of cues) {
+      const row = document.createElement('div'); row.className = 'cue';
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'at'; b.textContent = fmt(t);
+      b.addEventListener('click', () => { if (video) { video.currentTime = t; video.play().catch(() => {}); } });
+      const span = document.createElement('span'); span.textContent = text;
+      row.append(b, span); body.appendChild(row);
+    }
+    if (!cues.length) body.textContent = '내용이 없는 자막입니다.';
+  };
+  document.querySelectorAll('.sub-view').forEach((btn) => btn.addEventListener('click', async () => {
+    const lang = btn.dataset.lang;
+    if (shown === lang) { view.hidden = true; shown = null; btn.classList.remove('on'); return; }
+    document.querySelectorAll('.sub-view.on').forEach((b) => b.classList.remove('on'));
+    btn.classList.add('on'); shown = lang;
+    $('subViewName').textContent = '자막 · ' + btn.dataset.name;
+    view.hidden = false; $('subViewBody').textContent = '불러오는 중...';
+    try {
+      cache[lang] ??= parse(await (await fetch(box.dataset.status.replace(/\/status$/, '') + '/sub/' + encodeURIComponent(lang) + '.vtt')).text());
+      render(cache[lang]);
+    } catch (e) { $('subViewBody').textContent = '자막을 불러오지 못했습니다.'; }
+    view.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  if ($('subViewClose')) $('subViewClose').addEventListener('click', () => { view.hidden = true; shown = null; document.querySelectorAll('.sub-view.on').forEach((b) => b.classList.remove('on')); });
+
   const body = $('descBody'), more = $('descMore');
   if (body && more && body.scrollHeight > 192) {
     body.classList.add('clamped'); more.hidden = false;

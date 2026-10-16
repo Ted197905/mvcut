@@ -560,3 +560,11 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .yt-sub .fmts .btn { min-height: 28px; padding: 0 9px; font-size: 12px; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--label3); border-top-color: var(--blue); border-radius: 50%; vertical-align: -2px; animation: yt-spin .8s linear infinite; }
 @keyframes yt-spin { to { transform: rotate(360deg); } }
+.yt-sub .lang.sub-view { background: none; border: 0; padding: 0; font: inherit; color: var(--blue); cursor: pointer; text-align: left; }
+.yt-sub .lang.sub-view:hover { text-decoration: underline; }
+.yt-sub .lang.sub-view.on { font-weight: 650; }
+.yt-subview { margin-top: 26px; }
+.yt-cues { max-height: 70vh; overflow: auto; }
+.yt-cues .cue { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+.yt-cues .at { flex: none; background: none; border: 0; padding: 0; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--blue); cursor: pointer; min-width: 44px; text-align: right; }
+.yt-cues .at:hover { text-decoration: underline; }
