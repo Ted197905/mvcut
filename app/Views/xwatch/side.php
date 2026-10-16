@@ -1,5 +1,8 @@
 <?php
-/** Compact X watch panel (library sidebar). $xw = XWatch::status() + 'row' (decoded latest check) or null. */
+/**
+ * Compact X watch panel (library sidebar). $xw = XWatch::status() + 'row' (decoded latest check) or null.
+ * $compact = true (media detail page): the two status boxes only, without the post list.
+ */
 use App\Libraries\XWatch;
 
 if (! $xw) return;
@@ -13,7 +16,8 @@ $ago   = static function (int $ts): string {
 };
 $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) . '시간 ' . ($m % 60) . '분' : $m . '분');
 ?>
-<aside class="xw-side" id="xwSide">
+<?php $compact = ! empty($compact); ?>
+<aside class="xw-side<?= $compact ? ' compact' : '' ?>" id="xwSide" data-compact="<?= $compact ? '1' : '0' ?>">
   <div class="xw-side-head">
     <a href="<?= site_url('xwatch') ?>"><b>X 관리</b></a>
     <span class="muted small">@<?= esc($xw['handle']) ?></span>
@@ -49,6 +53,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php foreach ($tl['warnings'] as $m): ?><p class="xw-warn"><?= esc($m) ?></p><?php endforeach ?>
   </div>
 
+  <?php if (! $compact): ?>
   <div class="xw-box xw-list">
     <?php if (! $tl['posts']): ?>
       <p class="muted small" style="margin:0;padding:10px 12px">최근 48시간 기록 없음</p>
@@ -63,4 +68,5 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       </a>
     <?php endforeach ?>
   </div>
+  <?php endif ?>
 </aside>

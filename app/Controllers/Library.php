@@ -145,7 +145,8 @@ class Library extends BaseController
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
         return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable,
                                      'cats' => (new CategoryModel())->names(),
-                                     'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl()]);
+                                     'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl(),
+                                     'xwatch' => self::xwatchPanel((int) session()->get('user_id'))]);
     }
 
     public function delete(int $id)
@@ -228,6 +229,7 @@ class Library extends BaseController
     /** GET /xwatch/panel - sidebar fragment, refreshed every second by the library page */
     public function xwatchFragment()
     {
-        return view('xwatch/side', ['xw' => self::xwatchPanel((int) session()->get('user_id'))]);
+        return view('xwatch/side', ['xw' => self::xwatchPanel((int) session()->get('user_id')),
+                                    'compact' => $this->request->getGet('compact') === '1']);
     }
 }

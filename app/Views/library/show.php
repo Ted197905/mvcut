@@ -152,6 +152,7 @@ $srcSum = $isImg
     </div>
 
     <aside>
+      <?= view('xwatch/side', ['xw' => $xwatch ?? null, 'compact' => true]) ?>
       <div class="aside-actions">
         <?php if ($isVid): ?>
           <a class="btn<?= $playable ? '' : ' disabled' ?>" href="<?= site_url('edit/' . $item['id']) ?>">편집</a>
@@ -245,6 +246,20 @@ $srcSum = $isImg
 
 <?= $this->section('scripts') ?>
 <script>
+// X watch status (top of the side column): refreshed every second like the library list
+(function () {
+  if (!document.getElementById('xwSide')) return;
+  let busy = false, last = '';
+  setInterval(() => {
+    if (document.hidden || busy) return;
+    busy = true;
+    fetch('<?= site_url('xwatch/panel?compact=1') ?>', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then((r) => r.ok ? r.text() : null)
+      .then((h) => { if (h && h.trim() && h !== last) { last = h; document.getElementById('xwSide').outerHTML = h; } })
+      .catch(() => {})
+      .finally(() => { busy = false; });
+  }, 1000);
+})();
 (function () {
   const $ = (id) => document.getElementById(id);
   const csrf = MV.csrf();
