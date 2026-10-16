@@ -15,6 +15,18 @@ $routes->post('logout', 'Auth::logout');
 $routes->get('session/expired', 'Auth::expired');
 $routes->get('share/(:num)/(:num)/([a-f0-9]{64})', 'Media::share/$1/$2/$3');
 
+// YouTube downloads + subtitles + summary: public, no login
+$routes->get('youtube', 'Youtube::index');
+$routes->post('youtube', 'Youtube::add');
+$routes->get('youtube/(:num)', 'Youtube::show/$1');
+$routes->get('youtube/(:num)/status', 'Youtube::status/$1');
+$routes->get('youtube/(:num)/file', 'Youtube::file/$1');
+$routes->get('youtube/(:num)/thumb', 'Youtube::thumb/$1');
+$routes->get('youtube/(:num)/sub/([\w.-]+)\.(vtt|srt|txt)', 'Youtube::sub/$1/$2/$3');
+$routes->post('youtube/(:num)/analyze', 'Youtube::analyze/$1');
+$routes->post('youtube/(:num)/retry', 'Youtube::retry/$1');
+$routes->post('youtube/(:num)/delete', 'Youtube::delete/$1');
+
 // Chrome extension (token auth, no session/CSRF)
 $routes->get('xapi/status', 'XApi::status');
 $routes->post('xapi/posts', 'XApi::posts');

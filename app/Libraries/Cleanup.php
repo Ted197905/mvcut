@@ -20,9 +20,12 @@ class Cleanup
             $out['stale']++;
         }
 
+        $yt = new \App\Models\YtVideoModel();
         foreach (glob(WRITEPATH . 'media/*/*', GLOB_ONLYDIR) ?: [] as $dir) {
             $id = (int) basename($dir);
-            if ($id > 0 && ! $media->find($id)) { MediaIntake::removeDir($dir); $out['orphans']++; }
+            // media/<user>/<id> belongs to the library, media/yt/<id> to the public YouTube page
+            $model = basename(dirname($dir)) === 'yt' ? $yt : $media;
+            if ($id > 0 && ! $model->find($id)) { MediaIntake::removeDir($dir); $out['orphans']++; }
         }
 
         foreach (glob(WRITEPATH . 'chunks/*/*', GLOB_ONLYDIR) ?: [] as $dir) {

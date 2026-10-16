@@ -535,3 +535,28 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .xw-post.kept, .xw-item.kept { background: var(--blue-tint); }
 .xw-post.kept .xw-gap, .xw-item.kept small { color: var(--blue); font-weight: 600; }
 
+
+/* ---------- /youtube: public subtitle downloader ---------- */
+.yt-page { max-width: 1400px; }
+.yt-form { margin-bottom: 4px; }
+.yt-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.yt-grid .card .thumb { aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
+.yt-grid .card .thumb img { object-fit: cover; }
+.yt-grid .badge.yt-busy, .yt-status.yt-busy { background: var(--blue); }
+.yt-grid .badge.yt-bad, .yt-status.yt-bad { background: var(--red); }
+.yt-grid .badge.yt-wait, .yt-status.yt-wait { background: rgba(0,0,0,.5); }
+.yt-status { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; color: #fff; padding: 2px 8px; border-radius: 6px; background: var(--green, #30a14e); }
+.yt-detail .detail-side { min-width: 0; }
+.yt-analysis { margin-top: 26px; }
+.yt-analysis .eyebrow { margin-top: 18px; }
+.yt-analysis .eyebrow:first-child { margin-top: 0; }
+.yt-cast { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.yt-cast li { background: var(--bg-grouped); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.yt-summary { white-space: normal; }
+.yt-subs { display: grid; gap: 8px; }
+.yt-sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: var(--bg-grouped); border-radius: var(--r-group); padding: 10px 12px; font-size: 14px; }
+.yt-sub .lang { min-width: 0; }
+.yt-sub .fmts { display: flex; gap: 6px; }
+.yt-sub .fmts .btn { min-height: 28px; padding: 0 9px; font-size: 12px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--label3); border-top-color: var(--blue); border-radius: 50%; vertical-align: -2px; animation: yt-spin .8s linear infinite; }
+@keyframes yt-spin { to { transform: rotate(360deg); } }

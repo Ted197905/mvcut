@@ -40,6 +40,7 @@ class JobRunner
                 'convert' => $this->runConvert($job, $log),
                 'proxy'   => $this->runProxy($job, $log),
                 'import'  => $this->runImport($job, $log),
+                'youtube' => $this->runYoutube($job, $log),
                 default   => throw new \RuntimeException('unknown job type ' . $job['type']),
             };
             $this->jobs->update($job['id'], ['status' => 'done', 'progress' => 100, 'result_media_id' => $result, 'finished_at' => date('Y-m-d H:i:s')]);
@@ -437,6 +438,28 @@ class JobRunner
     }
 
     /** Download one item from a social URL with yt-dlp into a new media row. */
+    /** /youtube page: params {yt_id, step?: "analyze"}; the yt_videos row carries the state, so no media id results. */
+    private function runYoutube(array $job, callable $log): ?int
+    {
+        $p = json_decode($job['params'], true) ?: [];
+        $id = (int) ($p['yt_id'] ?? 0);
+        $tool = new YouTubeTool();
+        if (($p['step'] ?? '') === 'analyze') {
+            $videos = new \App\Models\YtVideoModel();
+            $videos->update($id, ['status' => 'analyzing']);
+            try {
+                $tool->analyze($id, $log);
+                $videos->update($id, ['status' => 'ready']);
+            } catch (\Throwable $e) {
+                $videos->update($id, ['status' => 'ready', 'error' => mb_substr($e->getMessage(), 0, 2000)]);
+                throw $e;
+            }
+            return null;
+        }
+        $tool->fetch($id, $log);
+        return null;
+    }
+
     private function runImport(array $job, callable $log): int
     {
         $p = json_decode($job['params'], true) ?: [];
