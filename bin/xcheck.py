@@ -62,11 +62,11 @@ ARTICLES_JS = """() => [...document.querySelectorAll('article[data-testid="tweet
   const link = t ? t.closest('a') : null;
   const head = (a.innerText || '').slice(0, 300);
   const body = a.querySelector('[data-testid="tweetText"]');
-  const rm = head.match(/Replying to\s+@([A-Za-z0-9_]{1,15})|@([A-Za-z0-9_]{1,15})\s*님에게 보내는 답글/);
+  const rm = head.match(/Replying to\\s+@([A-Za-z0-9_]{1,15})|@([A-Za-z0-9_]{1,15})\\s*님에게 보내는 답글/);
   return { href: link ? link.getAttribute('href') : null,
            time: t ? t.getAttribute('datetime') : null,
            reply: /Replying to|님에게 보내는 답글/.test(head),
-           text: body ? (body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300) : '',
+           text: body ? (body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300) : '',
            reply_to: rm ? (rm[1] || rm[2]) : '' };
 })"""
 
