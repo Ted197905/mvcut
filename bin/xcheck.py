@@ -66,6 +66,7 @@ ARTICLES_JS = """() => [...document.querySelectorAll('article[data-testid="tweet
   return { href: link ? link.getAttribute('href') : null,
            time: t ? t.getAttribute('datetime') : null,
            reply: /Replying to|님에게 보내는 답글/.test(head),
+           quote: a.querySelectorAll('[data-testid="User-Name"]').length > 1,   // same rule as the extension
            text: body ? (body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 300) : '',
            reply_to: rm ? (rm[1] || rm[2]) : '' };
 })"""
@@ -80,7 +81,7 @@ def articles(page) -> list[dict]:
     for r in rows:
         m = STATUS.match(r.get("href") or "")
         if m:
-            out.append({"handle": m.group(1), "id": m.group(2), "time": r.get("time"), "reply": r.get("reply"),
+            out.append({"handle": m.group(1), "id": m.group(2), "time": r.get("time"), "reply": r.get("reply"), "quote": r.get("quote"),
                         "text": r.get("text") or "", "reply_to": r.get("reply_to") or ""})
     return out
 
@@ -125,14 +126,14 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
         for a in rows:
             if a["handle"].lower() != me or not a.get("time"):
                 continue
-            k = kind or ("reply" if a.get("reply") else "post")
+            k = kind or ("reply" if a.get("reply") else ("quote" if a.get("quote") else "post"))
             cur = seen_posts.get(a["id"])
             if cur is None:
                 seen_posts[a["id"]] = {"id": a["id"], "handle": a["handle"], "time": a["time"], "kind": k,
                                        "text": a.get("text", ""), "reply_to": a.get("reply_to", "")}
             else:
-                if k == "reply":
-                    cur["kind"] = "reply"
+                if k == "reply" or (k == "quote" and cur["kind"] == "post"):
+                    cur["kind"] = k
                 if not cur.get("text") and a.get("text"):
                     cur["text"] = a["text"]
                 if not cur.get("reply_to") and a.get("reply_to"):
