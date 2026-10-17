@@ -488,11 +488,11 @@ class JobRunner
                  // TikTok serves single files in H.265 and H.264; X takes only the latter
                  '-f', $platform === 'tiktok' ? 'b[vcodec^=h264]/b' : 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
                  '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title'];
-        if ($c = MediaSupport::cookieFile($platform)) array_push($args, '--cookies', $c);
         $args[] = $p['url'];
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
-        $r = Ffmpeg::run($args, 900);
+        $r = MediaSupport::ytdlpRun($args, $platform, 900);
+        if (! empty($r['fallback'])) $log('X cookies rejected; used the probe account cookies');
         $files = glob($dir . '/original.*') ?: [];
         // In a carousel our list order is not the slide order, so the item we asked for can
         // be one of the photos. Ask the post which slide actually holds a video and retry.
@@ -502,7 +502,7 @@ class JobRunner
             if ($slide > 0 && $slide !== $idx) {
                 $args[(int) array_search('--playlist-items', $args, true) + 1] = (string) $slide;
                 $log('carousel: the video is slide ' . $slide . ', retrying');
-                $r = Ffmpeg::run($args, 900);
+                $r = MediaSupport::ytdlpRun($args, $platform, 900);
                 $files = glob($dir . '/original.*') ?: [];
             }
         }
@@ -564,9 +564,8 @@ class JobRunner
     private function carouselVideoItem(string $bin, string $url, string $platform): int
     {
         $args = [$bin, '-J', '--no-warnings', '--ignore-errors', '--skip-download'];
-        if ($c = MediaSupport::cookieFile($platform)) array_push($args, '--cookies', $c);
         $args[] = $url;
-        $r = Ffmpeg::run($args, 180);
+        $r = MediaSupport::ytdlpRun($args, $platform, 180);
         $j = json_decode($r['stdout'], true);
         foreach (($j['entries'] ?? []) as $i => $e) {
             if (! is_array($e)) continue;

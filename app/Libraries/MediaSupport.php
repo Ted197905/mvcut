@@ -102,6 +102,24 @@ class MediaSupport
      * Netscape cookies.txt for a platform, placed on the server by the operator.
      * Never in git; see docs/deploy.html.
      */
+    /**
+     * yt-dlp with the platform's cookies. X: when x.com rejects the main account's cookies
+     * ("Could not authenticate you" - logged out, or the file was exported from a logged-out tab),
+     * the X watch probe account's cookies are tried, since fetching media needs any login, not that one.
+     */
+    public static function ytdlpRun(array $args, string $platform, int $timeout): array
+    {
+        $c = self::cookieFile($platform);
+        $r = Ffmpeg::run($c ? [...$args, '--cookies', $c] : $args, $timeout);
+        if ($platform === 'x' && $r['code'] !== 0 && str_contains($r['stderr'], 'Could not authenticate')
+            && ($p = self::cookieFile('xprobe')) && $p !== $c) {
+            $r = Ffmpeg::run([...$args, '--cookies', $p], $timeout);
+            $r['fallback'] = 'xprobe';
+            if ($r['code'] !== 0) $r['stderr'] = "X 로그인 쿠키가 거부되어 검사용 부계정 쿠키로 다시 시도했습니다.\n" . $r['stderr'];
+        }
+        return $r;
+    }
+
     public static function cookieFile(string $platform): ?string
     {
         if (! preg_match('/^[a-z]+$/', $platform)) return null;
