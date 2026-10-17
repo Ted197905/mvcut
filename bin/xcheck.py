@@ -61,9 +61,13 @@ ARTICLES_JS = """() => [...document.querySelectorAll('article[data-testid="tweet
   const t = a.querySelector('time');
   const link = t ? t.closest('a') : null;
   const head = (a.innerText || '').slice(0, 300);
+  const body = a.querySelector('[data-testid="tweetText"]');
+  const rm = head.match(/Replying to\s+@([A-Za-z0-9_]{1,15})|@([A-Za-z0-9_]{1,15})\s*님에게 보내는 답글/);
   return { href: link ? link.getAttribute('href') : null,
            time: t ? t.getAttribute('datetime') : null,
-           reply: /Replying to|님에게 보내는 답글/.test(head) };
+           reply: /Replying to|님에게 보내는 답글/.test(head),
+           text: body ? (body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 300) : '',
+           reply_to: rm ? (rm[1] || rm[2]) : '' };
 })"""
 
 
@@ -76,7 +80,8 @@ def articles(page) -> list[dict]:
     for r in rows:
         m = STATUS.match(r.get("href") or "")
         if m:
-            out.append({"handle": m.group(1), "id": m.group(2), "time": r.get("time"), "reply": r.get("reply")})
+            out.append({"handle": m.group(1), "id": m.group(2), "time": r.get("time"), "reply": r.get("reply"),
+                        "text": r.get("text") or "", "reply_to": r.get("reply_to") or ""})
     return out
 
 
@@ -123,9 +128,15 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             k = kind or ("reply" if a.get("reply") else "post")
             cur = seen_posts.get(a["id"])
             if cur is None:
-                seen_posts[a["id"]] = {"id": a["id"], "handle": a["handle"], "time": a["time"], "kind": k}
-            elif k == "reply":
-                cur["kind"] = "reply"
+                seen_posts[a["id"]] = {"id": a["id"], "handle": a["handle"], "time": a["time"], "kind": k,
+                                       "text": a.get("text", ""), "reply_to": a.get("reply_to", "")}
+            else:
+                if k == "reply":
+                    cur["kind"] = "reply"
+                if not cur.get("text") and a.get("text"):
+                    cur["text"] = a["text"]
+                if not cur.get("reply_to") and a.get("reply_to"):
+                    cur["reply_to"] = a["reply_to"]
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
