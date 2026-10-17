@@ -158,7 +158,7 @@ $srcSum = $isImg
           <a class="btn<?= $playable ? '' : ' disabled' ?>" href="<?= site_url('edit/' . $item['id']) ?>">편집</a>
         <?php endif ?>
         <a class="btn secondary" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">원본 받기</a>
-        <button class="btn secondary" type="button" id="btnSendX" title="X 새 글 작성 창에 본문과 파일을 올립니다">Send to X</button>
+        <button class="btn secondary" type="button" id="btnSendX" title="X 새 글 작성 창에 본문과 파일을 올립니다 (휴대폰에서는 공유 시트로 X 앱에 전달)">Send to X</button>
         <form method="post" action="<?= site_url('library/' . $item['id'] . '/delete') ?>" id="deleteForm">
           <?= csrf_field() ?>
           <button class="btn ghost" type="button" id="btnDelete">삭제</button>
@@ -275,8 +275,42 @@ $srcSum = $isImg
   $('btnRenameSave').addEventListener('click', save);
   /* ---------- Send to X ---------- */
   const xText = <?= json_encode(\App\Libraries\MediaSupport::shareText($item), JSON_UNESCAPED_UNICODE) ?>;
+  // Phones (iOS Safari, Android Chrome) have no extension but can hand a file to the X app
+  // through the system share sheet. The file is fetched first; iOS only allows share() inside
+  // a tap, so when the fetch outlasts the tap the button asks for one more tap.
+  const probeFile = () => { try { return new File([''], 'a.mp4', { type: 'video/mp4' }); } catch (e) { return null; } };
+  const canShareFile = !!(navigator.share && navigator.canShare && probeFile() && navigator.canShare({ files: [probeFile()] }));
+  let shareFile = null;
+  const shareToX = async () => {
+    const b = $('btnSendX');
+    try {
+      if (!shareFile) {
+        if (navigator.clipboard) navigator.clipboard.writeText(xText).catch(() => {});   // in case the app drops the text
+        b.textContent = '파일 준비 중...';
+        const res = await fetch(base + 'media/' + id + '/file?dl=1', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error(MV.httpError(res.status));
+        const blob = await res.blob();
+        const name = (document.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'video') + '.' + (<?= json_encode(strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)) ?: 'mp4') ?>);
+        shareFile = new File([blob], name, { type: blob.type || <?= json_encode($item['mime'] ?: 'video/mp4') ?> });
+      }
+      await navigator.share({ files: [shareFile], text: xText });
+      b.textContent = 'Send to X'; shareFile = null;
+    } catch (e) {
+      if (e && e.name === 'AbortError') { b.textContent = 'Send to X'; return; }   // share sheet closed
+      if (shareFile && e && e.name === 'NotAllowedError') { b.textContent = 'X로 공유 (한 번 더 누르세요)'; return; }
+      b.textContent = 'Send to X'; shareFile = null;
+      alert('공유하지 못했습니다: ' + (e && e.message ? e.message : e));
+    }
+  };
+
   $('btnSendX').addEventListener('click', async () => {
-    const b = $('btnSendX'); b.disabled = true;
+    const b = $('btnSendX');
+    if (document.documentElement.dataset.mvcutX !== '1' && canShareFile) {
+      b.disabled = true;
+      try { await shareToX(); } finally { b.disabled = false; }
+      return;
+    }
+    b.disabled = true;
     try {
       // the extension announces itself on the page; without it, fall back to text-only intent
       if (document.documentElement.dataset.mvcutX !== '1') {
