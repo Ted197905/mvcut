@@ -162,6 +162,17 @@ async function addPosts(list) {
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'posts') { addPosts(msg.posts || []); return false; }
+  // SAVE button on a post page: MV Cut downloads the link into the library
+  if (msg && msg.type === 'save-post') {
+    api('/xapi/import', { method: 'POST', body: JSON.stringify({ url: msg.url, title: msg.title || '' }) })
+      .then((j) => reply(j)).catch((e) => reply({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === 'save-status') {
+    api('/xapi/jobs/' + encodeURIComponent(msg.job)).then((j) => reply(Object.assign({ ok: true }, j)))
+      .catch((e) => reply({ ok: false, error: e.message }));
+    return true;
+  }
   if (msg && msg.type === 'poll') { upload().then(poll).then(() => reply({ ok: true })); return true; }
   return false;
 });
