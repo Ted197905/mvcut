@@ -585,8 +585,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
   .nav-toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
   .nav .nav-links { display: none; position: absolute; left: 0; right: 0; top: var(--nav-h); padding: 8px 12px 12px;
     flex-direction: column; align-items: stretch; gap: 2px;
-    background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 0.5px solid var(--separator); box-shadow: var(--shadow-md); }
+    background: var(--bg-elev, var(--bg)); border-bottom: 0.5px solid var(--separator); box-shadow: var(--shadow-md); }
   .nav .nav-links.open { display: flex; }
   .nav .nav-links a:not(.brand), .nav .nav-links .linkbtn, .nav .nav-links .nav-user { display: block; width: 100%; text-align: left; padding: 11px 10px; border-radius: 10px; font-size: 16px; }
   .nav .nav-links a.active { background: var(--fill3); }
@@ -611,7 +610,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
   .segmented.cat-filter input:checked + span { background: var(--label); color: var(--bg); box-shadow: none; }
   .lib-toolbar { margin: 14px 0 14px; row-gap: 8px; }
   .lib-toolbar .search { flex-basis: 100%; max-width: none; }
-  .lib-toolbar select.input { flex: 1 1 0; min-width: 0; }
+  .lib-toolbar select.input { flex: 1 1 calc(50% - 4px); min-width: 120px; }
   .lib-toolbar .per-page .input { width: 60px; }
   .lib-toolbar .spacer { display: none; }
   .lib-toolbar #libCount { flex: 1 1 auto; }
