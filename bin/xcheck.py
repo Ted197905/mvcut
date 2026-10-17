@@ -112,6 +112,20 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
     if not jar:
         res["error"] = "probe cookies missing"
         return res
+    # The watched account's own posts seen along the way (profile, from: searches). The server
+    # keeps them as posting history, so posts made outside the Chrome extension (phone) count too.
+    seen_posts: dict[str, dict] = {}
+
+    def note_posts(rows: list[dict], kind: str | None = None) -> None:
+        for a in rows:
+            if a["handle"].lower() != me or not a.get("time"):
+                continue
+            k = kind or ("reply" if a.get("reply") else "post")
+            cur = seen_posts.get(a["id"])
+            if cur is None:
+                seen_posts[a["id"]] = {"id": a["id"], "handle": a["handle"], "time": a["time"], "kind": k}
+            elif k == "reply":
+                cur["kind"] = "reply"
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
@@ -137,6 +151,7 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
                 return res
             text = body_text(page)
             posts = [a for a in articles(page) if a["handle"].lower() == me]
+            note_posts(posts)
             prof = {"exists": True, "suspended": False, "protected": False, "has_tweets": bool(posts)}
             if re.search(r"This account doesn.t exist|계정이 존재하지 않", text):
                 prof["exists"] = False
@@ -159,6 +174,7 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             page.goto(f"https://x.com/search?q={q}&src=typed_query&f=live", wait_until="domcontentloaded", timeout=ms)
             wait_timeline(page, ms)
             found = [a for a in articles(page) if a["handle"].lower() == me]
+            note_posts(found)
             res["search"] = {"ban": (not found) if prof["has_tweets"] else None, "count": len(found)}
 
             # 3. search suggestion ban: does @handle come up in the search box typeahead?
@@ -181,6 +197,7 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             page.goto(f"https://x.com/search?q={q}&src=typed_query&f=live", wait_until="domcontentloaded", timeout=ms)
             wait_timeline(page, ms)
             replies = [a for a in articles(page) if a["handle"].lower() == me]
+            note_posts(replies, "reply")
             if not replies:
                 res["ghost"] = {"ban": None, "stage": "no reply found"}
                 res["deboost"] = {"ban": None, "stage": "no reply found"}
@@ -258,6 +275,7 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             res["error"] = f"{type(e).__name__}: {str(e)[:200]}"
             return res
         finally:
+            res["posts"] = sorted(seen_posts.values(), key=lambda p: p["time"], reverse=True)
             browser.close()
 
 

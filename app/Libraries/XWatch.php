@@ -341,6 +341,12 @@ class XWatch
             $j = ['ok' => false, 'error' => 'checker failed: ' . mb_substr(trim($r['stderr']), -300)];
         }
         $j['source'] = 'probe';
+        // the watched account's posts the probe saw: posting history for posts made without the extension
+        if (is_array($j['posts'] ?? null)) {
+            $j['posts_seen'] = count($j['posts']);
+            $j['posts_new']  = self::savePosts($watch, $j['posts']);
+            unset($j['posts']);
+        }
         if (empty($j['ok']) && str_contains((string) ($j['error'] ?? ''), 'not logged in')) {
             Cookies::markFailure(self::PROBE, '검사용 부계정 로그인이 풀렸습니다. 쿠키를 다시 등록해 주세요.');
         } elseif (! empty($j['ok'])) {
