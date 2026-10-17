@@ -37,3 +37,13 @@ window.MV = (function () {
 
   return { csrf, fmtDur, fmtSize, httpError, expired };
 })();
+
+// top nav: hamburger on narrow screens
+(function () {
+  const btn = document.getElementById('navToggle'), links = document.getElementById('navLinks');
+  if (!btn || !links) return;
+  const set = (open) => { links.classList.toggle('open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+  btn.addEventListener('click', () => set(!links.classList.contains('open')));
+  document.addEventListener('click', (e) => { if (!e.target.closest('.nav')) set(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
+})();

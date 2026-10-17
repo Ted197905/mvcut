@@ -14,6 +14,8 @@
 <nav class="nav"><div class="in">
   <a class="brand" href="<?= site_url(session()->get('user_id') ? 'library' : '/') ?>"><img src="<?= base_url('favicon/android-chrome-192x192.png') ?>" alt="" width="26" height="26"><span>MV Cut</span></a>
   <span class="spacer"></span>
+  <button class="nav-toggle" type="button" id="navToggle" aria-controls="navLinks" aria-expanded="false" aria-label="메뉴"><span></span><span></span><span></span></button>
+  <div class="nav-links" id="navLinks">
   <a href="<?= site_url('youtube') ?>" class="<?= str_starts_with(uri_string(), 'youtube') ? 'active' : '' ?>">YouTube</a>
   <?php if (session()->get('user_id')): ?>
     <?php if (session()->get('role') === 'admin'): ?>
@@ -27,6 +29,7 @@
     <a href="<?= site_url('login') ?>">로그인</a>
     <a href="<?= site_url('register') ?>">회원가입</a>
   <?php endif ?>
+  </div>
 </div></nav>
 <?= $this->renderSection('content') ?>
 <script src="<?= asset_url('assets/js/app.js') ?>"></script>
