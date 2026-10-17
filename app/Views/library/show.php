@@ -290,7 +290,7 @@ $srcSum = $isImg
         const res = await fetch(base + 'media/' + id + '/file?dl=1', { credentials: 'same-origin' });
         if (!res.ok) throw new Error(MV.httpError(res.status));
         const blob = await res.blob();
-        const name = (document.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'video') + '.' + (<?= json_encode(strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)) ?: 'mp4') ?>);
+        const name = ($('mediaTitle').textContent.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'video') + '.' + (<?= json_encode(strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)) ?: 'mp4') ?>);
         shareFile = new File([blob], name, { type: blob.type || <?= json_encode($item['mime'] ?: 'video/mp4') ?> });
       }
       await navigator.share({ files: [shareFile], text: xText });
