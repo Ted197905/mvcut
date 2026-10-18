@@ -464,6 +464,8 @@ class JobRunner
         }
         // the convert job could not drop the original while this import job still held it
         if ($this->media->find($mediaId) && $this->media->removeSource($m, (int) $job['id'])) $log("removed original media {$mediaId}");
+        // with the original gone the " - MP4" suffix says nothing: keep the post's own title
+        $this->media->update($cj['result_media_id'], ['title' => $m['title']]);
         return (int) $cj['result_media_id'];
     }
 
