@@ -321,9 +321,11 @@ class Import extends BaseController
         }
         $jobs = new JobModel(); $ids = [];
         $postKey = bin2hex(random_bytes(8));   // everything from this link is one post
+        $xReady  = ! empty($in['x_ready']);    // "영상 바로 다운": convert to MP4 when X cannot take the file
         foreach ($items as $pos => $idx) {
             $params = ['url' => $url, 'platform' => $platform, 'index' => $idx, 'title' => (string) ($in['titles'][$idx] ?? ''),
                        'post_key' => $postKey, 'post_order' => $pos];
+            if ($xReady) $params['x_ready'] = true;
             $img = (string) ($images[$idx] ?? '');
             $vid = (string) ($media[$idx] ?? '');
             if ($img !== '') {

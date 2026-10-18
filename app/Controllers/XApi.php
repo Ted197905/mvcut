@@ -73,7 +73,7 @@ class XApi extends BaseController
         }
         $params = ['url' => mb_substr($url, 0, 1000), 'platform' => $platform, 'index' => 1,
                    'title' => mb_substr(trim((string) ($body['title'] ?? '')), 0, 255),
-                   'post_key' => bin2hex(random_bytes(8)), 'post_order' => 0];
+                   'post_key' => bin2hex(random_bytes(8)), 'post_order' => 0, 'x_ready' => true];
         $id = (new JobModel())->insert(['user_id' => $userId, 'type' => 'import',
                                         'params' => json_encode($params, JSON_UNESCAPED_UNICODE), 'status' => 'queued']);
         return $this->response->setJSON(['ok' => true, 'job' => (int) $id]);

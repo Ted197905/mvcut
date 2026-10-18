@@ -39,7 +39,7 @@ class JobRunner
                 'edit'    => $this->runEdit($job, $log),
                 'convert' => $this->runConvert($job, $log),
                 'proxy'   => $this->runProxy($job, $log),
-                'import'  => $this->runImport($job, $log),
+                'import'  => $this->xReady($job, $this->runImport($job, $log), $log),
                 'youtube' => $this->runYoutube($job, $log),
                 default   => throw new \RuntimeException('unknown job type ' . $job['type']),
             };
@@ -438,6 +438,33 @@ class JobRunner
     }
 
     /** Download one item from a social URL with yt-dlp into a new media row. */
+    /**
+     * Import with "x_ready": a video X cannot take (VP9/AV1, webm/mkv...) is converted to MP4 right
+     * away and the original removed, so one click leaves a ready-to-post file in the library.
+     * Returns the media the import job should report: the MP4 when it was converted.
+     */
+    private function xReady(array $job, int $mediaId, callable $log): int
+    {
+        $p = json_decode($job['params'], true) ?: [];
+        if (empty($p['x_ready'])) return $mediaId;
+        $m = $this->media->find($mediaId);
+        if (! $m || $m['media_type'] !== 'video' || ! MediaSupport::xUnsupported($m)) return $mediaId;
+        $log("media {$mediaId} is " . MediaSupport::xUnsupported($m) . ': converting to MP4 for X');
+        $this->jobs->update($job['id'], ['progress' => 60]);
+        // the original goes away, so its pending proxy job has nothing to do
+        $this->jobs->where('media_id', $mediaId)->where('type', 'proxy')->where('status', 'queued')->delete();
+        $cid = $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'convert', 'status' => 'running',
+                                    'params' => json_encode(['format' => 'mp4', 'height' => 0, 'quality' => 'high', 'delete_source' => true]),
+                                    'started_at' => date('Y-m-d H:i:s')]);
+        $this->run($this->jobs->find($cid), $log);
+        $cj = $this->jobs->find($cid);
+        if ($cj['status'] !== 'done' || ! $cj['result_media_id']) {
+            $log("conversion failed, keeping the original: " . ($cj['error'] ?? ''));
+            return $mediaId;
+        }
+        return (int) $cj['result_media_id'];
+    }
+
     /** /youtube page: params {yt_id, step?: "analyze"}; the yt_videos row carries the state, so no media id results. */
     private function runYoutube(array $job, callable $log): ?int
     {

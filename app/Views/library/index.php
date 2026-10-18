@@ -20,7 +20,7 @@
         <button class="url-clear" type="button" id="btnClearUrl" title="링크 지우기" aria-label="링크 지우기" hidden>&times;</button>
       </div>
       <button class="btn secondary" type="button" id="btnPaste" title="클립보드에서 붙여넣기">붙여넣기</button>
-      <button class="btn secondary" type="button" id="btnQuick" title="리소스 확인 없이 링크의 영상만 모두 가져옵니다 (이미지는 제외)">영상 바로 다운</button>
+      <button class="btn secondary" type="button" id="btnQuick" title="리소스 확인 없이 링크의 영상만 모두 가져옵니다 (이미지는 제외). X에 올릴 수 없는 형식이면 MP4로 바꾸고 원본은 지웁니다">영상 바로 다운</button>
       <button class="btn" type="button" id="btnInspect">리소스 확인</button>
     </div>
     <div class="import-status" id="importStatus" hidden></div>
@@ -484,7 +484,7 @@
     const on = all.every(x => x.classList.contains('on'));
     all.forEach(x => x.classList.toggle('on', !on)); count();
   });
-  async function submitImport(ins, items) {
+  async function submitImport(ins, items, xReady = false) {
     const titles = {}, images = {}, media = {}, audio = {};
     ins.entries.forEach(e => {
       titles[e.index] = e.title;
@@ -492,7 +492,7 @@
       else if (e.media_url) { media[e.index] = e.media_url; if (e.audio_url) audio[e.index] = e.audio_url; }
     });
     istatus('가져오기 요청 중...');
-    const j = await post(base + 'api/import', { url: ins.url, items, titles, images, media, audio, desc: ins.desc, post: ins.post });
+    const j = await post(base + 'api/import', { url: ins.url, items, titles, images, media, audio, desc: ins.desc, post: ins.post, x_ready: xReady });
     il.hidden = ia.hidden = true;
     istatus(j.job_ids.length + '개 항목을 서버에서 내려받는 중입니다.');
     j.job_ids.forEach(id => pollImport(id));
@@ -515,7 +515,7 @@
       const ins = { url, entries: j.entries || [], desc: j.desc || '', post: j.post || null };
       const items = ins.entries.filter(e => e.kind !== 'image').map(e => e.index);
       if (!items.length) throw new Error('이 링크에는 가져올 영상이 없습니다.' + (ins.entries.length ? ' (이미지 ' + ins.entries.length + '개는 제외)' : ''));
-      await submitImport(ins, items);
+      await submitImport(ins, items, true);
     } catch (e) { istatus(e.message, 'error'); }
     b.disabled = $('btnInspect').disabled = false;
   });
@@ -535,7 +535,7 @@
           addCard(m.media);
           if (--pending === 0) istatus('가져오기 완료.');
         } else if (job.status === 'failed') { row.fail(job.error || '실패'); pending--; }
-        else { row.set(Math.max(5, job.progress), job.status === 'queued' ? '대기 중' : '다운로드 중...'); setTimeout(tick, 2000); }
+        else { row.set(Math.max(5, job.progress), job.status === 'queued' ? '대기 중' : (job.progress >= 60 ? 'MP4로 변환 중...' : '다운로드 중...')); setTimeout(tick, 2000); }
       } catch (e) { row.fail(e.message); pending--; }
     };
     setTimeout(tick, 1500);
