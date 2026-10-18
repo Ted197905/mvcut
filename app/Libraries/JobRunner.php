@@ -462,6 +462,8 @@ class JobRunner
             $log("conversion failed, keeping the original: " . ($cj['error'] ?? ''));
             return $mediaId;
         }
+        // the convert job could not drop the original while this import job still held it
+        if ($this->media->find($mediaId) && $this->media->removeSource($m, (int) $job['id'])) $log("removed original media {$mediaId}");
         return (int) $cj['result_media_id'];
     }
 
