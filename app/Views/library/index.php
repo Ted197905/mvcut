@@ -283,8 +283,11 @@
 
   /* ---------------- job queue (edit / convert) ---------------- */
   const jq = { rows: new Map(), timer: null };
+  const ownImports = new Set();
+  const jqParams = (j) => { try { return JSON.parse(j.params || '{}'); } catch (e) { return {}; } };
   const jqLabel = (j) => {
-    let p = {}; try { p = JSON.parse(j.params || '{}'); } catch (e) {}
+    const p = jqParams(j);
+    if (j.type === 'import') return '가져오기' + (p.platform ? ' ' + String(p.platform).toUpperCase() : '');
     if (j.type === 'convert') return '변환 ' + String(p.format || '').toUpperCase() + (p.delete_source ? ' · 원본 삭제' : '');
     return '편집';
   };
@@ -293,7 +296,8 @@
     if (!el) {
       el = document.createElement('div'); el.className = 'progress-item';
       el.innerHTML = '<div><span class="name"></span> <span class="muted small kind"></span> <span class="muted small pct"></span></div><div class="bar"><i></i></div>';
-      el.querySelector('.name').textContent = j.title || ('미디어 ' + j.media_id);
+      const p = jqParams(j);
+      el.querySelector('.name').textContent = j.title || p.title || p.url || ('미디어 ' + j.media_id);
       el.querySelector('.kind').textContent = '· ' + jqLabel(j);
       $('jqList').append(el); jq.rows.set(j.id, el);
     }
@@ -305,6 +309,8 @@
       const r = await fetch(base + 'api/jobs?active=1', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       if (r.ok) active = (await r.json()).jobs || [];
     } catch (e) {}
+    active = active.filter(j => !ownImports.has(+j.id));
+    for (const id of ownImports) { const el = jq.rows.get(id); if (el) { el.remove(); jq.rows.delete(id); } }
     const ids = new Set(active.map(j => +j.id));
     active.forEach((j, i) => {
       const el = jqRow({ ...j, id: +j.id });
@@ -320,6 +326,12 @@
         const j = (await (await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json()).job || {};
         if (j.status === 'done') {
           el.classList.add('done'); el.querySelector('.bar i').style.width = '100%';
+          if (j.type === 'import' && j.result_media_id && !grid.querySelector('a.card[href$="/library/' + (+j.result_media_id) + '"]')) {
+            try {
+              const m = (await (await fetch(base + 'api/media/' + (+j.result_media_id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json()).media;
+              if (m) { addCard(m); el.querySelector('.name').textContent = m.title; }
+            } catch (e) {}
+          }
           el.querySelector('.pct').innerHTML = '완료' + (j.result_media_id ? ' · <a href="' + base + 'library/' + (+j.result_media_id) + '">결과 보기</a>' : '');
         } else {
           el.classList.add('fail'); el.querySelector('.pct').textContent = '실패' + (j.error ? ': ' + j.error.slice(0, 120) : '');
@@ -331,7 +343,7 @@
     const run = active.filter(j => j.status === 'running').length;
     $('jqCount').textContent = active.length ? '진행 ' + run + ' · 대기 ' + (active.length - run) : '모두 끝났습니다';
     clearTimeout(jq.timer);
-    if (active.length) jq.timer = setTimeout(jqPoll, 2000);
+    jq.timer = setTimeout(jqPoll, active.length ? 2000 : (document.hidden ? 15000 : 4000));
   }
   $('jqReload').addEventListener('click', () => location.reload());
   jqPoll();
@@ -521,6 +533,7 @@
   });
   let pending = 0;
   function pollImport(id) {
+    ownImports.add(+id);
     pending++;
     const row = progressRow('가져오기 #' + id);
     row.set(5, '다운로드 중...');
