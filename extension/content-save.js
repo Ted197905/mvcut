@@ -1,12 +1,24 @@
-// SAVE button on TikTok: sends the post you are looking at to MV Cut, which downloads it into
-// the library (same as "영상 바로 다운"). Works on a video page and inside the For You feed.
+// SAVE button on TikTok and YouTube: sends the post you are looking at to MV Cut, which downloads
+// it into the library (same as "영상 바로 다운"). TikTok: video page and For You feed.
+// YouTube: watch page and Shorts.
 (() => {
   if (window.top !== window) return;
 
   const VIDEO_RE = /^https?:\/\/(?:www\.|m\.)?tiktok\.com\/@[^/]+\/(?:video|photo)\/\d+/;
 
+  const YT = /(^|\.)youtube\.com$/.test(location.hostname);
+  /** YouTube: the video of a watch page or the Short on screen (the URL follows the Short). */
+  const youtubePost = () => {
+    const u = new URL(location.href);
+    if (u.pathname === '/watch' && u.searchParams.get('v')) return { url: 'https://www.youtube.com/watch?v=' + u.searchParams.get('v'), title: '' };
+    const s = u.pathname.match(/^\/shorts\/([\w-]{6,})/);
+    if (s) return { url: 'https://www.youtube.com/shorts/' + s[1], title: '' };
+    return null;
+  };
+
   /** The post in view: the page URL on a video page, else the most visible video's own link. */
   const currentPost = () => {
+    if (YT) return youtubePost();
     const m = location.href.match(VIDEO_RE);
     if (m) return { url: m[0], title: document.title.replace(/\s*\|\s*TikTok\s*$/, '').trim() };
     let best = null, bestArea = 0;
@@ -61,6 +73,12 @@
   const btn = document.createElement('button');
   btn.id = 'mvcutSave'; btn.type = 'button'; btn.textContent = 'SAVE'; btn.title = 'MV Cut 라이브러리에 저장';
   document.documentElement.appendChild(btn);
+  // YouTube is a single-page app: show the button only on a watch page or a Short
+  if (YT) {
+    const sync = () => { btn.style.display = youtubePost() ? '' : 'none'; };
+    sync();
+    setInterval(sync, 800);
+  }
 
   let toastTimer = 0;
   const toast = (text, ms = 4000) => {
