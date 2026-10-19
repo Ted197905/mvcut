@@ -577,7 +577,7 @@ class JobRunner
         if (! $pr || ($pr['vcodec'] ?? '') !== 'hevc') return $file;
         $out = preg_replace('/\.[^.\/]+$/', '', $file) . '.h264.mp4';
         $args = [Ffmpeg::bin('ffmpeg'), '-y', '-v', 'error', '-i', $file, '-map', '0:v:0', '-map', '0:a:0?'];
-        if (Ffmpeg::hasNvenc()) array_push($args, '-c:v', 'h264_nvenc', '-preset', 'p6', '-tune', 'hq', '-rc', 'vbr', '-cq', '19', '-b:v', '0', '-profile:v', 'high');
+        if (Ffmpeg::hasNvenc()) array_push($args, '-c:v', 'h264_nvenc', '-preset', 'p6', '-tune', 'hq', '-rc', 'vbr', '-cq', '21', '-b:v', '0', '-maxrate', '4M', '-bufsize', '8M', '-profile:v', 'high');
         else array_push($args, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-profile:v', 'high');
         array_push($args, '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', $out);
         $r = Ffmpeg::run($args, 600);
