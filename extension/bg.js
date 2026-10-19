@@ -180,6 +180,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 // After an install, update or reload, x.com tabs that were already open keep a dead copy of
 // the content script that can no longer reach this worker; give them a live one.
 async function injectOpenTabs() {
+  for (const t of await chrome.tabs.query({ url: ['https://www.tiktok.com/*'] })) {
+    try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-save.js'] }); } catch (e) { /* ignore */ }
+  }
   const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
   for (const t of tabs) {
     try {

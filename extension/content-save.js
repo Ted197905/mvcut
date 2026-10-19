@@ -39,7 +39,10 @@
     return null;
   };
 
+  document.getElementById('mvcutSave')?.remove();
+  document.getElementById('mvcutSaveCss')?.remove();
   const css = document.createElement('style');
+  css.id = 'mvcutSaveCss';
   css.textContent = `
     #mvcutSave { position: fixed; right: 18px; bottom: 90px; z-index: 2147483646; min-width: 76px; height: 40px; padding: 0 16px;
       border: 0; border-radius: 20px; background: #0a84ff; color: #fff; font: 700 14px/40px system-ui, sans-serif; letter-spacing: .04em;
@@ -71,7 +74,21 @@
     btn.className = cls; btn.textContent = label;
     setTimeout(() => { btn.className = ''; btn.textContent = 'SAVE'; btn.disabled = false; }, ms);
   };
-  const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, (r) => resolve(r || { ok: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'no reply' })));
+  // after the extension is reloaded this copy is cut off: sendMessage throws instead of answering
+  const STALE = 'MV Cut 확장이 업데이트되었습니다. 이 탭을 새로고침하세요.';
+  const send = (msg) => new Promise((resolve) => {
+    const t = setTimeout(() => resolve({ ok: false, error: '확장 응답이 없습니다. 이 탭을 새로고침하세요.' }), 30000);
+    try {
+      if (!chrome.runtime || !chrome.runtime.id) throw new Error(STALE);
+      chrome.runtime.sendMessage(msg, (r) => {
+        clearTimeout(t);
+        resolve(r || { ok: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : 'no reply' });
+      });
+    } catch (e) {
+      clearTimeout(t);
+      resolve({ ok: false, error: /context invalidated/i.test(e.message) ? STALE : e.message });
+    }
+  });
 
   btn.addEventListener('click', async () => {
     const post = currentPost();
