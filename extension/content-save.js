@@ -1,6 +1,6 @@
 // SAVE button on TikTok and YouTube: sends the post you are looking at to MV Cut, which downloads
 // it into the library (same as "영상 바로 다운"). TikTok: video page and For You feed.
-// YouTube: watch page and Shorts.
+// YouTube: watch page and Shorts. Instagram: post / reel page, Reels tab and the home feed.
 (() => {
   if (window.top !== window) return;
 
@@ -16,9 +16,35 @@
     return null;
   };
 
+  const IG = /(^|\.)instagram\.com$/.test(location.hostname);
+  const IG_POST = /^\/(?:[\w.]+\/)?(p|reels?|tv)\/([\w-]{5,})\/?$/;
+  const igUrl = (path) => {
+    const m = path.split('?')[0].match(IG_POST);
+    if (!m || m[2] === 'audio') return null;
+    return 'https://www.instagram.com/' + (m[1] === 'p' ? 'p' : m[1] === 'tv' ? 'tv' : 'reel') + '/' + m[2] + '/';
+  };
+  /** Instagram: the post page / open post / current reel, else the most visible post in the feed. */
+  const instagramPost = () => {
+    const direct = igUrl(location.pathname);
+    if (direct) return { url: direct, title: '' };
+    // ads are articles too but carry no post link, so only posts with a link compete
+    let best = null, bestArea = 0;
+    for (const a of document.querySelectorAll('article')) {
+      let u = null;
+      for (const link of a.querySelectorAll('a[href]')) { u = igUrl(link.getAttribute('href')); if (u) break; }
+      if (!u) continue;
+      const r = a.getBoundingClientRect();
+      const h = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+      const w = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
+      if (w * h > bestArea) { bestArea = w * h; best = u; }
+    }
+    return best ? { url: best, title: '' } : null;
+  };
+
   /** The post in view: the page URL on a video page, else the most visible video's own link. */
   const currentPost = () => {
     if (YT) return youtubePost();
+    if (IG) return instagramPost();
     const m = location.href.match(VIDEO_RE);
     if (m) return { url: m[0], title: document.title.replace(/\s*\|\s*TikTok\s*$/, '').trim() };
     let best = null, bestArea = 0;
