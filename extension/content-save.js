@@ -17,6 +17,17 @@
       if (w * h > bestArea) { bestArea = w * h; best = v; }
     }
     if (!best || bestArea < 40000) return null;
+    // For You feed: no /video/ links; the player wrapper id carries the video id (xgwrapper-N-<id>)
+    // and the item's profile link gives the author
+    const wrap = best.closest('[id^="xgwrapper-"]');
+    const vid = wrap && (wrap.id.match(/-(\d{15,25})$/) || [])[1];
+    const item = best.closest('article, [data-e2e="recommend-list-item-container"], section');
+    const user = item && item.querySelector('a[href^="/@"]');
+    if (vid && user) {
+      const handle = user.getAttribute('href').split(/[/?]/)[1];
+      const desc = item.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]');
+      return { url: 'https://www.tiktok.com/' + handle + '/video/' + vid, title: desc ? desc.innerText.trim().slice(0, 200) : '' };
+    }
     let el = best;
     for (let i = 0; i < 12 && el; i++, el = el.parentElement) {
       const a = [...el.querySelectorAll('a[href]')].find((x) => VIDEO_RE.test(x.href));
