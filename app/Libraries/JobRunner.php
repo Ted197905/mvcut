@@ -516,9 +516,11 @@ class JobRunner
             return $this->importVideo($job, $mediaId, $dir, $p, $log);
         }
         $args = [$bin, '--no-warnings', '--no-playlist', '--playlist-items', (string) $idx, '--socket-timeout', '30', '--retries', '3',
-                 // TikTok serves single files in H.265 and H.264; X takes only the latter
-                 '-f', $platform === 'tiktok' ? 'b[vcodec^=h264]/b' : 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
+                 '-f', $platform === 'tiktok' ? 'b' : 'bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b', '--merge-output-format', 'mp4', '--no-mtime', '--write-info-json',
                  '-o', $dir . '/original.%(ext)s', '--print', 'after_move:filepath', '--print', 'title'];
+        // TikTok's H.264 files are often a size below its H.265 ones: take the largest, then
+        // H.264 when sizes tie; an H.265 result is re-encoded below for X
+        if ($platform === 'tiktok') array_push($args, '-S', 'res,vcodec:h264,br');
         $args[] = $p['url'];
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
@@ -548,6 +550,7 @@ class JobRunner
             throw new \RuntimeException('yt-dlp produced no media file');
         }
         $file = $files[0];
+        if ($platform === 'tiktok') $file = $this->hevcToH264($file, $log);
         $info = $this->applyInfoJson($mediaId, $dir, (string) ($p['platform'] ?? ''));
         // --print output also contains the file path; never let that become a title
         $lines = array_values(array_filter(
@@ -565,6 +568,29 @@ class JobRunner
             $this->jobs->insert(['user_id' => $job['user_id'], 'media_id' => $mediaId, 'type' => 'proxy', 'params' => '{}', 'status' => 'queued']);
         }
         return $mediaId;
+    }
+
+    /** Re-encodes an H.265 download to high-quality H.264 (X does not take H.265). Returns the file to keep. */
+    private function hevcToH264(string $file, callable $log): string
+    {
+        $pr = Ffmpeg::probe($file);
+        if (! $pr || ($pr['vcodec'] ?? '') !== 'hevc') return $file;
+        $out = preg_replace('/\.[^.\/]+$/', '', $file) . '.h264.mp4';
+        $args = [Ffmpeg::bin('ffmpeg'), '-y', '-v', 'error', '-i', $file, '-map', '0:v:0', '-map', '0:a:0?'];
+        if (Ffmpeg::hasNvenc()) array_push($args, '-c:v', 'h264_nvenc', '-preset', 'p6', '-tune', 'hq', '-rc', 'vbr', '-cq', '19', '-b:v', '0', '-profile:v', 'high');
+        else array_push($args, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-profile:v', 'high');
+        array_push($args, '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', $out);
+        $r = Ffmpeg::run($args, 600);
+        if ($r['code'] !== 0 || ! is_file($out) || filesize($out) === 0) {
+            @unlink($out);
+            $log('hevc -> h264 failed, keeping the H.265 file: ' . mb_substr(trim($r['stderr']), -300));
+            return $file;
+        }
+        @unlink($file);
+        $final = dirname($file) . '/original.mp4';
+        rename($out, $final);
+        $log('tiktok: H.265 re-encoded to H.264');
+        return $final;
     }
 
     /** Reads yt-dlp's .info.json (description, channel, counts) into the media row, then removes it. */
