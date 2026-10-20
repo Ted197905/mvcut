@@ -71,12 +71,27 @@ class XApi extends BaseController
                 return $this->response->setJSON(['ok' => true, 'duplicate' => true, 'id' => (int) $r['id'], 'title' => $r['title']]);
             }
         }
-        $params = ['url' => mb_substr($url, 0, 1000), 'platform' => $platform, 'index' => 1,
-                   'title' => mb_substr(trim((string) ($body['title'] ?? '')), 0, 255),
-                   'post_key' => bin2hex(random_bytes(8)), 'post_order' => 0, 'x_ready' => true];
-        $id = (new JobModel())->insert(['user_id' => $userId, 'type' => 'import',
-                                        'params' => json_encode($params, JSON_UNESCAPED_UNICODE), 'status' => 'queued']);
-        return $this->response->setJSON(['ok' => true, 'job' => (int) $id]);
+        $base = ['url' => mb_substr($url, 0, 1000), 'platform' => $platform,
+                 'title' => mb_substr(trim((string) ($body['title'] ?? '')), 0, 255),
+                 'post_key' => bin2hex(random_bytes(8)), 'x_ready' => true];
+        $desc = mb_substr(trim((string) ($body['text'] ?? '')), 0, 5000);
+        $jobs = new JobModel(); $ids = []; $order = 0;
+        // images the extension read off the page (X posts: pbs.twimg.com/media/...?name=orig)
+        $images = array_values(array_filter((array) ($body['images'] ?? []),
+            static fn ($u) => is_string($u) && MediaSupport::imageUrlAllowed($u)));
+        foreach (array_slice($images, 0, 20) as $img) {
+            $p = $base + ['index' => $order + 1, 'post_order' => $order++, 'image_url' => $img];
+            if ($desc !== '') $p['description'] = $desc;
+            $ids[] = (int) $jobs->insert(['user_id' => $userId, 'type' => 'import',
+                                          'params' => json_encode($p, JSON_UNESCAPED_UNICODE), 'status' => 'queued']);
+        }
+        // the post's video, unless the extension said the post has none (images only)
+        if ($images === [] || ! empty($body['video'])) {
+            $p = $base + ['index' => 1, 'post_order' => $order++];
+            $ids[] = (int) $jobs->insert(['user_id' => $userId, 'type' => 'import',
+                                          'params' => json_encode($p, JSON_UNESCAPED_UNICODE), 'status' => 'queued']);
+        }
+        return $this->response->setJSON(['ok' => true, 'job' => $ids[0], 'jobs' => $ids]);
     }
 
     /** GET /xapi/jobs/{id} - progress of an import the extension queued. */

@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'posts') { addPosts(msg.posts || []); return false; }
   // SAVE button on a post page: MV Cut downloads the link into the library
   if (msg && msg.type === 'save-post') {
-    api('/xapi/import', { method: 'POST', body: JSON.stringify({ url: msg.url, title: msg.title || '' }) })
+    api('/xapi/import', { method: 'POST', body: JSON.stringify({ url: msg.url, title: msg.title || '', images: msg.images || [], video: !!msg.video, text: msg.text || '' }) })
       .then((j) => reply(j)).catch((e) => reply({ ok: false, error: e.message }));
     return true;
   }
@@ -182,6 +182,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 async function injectOpenTabs() {
   for (const t of await chrome.tabs.query({ url: ['https://www.tiktok.com/*', 'https://www.youtube.com/*', 'https://www.instagram.com/*'] })) {
     try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-save.js'] }); } catch (e) { /* ignore */ }
+  }
+  for (const t of await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] })) {
+    try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-save-x.js'] }); } catch (e) { /* ignore */ }
   }
   const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
   for (const t of tabs) {
