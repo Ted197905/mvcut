@@ -67,6 +67,10 @@
     setTimeout(() => fetchSched(false), 4000);
     setInterval(() => fetchSched(false), 60000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchSched(false); });
+    // content.js saw a schedule being made, edited or deleted (X's own requests are not visible here)
+    window.addEventListener('message', (e) => {
+      if (e.source === window && e.data && e.data.__mvx === 'sched-refresh') fetchSched(true);
+    });
   }
 
   if (window.__mvxHook) return;

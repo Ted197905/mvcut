@@ -153,9 +153,9 @@
         if (!h || !h.trim() || h === last) return;
         last = h;
         const cur = document.getElementById('xwSide');
-        const top = cur.querySelector('.xw-list')?.scrollTop || 0;
+        const top = cur.querySelector('.xw-box.xw-list')?.scrollTop || 0;
         cur.outerHTML = h;
-        const list = document.querySelector('#xwSide .xw-list');
+        const list = document.querySelector('#xwSide .xw-box.xw-list');
         if (list) list.scrollTop = top;
       })
       .catch(() => {})

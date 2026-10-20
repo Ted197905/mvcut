@@ -43,6 +43,22 @@
     if (e.data.__mvx === 'scheduled' && Array.isArray(e.data.items)) sendScheduled(e.data.items, 0);
   });
 
+  // X's requests can't be watched (the app keeps its own fetch), so a scheduling action is
+  // recognized by the button pressed: post/schedule button, delete confirmation, or opening the list.
+  const askSched = () => window.postMessage({ __mvx: 'sched-refresh' }, location.origin);
+  document.addEventListener('click', (e) => {
+    const b = e.target && e.target.closest && e.target.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="confirmationSheetConfirm"], [data-testid="scheduledConfirmationPrimaryAction"]');
+    if (!b) return;
+    setTimeout(askSched, 2500);
+    setTimeout(askSched, 7000);
+  }, true);
+  let schedPage = false;
+  setInterval(() => {
+    const on = location.pathname.startsWith('/compose/post/unsent/scheduled');
+    if (on && !schedPage) askSched();
+    schedPage = on;
+  }, 1000);
+
   function sendScheduled(items, tries) {
     const v = viewerHandle();
     if (!v) { if (tries < 10) setTimeout(() => sendScheduled(items, tries + 1), 2000); return; } // sidebar not rendered yet
