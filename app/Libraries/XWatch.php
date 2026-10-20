@@ -420,6 +420,14 @@ class XWatch
             return $res;
         }
         $p = is_array($j['profile'] ?? null) ? $j['profile'] : [];
+        // When the site's own X account is locked or rate-limited it answers "exists: false" with an
+        // error (the page then shows "The string did not match the expected pattern." for a while).
+        // That says nothing about the watched account, so it is a failed check, not a missing account.
+        $upErr = (string) ($j['raw']['profile']['error'] ?? $p['error'] ?? '');
+        if ($upErr !== '' || ($j['raw']['tests'] ?? 'x') === null && empty($p['exists'])) {
+            $res['error'] = 'banchecker 장애: ' . ($upErr !== '' ? mb_substr($upErr, 0, 120) : '검사 결과 없음');
+            return $res;
+        }
         $res['ok']      = true;
         $res['profile'] = ['exists' => (bool) ($p['exists'] ?? false), 'suspended' => ! empty($p['suspended']),
                            'protected' => ! empty($p['protected']), 'has_tweets' => (bool) ($p['hasTweets'] ?? false)];
@@ -463,6 +471,11 @@ class XWatch
     {
         if (empty($j['ok'])) return ['error', '검사 실패: ' . ($j['error'] ?? '알 수 없음')];
         $p = $j['profile'] ?? [];
+        // "account missing" with every test inconclusive is the checker failing, not a verdict
+        $allUnknown = ! array_filter(array_keys(self::TESTS), static fn ($k) => ($j[$k]['ban'] ?? null) !== null);
+        if (isset($p['exists']) && ! $p['exists'] && $allUnknown && ($j['source'] ?? '') !== 'probe') {
+            return ['error', '검사 실패: ' . ($j['source'] ?? '') . ' 결과 불확실 (계정 없음 + 모든 항목 판정 불가)'];
+        }
         if (isset($p['exists']) && ! $p['exists']) return ['banned', '계정이 존재하지 않음'];
         if (! empty($p['suspended'])) return ['banned', '계정 정지됨'];
         if (! empty($p['protected'])) return ['error', '비공개 계정이라 검사 불가'];
