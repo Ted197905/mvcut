@@ -117,6 +117,11 @@ class MediaSupport
             $r['fallback'] = 'xprobe';
             if ($r['code'] !== 0) $r['stderr'] = "X 로그인 쿠키가 거부되어 검사용 부계정 쿠키로 다시 시도했습니다.\n" . $r['stderr'];
         }
+        // some public reels give yt-dlp an unparsable page when logged in but parse fine logged out
+        if ($platform === 'facebook' && $c && $r['code'] !== 0 && str_contains($r['stderr'], 'Cannot parse data')) {
+            $r = Ffmpeg::run($args, $timeout);
+            $r['fallback'] = 'nocookie';
+        }
         return $r;
     }
 

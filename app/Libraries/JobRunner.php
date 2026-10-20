@@ -525,7 +525,7 @@ class JobRunner
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
         $r = MediaSupport::ytdlpRun($args, $platform, 900);
-        if (! empty($r['fallback'])) $log('X cookies rejected; used the probe account cookies');
+        if (! empty($r['fallback'])) $log($r['fallback'] === 'nocookie' ? 'Facebook page unparsable when logged in; retried without cookies' : 'X cookies rejected; used the probe account cookies');
         $files = glob($dir . '/original.*') ?: [];
         // In a carousel our list order is not the slide order, so the item we asked for can
         // be one of the photos. Ask the post which slide actually holds a video and retry.
