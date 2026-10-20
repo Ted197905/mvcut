@@ -186,6 +186,9 @@ async function injectOpenTabs() {
   for (const t of await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] })) {
     try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-save-x.js'] }); } catch (e) { /* ignore */ }
   }
+  for (const t of await chrome.tabs.query({ url: ['https://www.facebook.com/*'] })) {
+    try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-save-fb.js'] }); } catch (e) { /* ignore */ }
+  }
   const tabs = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
   for (const t of tabs) {
     try {

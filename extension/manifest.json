@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MV Cut",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "MV Cut 라이브러리 영상을 X 작성 창에 올려 두고(Send to X), 내 X 게시 간격과 서치밴 검사 결과를 알려 주며, TikTok에서 SAVE 버튼으로 영상을 라이브러리에 담습니다.",
   "icons": {
     "16": "icon16.png",
@@ -21,7 +21,8 @@
     "https://twitter.com/*",
     "https://www.tiktok.com/*",
     "https://www.youtube.com/*",
-    "https://www.instagram.com/*"
+    "https://www.instagram.com/*",
+    "https://www.facebook.com/*"
   ],
   "background": {
     "service_worker": "sw.js"
@@ -90,6 +91,15 @@
       ],
       "js": [
         "content-save-x.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.facebook.com/*"
+      ],
+      "js": [
+        "content-save-fb.js"
       ],
       "run_at": "document_idle"
     }
