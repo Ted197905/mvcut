@@ -54,7 +54,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <div class="xw-list">
         <?php foreach ($sc['items'] as $p): ?>
           <div class="xw-item<?= $p['danger'] ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>">
-            <span class="t"><b><?= esc(XWatch::kst($p['at'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['at'], 'n/j')) ?></i></span>
+            <span class="t"><b><?= esc(XWatch::kst($p['at'], 'h:i A')) ?></b><i><?= esc(XWatch::kst($p['at'], 'n/j')) ?></i></span>
             <span class="b">
               <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small title="직전 게시(예약 포함)와의 간격">간격 <?= esc($gapTxt($p['gap'])) ?></small></span>
               <span class="x"><?= $p['text'] !== '' ? esc($p['text']) : '(미디어)' ?><?= $p['media'] ? ' · 미디어 ' . (int) $p['media'] : '' ?></span>

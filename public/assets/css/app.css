@@ -633,3 +633,4 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .xw-post.danger .xw-gap, .xw-item.danger small { color: var(--red); font-weight: 700; }
 .xw-sched .xw-list { min-height: 0; flex: none; max-height: 220px; margin: 0 -12px; }
 .xw-sched .xw-row a { color: inherit; font-weight: 600; }
+.xw-sched .xw-item .t { flex-basis: auto; white-space: nowrap; }
