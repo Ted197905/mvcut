@@ -295,13 +295,31 @@
     let el = jq.rows.get(j.id);
     if (!el) {
       el = document.createElement('div'); el.className = 'progress-item';
-      el.innerHTML = '<div><span class="name"></span> <span class="muted small kind"></span> <span class="muted small pct"></span></div><div class="bar"><i></i></div>';
+      el.innerHTML = '<div><span class="name"></span> <span class="muted small kind"></span> <span class="muted small pct"></span> <span class="jq-act"></span></div><div class="bar"><i></i></div>';
       const p = jqParams(j);
       el.querySelector('.name').textContent = j.title || p.title || p.url || ('미디어 ' + j.media_id);
       el.querySelector('.kind').textContent = '· ' + jqLabel(j);
       $('jqList').append(el); jq.rows.set(j.id, el);
     }
     return el;
+  }
+  // failed row: message plus 재시도 / 삭제
+  function jqFailed(el, id, error) {
+    el.classList.add('fail');
+    el.querySelector('.pct').textContent = '실패' + (error ? ': ' + String(error).slice(0, 160) : '');
+    const act = el.querySelector('.jq-act');
+    act.innerHTML = '<button type="button" class="linkbtn jq-retry">재시도</button> <button type="button" class="linkbtn jq-dismiss">삭제</button>';
+    const call = async (what) => {
+      act.querySelectorAll('button').forEach(b => b.disabled = true);
+      try {
+        const r = await fetch(base + 'api/jobs/' + id + '/' + what, { method: 'POST', headers: hdr });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        el.remove(); jq.rows.delete(id);
+        if (what === 'retry') { clearTimeout(jq.timer); jqPoll(); }
+      } catch (e) { act.querySelectorAll('button').forEach(b => b.disabled = false); alert('처리하지 못했습니다: ' + e.message); }
+    };
+    act.querySelector('.jq-retry').addEventListener('click', () => call('retry'));
+    act.querySelector('.jq-dismiss').addEventListener('click', () => call('dismiss'));
   }
   async function jqPoll() {
     let active = [];
@@ -312,11 +330,19 @@
     active = active.filter(j => !ownImports.has(+j.id));
     for (const id of ownImports) { const el = jq.rows.get(id); if (el) { el.remove(); jq.rows.delete(id); } }
     const ids = new Set(active.map(j => +j.id));
-    active.forEach((j, i) => {
+    const live = active.filter(j => j.status !== 'failed');
+    live.forEach((j, i) => {
       const el = jqRow({ ...j, id: +j.id });
       const running = j.status === 'running';
       el.querySelector('.pct').textContent = running ? (+j.progress || 0) + '%' : '대기 ' + (i + 1) + '번째';
       el.querySelector('.bar i').style.width = (running ? +j.progress || 0 : 0) + '%';
+    });
+    // failed jobs stay until retried or dismissed (also after a reload)
+    active.filter(j => j.status === 'failed').forEach(j => {
+      const el = jqRow({ ...j, id: +j.id });
+      if (el.dataset.end) return;
+      el.dataset.end = '1';
+      jqFailed(el, +j.id, j.error);
     });
     // rows that left the active list have finished or failed
     for (const [id, el] of jq.rows) {
@@ -334,16 +360,17 @@
           }
           el.querySelector('.pct').innerHTML = '완료' + (j.result_media_id ? ' · <a href="' + base + 'library/' + (+j.result_media_id) + '">결과 보기</a>' : '');
         } else {
-          el.classList.add('fail'); el.querySelector('.pct').textContent = '실패' + (j.error ? ': ' + j.error.slice(0, 120) : '');
+          jqFailed(el, id, j.error);
         }
       } catch (e) {}
       $('jqReload').hidden = false;
     }
     $('jobQueue').hidden = jq.rows.size === 0;
-    const run = active.filter(j => j.status === 'running').length;
-    $('jqCount').textContent = active.length ? '진행 ' + run + ' · 대기 ' + (active.length - run) : '모두 끝났습니다';
+    const run = live.filter(j => j.status === 'running').length;
+    const failed = active.length - live.length;
+    $('jqCount').textContent = (live.length ? '진행 ' + run + ' · 대기 ' + (live.length - run) : '모두 끝났습니다') + (failed ? ' · 실패 ' + failed : '');
     clearTimeout(jq.timer);
-    jq.timer = setTimeout(jqPoll, active.length ? 2000 : (document.hidden ? 15000 : 4000));
+    jq.timer = setTimeout(jqPoll, live.length ? 2000 : (document.hidden ? 15000 : 4000));
   }
   $('jqReload').addEventListener('click', () => location.reload());
   jqPoll();

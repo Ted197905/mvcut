@@ -620,3 +620,10 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
   .yt-sub .fmts { width: 100%; }
   .yt-sub .fmts .btn { flex: 1; }
 }
+
+/* job queue: failed row actions */
+.progress-item .jq-act { margin-left: 6px; white-space: nowrap; }
+.progress-item .jq-act .linkbtn { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 13px; color: var(--blue); }
+.progress-item .jq-act .linkbtn:hover { text-decoration: underline; }
+.progress-item .jq-act .linkbtn:disabled { opacity: .5; cursor: default; }
+.progress-item.fail .bar i { background: var(--red); width: 100% !important; opacity: .5; }
