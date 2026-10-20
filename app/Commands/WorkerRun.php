@@ -15,6 +15,9 @@ class WorkerRun extends BaseCommand
     protected $description = 'Process queued media jobs (ffmpeg). Use --once to process a single job and exit.';
     protected $options     = ['--once' => 'Process at most one job then exit', '--sleep' => 'Idle poll interval seconds (default 2)'];
 
+    /** Seconds between two imports from the same platform. */
+    private const IMPORT_GAP = 5;
+
     public function run(array $params)
     {
         $once   = array_key_exists('once', $params);
@@ -24,11 +27,23 @@ class WorkerRun extends BaseCommand
         $log('worker started (pid ' . getmypid() . ')');
         $nextCleanup = time() + 300;
         $nextXWatch  = time() + 20;
+        $lastImport  = ['platform' => '', 'at' => 0];
         while (true) {
             $job = $runner->claim();
             if ($job) {
                 $log("job {$job['id']} ({$job['type']}) media {$job['media_id']}");
+                // consecutive downloads from the same site are spaced out a little (rate limits)
+                if ($job['type'] === 'import') {
+                    $platform = (string) (json_decode((string) $job['params'], true)['platform'] ?? '');
+                    $wait = self::IMPORT_GAP - (time() - $lastImport['at']);
+                    if ($platform !== '' && $platform === $lastImport['platform'] && $wait > 0) {
+                        $log("waiting {$wait}s before the next {$platform} download");
+                        sleep($wait);
+                    }
+                    $lastImport = ['platform' => $platform, 'at' => time()];
+                }
                 $runner->run($job, $log);
+                if ($job['type'] === 'import') $lastImport['at'] = time();
                 if ($once) return;
                 continue;
             }
