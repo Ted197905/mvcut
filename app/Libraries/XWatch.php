@@ -126,7 +126,8 @@ class XWatch
             ->whereIn('kind', $plain)->orderBy('posted_at', 'DESC')->limit(1)->get()->getRowArray() : null;
         $prevPlain = $beforePlain ? strtotime($beforePlain['posted_at'] . ' UTC') : null;
 
-        $gapMin = max(0, (int) $watch['gap_min']);
+        $gapMin  = max(0, (int) $watch['gap_min']);
+        $gapWarn = min($gapMin, max(0, (int) ($watch['gap_warn'] ?? 10)));
         $prev   = $before ? strtotime($before['posted_at'] . ' UTC') : null;
         $times  = [];
         $posts  = [];
@@ -140,7 +141,7 @@ class XWatch
             $gapPlain = ($isPlain && $prevPlain) ? intdiv($ts - $prevPlain, 60) : null;
             $posts[] = ['id' => $r['tweet_id'], 'kind' => $r['kind'], 'ts' => $ts, 'text' => $r['text'],
                         'reply_to' => $r['reply_to'], 'gap' => $gap, 'gap_noquote' => $gapPlain,
-                        'short' => $gap !== null && $gap < $gapMin, 'counted' => $counted];
+                        'short' => $gap !== null && $gap < $gapMin, 'danger' => $gap !== null && $gap < $gapWarn, 'counted' => $counted];
             if ($counted) { $prev = $ts; $times[] = $ts; }
             if ($isPlain) $prevPlain = $ts;
         }
@@ -168,8 +169,10 @@ class XWatch
         if ($last && $now - $last < $gapMin * 60) $warn[] = sprintf('직전 게시 후 %d분 - %d분 간격 권장', intdiv($now - $last, 60), $gapMin);
         if ($hour >= $hourMax) $warn[] = sprintf('최근 1시간 %d개 (기준 %d개 미만)', $hour, $hourMax);
         if ($day >= $dayMax) $warn[] = sprintf('최근 24시간 %d개 (기준 %d개 미만)', $day, $dayMax);
-        $short = count(array_filter($posts, static fn ($p) => $p['short']));
-        if ($short) $warn[] = sprintf('최근 %d시간 동안 %d분 미만 간격 %d회', $hours, $gapMin, $short);
+        $danger = count(array_filter($posts, static fn ($p) => $p['danger']));
+        $short  = count(array_filter($posts, static fn ($p) => $p['short'])) - $danger;
+        if ($danger) $warn[] = sprintf('최근 %d시간 동안 %d분 미만 간격 %d회 (경고)', $hours, $gapWarn, $danger);
+        if ($short) $warn[] = sprintf('최근 %d시간 동안 %d~%d분 간격 %d회', $hours, $gapWarn, $gapMin, $short);
 
         $replyHour = count(array_filter($replyTimes, static fn ($t) => $t > $now - 3600));
         return ['posts' => array_reverse($posts), 'hour' => $hour, 'day' => $day, 'last' => $last, 'reply_hour' => $replyHour,
@@ -480,7 +483,7 @@ class XWatch
         return [
             'handle'   => $watch['handle'],
             'enabled'  => (bool) $watch['enabled'],
-            'limits'   => ['gap_min' => (int) $watch['gap_min'], 'hour_max' => (int) $watch['hour_max'], 'day_max' => (int) $watch['day_max'],
+            'limits'   => ['gap_min' => (int) $watch['gap_min'], 'gap_warn' => (int) ($watch['gap_warn'] ?? 10), 'hour_max' => (int) $watch['hour_max'], 'day_max' => (int) $watch['day_max'],
                            'count_replies' => ! empty($watch['count_replies'])],
             'probe'    => self::probeReady(),
             'check'    => $c ? ['id' => (int) $c['id'], 'status' => $c['status'], 'summary' => $c['summary'], 'at' => $c['ts'],

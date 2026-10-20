@@ -24,6 +24,7 @@ function timeline(st, posts, limits) {
     if (!counts) { p.gap = null; p.dim = true; continue; }
     p.gap = prev ? Math.floor((p.ts - prev) / 60) : null;
     p.short = p.gap != null && p.gap < limits.gap_min;
+    p.danger = p.gap != null && p.gap < (limits.gap_warn != null ? limits.gap_warn : 10);
     prev = p.ts;
   }
   return { posts: list.reverse(), warnings: [] };
@@ -35,7 +36,7 @@ async function render() {
   if (!s.token) { $('setup').hidden = false; $('main').hidden = true; return; }
   $('setup').hidden = true; $('main').hidden = false;
   $('handle').textContent = st && st.handle ? '@' + st.handle : '';
-  const limits = (st && st.limits) || { gap_min: 15, hour_max: 4, day_max: 30, count_replies: false };
+  const limits = (st && st.limits) || { gap_min: 15, gap_warn: 10, hour_max: 4, day_max: 30, count_replies: false };
 
   const c = st && st.check;
   if (!c) { badge($('checkBadge'), 'none', '기록 없음'); $('checkSummary').textContent = st && !st.probe ? '서버에 검사용 부계정 쿠키가 없습니다.' : ''; }
@@ -71,7 +72,7 @@ async function render() {
   if (!tl.posts.length) box.innerHTML = '<p class="muted small" style="padding:10px 12px;margin:0">최근 48시간 기록 없음. x.com에서 내 프로필의 게시물/답글 탭을 열면 기록됩니다.</p>';
   for (const p of tl.posts.slice(0, 60)) {
     const row = document.createElement('a');
-    row.className = 'post' + (p.short ? ' short' : p.gap != null ? ' kept' : '') + (p.dim || p.counted === false ? ' dim' : '');
+    row.className = 'post' + (p.danger ? ' danger' : p.short ? ' short' : p.gap != null ? ' kept' : '') + (p.dim || p.counted === false ? ' dim' : '');
     row.href = 'https://x.com/' + (st && st.handle ? st.handle : 'i') + '/status/' + p.id;
     row.target = '_blank';
     row.innerHTML = '<span class="t"><b></b><i></i></span><span class="b"><span class="m"><em></em><small></small></span><span class="x"></span></span>';

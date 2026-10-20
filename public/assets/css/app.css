@@ -455,7 +455,7 @@ main.wide.settings.xwatch { max-width: 860px; }
 .xw-gap { font-size: 12px; color: var(--label2); margin-left: auto; font-variant-numeric: tabular-nums; }
 .xw-post.short .xw-gap { color: #b26a00; font-weight: 600; }
 .xw-text { display: block; font-size: 14px; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.xw-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.xw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .xw-check { display: flex !important; gap: 8px; align-items: center; font-size: 14px !important; color: var(--label) !important; margin: 4px 0 8px !important; }
 @media (max-width: 640px) {
   .xw-tests, .xw-grid { grid-template-columns: 1fr; }
@@ -627,3 +627,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .progress-item .jq-act .linkbtn:hover { text-decoration: underline; }
 .progress-item .jq-act .linkbtn:disabled { opacity: .5; cursor: default; }
 .progress-item.fail .bar i { background: var(--red); width: 100% !important; opacity: .5; }
+
+/* posts below the warning gap */
+.xw-post.danger, .xw-item.danger { background: var(--red-tint); }
+.xw-post.danger .xw-gap, .xw-item.danger small { color: var(--red); font-weight: 700; }

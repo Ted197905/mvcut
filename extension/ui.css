@@ -35,6 +35,8 @@ a { color: var(--blue); text-decoration: none; }
 .post.dim .t, .post.dim .x { opacity: .6; }
 .post.kept { background: color-mix(in srgb, var(--blue) 12%, transparent); }
 .post.kept small { color: var(--blue); font-weight: 600; }
+.post.danger { background: color-mix(in srgb, var(--red) 12%, transparent); }
+.post.danger small { color: var(--red); font-weight: 700; }
 .post.short { background: color-mix(in srgb, #ff9f0a 10%, transparent); }
 .post .t { flex: 0 0 40px; text-align: center; font-variant-numeric: tabular-nums; }
 .post .t b { display: block; font-size: 13px; }

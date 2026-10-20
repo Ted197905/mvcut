@@ -98,7 +98,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php else: ?>
       <div class="xw-posts">
         <?php foreach ($tl['posts'] as $p): ?>
-          <div class="xw-post<?= $p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '') ?><?= $p['counted'] ? '' : ' dim' ?>">
+          <div class="xw-post<?= ! empty($p['danger']) ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>">
             <div class="xw-time"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><span><?= esc(XWatch::kst($p['ts'], 'm-d')) ?></span></div>
             <div class="xw-body">
               <div class="xw-meta">
@@ -136,7 +136,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <div class="field"><label for="handle">감시할 X 아이디</label>
         <input class="input" id="handle" name="handle" value="<?= esc($w['handle']) ?>" placeholder="blackout_kr" maxlength="16" required></div>
       <div class="xw-grid">
-        <div class="field"><label for="gap_min">최소 간격 (분)</label><input class="input" type="number" id="gap_min" name="gap_min" min="0" max="720" value="<?= (int) $w['gap_min'] ?>"></div>
+        <div class="field"><label for="gap_min">권장 간격 (분, 미만이면 주황)</label><input class="input" type="number" id="gap_min" name="gap_min" min="0" max="720" value="<?= (int) $w['gap_min'] ?>"></div>
+        <div class="field"><label for="gap_warn">경고 간격 (분, 미만이면 빨강)</label><input class="input" type="number" id="gap_warn" name="gap_warn" min="0" max="720" value="<?= (int) ($w['gap_warn'] ?? 10) ?>"></div>
         <div class="field"><label for="hour_max">1시간 경고 개수</label><input class="input" type="number" id="hour_max" name="hour_max" min="1" max="100" value="<?= (int) $w['hour_max'] ?>"></div>
         <div class="field"><label for="day_max">24시간 경고 개수</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
       </div>
