@@ -243,13 +243,16 @@ class XWatch
             $hold = self::restricted($uid);
             // push the next run first so a crash inside the check cannot make it loop
             self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $hold ? self::nextHour() : self::nextSlot())]);
-            $c = self::check($w, $hold ? 'probe' : null);
-            $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}" . ($hold ? ' (restricted mode)' : ''));
+            // a fresh restriction verdict: the checkers that have not looked yet go first, 10 minutes apart
+            $v   = $hold ? null : self::verification($uid);
+            $src = $hold ? 'probe' : ($v && $v['pending'] ? $v['pending'][0] : null);
+            $c = self::check($w, $src);
+            $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}" . ($hold ? ' (restricted mode)' : ($src ? ' (cross-check)' : '')));
             // entering or leaving restricted mode changes the schedule right away
             $now = self::restricted($uid);
             if ($now !== $hold) {
                 self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot())]);
-                $log("xwatch @{$w['handle']}: " . ($now ? 'restriction detected, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
+                $log("xwatch @{$w['handle']}: " . ($now ? 'restriction confirmed by every checker, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
                 if (Telegram::ready($uid)) {
                     $err = Telegram::send($uid, self::alertText($w, $c, $now));
                     $log('xwatch telegram: ' . ($err ?? 'sent'));
@@ -259,16 +262,58 @@ class XWatch
     }
 
     /**
-     * Restricted mode: the latest conclusive check (ok or banned, failures skipped) found a
-     * restriction. Then only the probe account checks, once an hour, until it reports clear.
-     * Without a usable probe account the normal rotation keeps running.
+     * Restricted mode (hourly probe-only checks). A restriction found by one checker is first
+     * cross-checked: the 10-minute rotation keeps going until every established checker (probe,
+     * yuzurisa, banchecker; trial checkers only collect data) has been tried since the first
+     * restricted verdict. Only if none of them answered "clear" and at least two said
+     * "restricted" does the hourly probe-only mode start. Any "clear" from an established
+     * checker ends the episode. Without a usable probe account the rotation keeps running.
      */
     public static function restricted(int $userId): bool
     {
         if (! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py'))) return false;
-        $row = self::db()->table('x_checks')->select('status')->where('user_id', $userId)->where('status !=', 'error')
-            ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(1)->get()->getRowArray();
-        return ($row['status'] ?? '') === 'banned';
+        $p = self::verification($userId);
+        return $p !== null && $p['confirmed'];
+    }
+
+    /** Established (non-trial) checkers that can run right now. */
+    public static function trustedSources(): array
+    {
+        $out = [];
+        foreach (self::ROTATION as $s) {
+            if (in_array($s, self::TRIAL, true)) continue;
+            if ($s === 'probe' && ! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py'))) continue;
+            $out[] = $s;
+        }
+        return $out;
+    }
+
+    /**
+     * State of the current restriction episode from the established checkers' log, or null when
+     * the latest conclusive established verdict is "clear":
+     * ['start' => unix, 'banned' => [source...], 'tried' => [source...], 'pending' => [source...], 'confirmed' => bool]
+     */
+    public static function verification(int $userId): ?array
+    {
+        $rows = self::db()->table('x_checks')->select('status, result, checked_at')->where('user_id', $userId)
+            ->where('checked_at >=', gmdate('Y-m-d H:i:s', time() - 3 * 86400))
+            ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(500)->get()->getResultArray();
+        $episode = [];
+        foreach ($rows as $r) {
+            $src = json_decode((string) $r['result'], true)['source'] ?? 'probe';
+            if (in_array($src, self::TRIAL, true)) continue;
+            if ($r['status'] === 'ok') break;                     // the last "clear" ends the look-back
+            $episode[] = ['src' => $src, 'status' => $r['status'], 'ts' => strtotime($r['checked_at'] . ' UTC')];
+        }
+        $banned = array_filter($episode, static fn ($e) => $e['status'] === 'banned');
+        if ($banned === []) return null;
+        $start  = min(array_column($banned, 'ts'));
+        $since  = array_filter($episode, static fn ($e) => $e['ts'] >= $start);
+        $tried  = array_values(array_unique(array_column($since, 'src')));
+        $bsrc   = array_values(array_unique(array_column(array_filter($since, static fn ($e) => $e['status'] === 'banned'), 'src')));
+        $pending = array_values(array_diff(self::trustedSources(), $tried));
+        return ['start' => $start, 'banned' => $bsrc, 'tried' => $tried, 'pending' => $pending,
+                'confirmed' => $pending === [] && count($bsrc) >= 2];
     }
 
     /** Telegram text for entering ($restricted) or leaving restricted mode. */
@@ -279,8 +324,10 @@ class XWatch
         $now = strtotime($c['checked_at'] . ' UTC');
         $fmt = 'Y-m-d H:i';
         if ($restricted) {
-            $start = self::restrictionStart((int) $w['user_id'], $now) ?? $now;
-            return "[제한 감지] @{$w['handle']}\n{$c['summary']} ({$src})\n"
+            $v = self::verification((int) $w['user_id']);
+            $start = $v['start'] ?? self::restrictionStart((int) $w['user_id'], $now) ?? $now;
+            $who = $v ? implode(', ', array_map(static fn ($k) => self::SOURCES[$k] ?? $k, $v['banned'])) : $src;
+            return "[제한 감지] @{$w['handle']}\n{$c['summary']}\n교차 검사에서 모두 제한: {$who}\n"
                  . '제한 발견 일시: ' . self::kst($start, $fmt) . "\n"
                  . "풀릴 때까지 1시간마다 부계정으로 검사합니다.\n" . site_url('xwatch/checks');
         }
