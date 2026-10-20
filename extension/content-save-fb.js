@@ -105,10 +105,11 @@
   /** Puts a SAVE button right after every "공유하기" of a video post that lacks one. */
   const decorate = () => {
     for (const share of document.querySelectorAll('[role="button"]')) {
-      if (!isShare(share) || share.dataset.mvcutSave) continue;
+      // Facebook re-renders the action bar and can drop the button while keeping the share
+      // element, so look for the button itself rather than marking the share button
+      if (!isShare(share) || share.nextElementSibling?.classList.contains('mvcut-fbsave')) continue;
       const post = postOf(share);
       if (!post) continue;
-      share.dataset.mvcutSave = '1';
       const btn = document.createElement('button');
       // reels stack their buttons in a narrow column
       const col = share.parentElement && getComputedStyle(share.parentElement).flexDirection === 'column';
