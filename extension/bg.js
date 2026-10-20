@@ -162,6 +162,11 @@ async function addPosts(list) {
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'posts') { addPosts(msg.posts || []); return false; }
+  if (msg && msg.type === 'scheduled') {
+    api('/xapi/scheduled', { method: 'POST', body: JSON.stringify({ items: msg.items || [], viewer: msg.viewer || '' }) })
+      .catch((e) => set({ lastError: String(e.message || e) }));
+    return false;
+  }
   // SAVE button on a post page: MV Cut downloads the link into the library
   if (msg && msg.type === 'save-post') {
     api('/xapi/import', { method: 'POST', body: JSON.stringify({ url: msg.url, title: msg.title || '', images: msg.images || [], video: !!msg.video, text: msg.text || '' }) })

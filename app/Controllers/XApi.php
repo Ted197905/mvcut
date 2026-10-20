@@ -49,6 +49,19 @@ class XApi extends BaseController
         return $this->response->setJSON(['saved' => $new] + XWatch::status($w));
     }
 
+    /** POST /xapi/scheduled  {"viewer": "...", "items":[{id,at,kind,text,media,thumb}]} - the full list, replaces the stored one. */
+    public function scheduled()
+    {
+        $w = $this->watch();
+        if (! $w) return $this->deny();
+        $body = json_decode((string) $this->request->getBody(), true) ?: [];
+        if ($w['handle'] === '' || strcasecmp(XWatch::cleanHandle((string) ($body['viewer'] ?? '')), $w['handle']) !== 0) {
+            return $this->response->setStatusCode(409)->setJSON(['error' => '감시 중인 계정의 목록이 아닙니다.']);
+        }
+        $n = XWatch::saveScheduled($w, is_array($body['items'] ?? null) ? $body['items'] : []);
+        return $this->response->setJSON(['ok' => true, 'saved' => $n]);
+    }
+
     /**
      * POST /xapi/import  {"url": "...", "title": "..."} - the extension's SAVE button on a post page.
      * Queues the same import job the library's "영상 바로 다운" does; a link already in the

@@ -41,6 +41,32 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <a class="btn sm secondary xw-more" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
   </div>
 
+  <?php if (! $compact): $sc = $xw['scheduled'] ?? ['items' => [], 'synced' => null]; ?>
+  <div class="xw-box xw-sched">
+    <div class="xw-row"><a href="https://x.com/compose/post/unsent/scheduled" target="_blank" rel="noopener">예약 게시</a>
+      <span class="ck-badge <?= $sc['items'] ? 'ok' : 'none' ?>"><?= count($sc['items']) ?>개</span>
+    </div>
+    <?php if ($sc['synced'] === null): ?>
+      <p class="muted small" style="margin:0">x.com을 열면 확장이 예약 목록을 가져옵니다.</p>
+    <?php elseif (! $sc['items']): ?>
+      <p class="muted small" style="margin:0">예약된 게시물 없음 · <?= $ago($sc['synced']) ?> 전 확인</p>
+    <?php else: ?>
+      <div class="xw-list">
+        <?php foreach ($sc['items'] as $p): ?>
+          <div class="xw-item<?= $p['danger'] ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>">
+            <span class="t"><b><?= esc(XWatch::kst($p['at'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['at'], 'n/j')) ?></i></span>
+            <span class="b">
+              <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small title="직전 게시(예약 포함)와의 간격">간격 <?= esc($gapTxt($p['gap'])) ?></small></span>
+              <span class="x"><?= $p['text'] !== '' ? esc($p['text']) : '(미디어)' ?><?= $p['media'] ? ' · 미디어 ' . (int) $p['media'] : '' ?></span>
+            </span>
+          </div>
+        <?php endforeach ?>
+      </div>
+      <p class="muted small" style="margin:6px 0 0"><?= $ago($sc['synced']) ?> 전 확인</p>
+    <?php endif ?>
+  </div>
+  <?php endif ?>
+
   <div class="xw-box">
     <div class="xw-row"><span>다음 게시</span>
       <span class="ck-badge <?= $tl['can_post'] ? 'ok' : 'warn' ?>"><?= $tl['can_post'] ? '지금 가능' : esc(XWatch::kst($tl['next_ok'], 'H:i')) . ' 이후 (' . (int) ceil(($tl['next_ok'] - time()) / 60) . '분)' ?></span>

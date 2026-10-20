@@ -37,9 +37,19 @@
 
   // from hook.js (page world)
   window.addEventListener('message', (e) => {
-    if (e.source !== window || !e.data || e.data.__mvx !== 'posts') return;
-    queue(e.data.posts || [], 'api');
+    if (e.source !== window || !e.data) return;
+    if (e.data.__mvx === 'posts') queue(e.data.posts || [], 'api');
+    // the list belongs to whoever is signed in; only the watched account's goes to MV Cut
+    if (e.data.__mvx === 'scheduled' && Array.isArray(e.data.items)) sendScheduled(e.data.items, 0);
   });
+
+  function sendScheduled(items, tries) {
+    const v = viewerHandle();
+    if (!v) { if (tries < 10) setTimeout(() => sendScheduled(items, tries + 1), 2000); return; } // sidebar not rendered yet
+    if (!handle) handle = v;
+    if (v.toLowerCase() !== handle.toLowerCase()) return;
+    live(() => chrome.runtime.sendMessage({ type: 'scheduled', items: items.slice(0, 100), viewer: v }).catch(() => {}));
+  }
 
   function viewerHandle() {
     const a = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');

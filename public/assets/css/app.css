@@ -631,3 +631,5 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 /* posts below the warning gap */
 .xw-post.danger, .xw-item.danger { background: var(--red-tint); }
 .xw-post.danger .xw-gap, .xw-item.danger small { color: var(--red); font-weight: 700; }
+.xw-sched .xw-list { min-height: 0; flex: none; max-height: 220px; margin: 0 -12px; }
+.xw-sched .xw-row a { color: inherit; font-weight: 600; }

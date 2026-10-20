@@ -630,6 +630,53 @@ class XWatch
         return ['ok', $unknown ? '제한 없음 (일부 검사 불가: ' . implode(', ', $unknown) . ')' : '제한 없음'];
     }
 
+    /** Replaces the stored scheduled-post list with what the extension read from X. */
+    public static function saveScheduled(array $watch, array $items): int
+    {
+        $out = [];
+        foreach (array_slice($items, 0, 100) as $i) {
+            if (! is_array($i)) continue;
+            $id = (string) ($i['id'] ?? '');
+            $at = (int) ($i['at'] ?? 0);
+            if (! preg_match('/^\d{1,25}$/', $id) || $at <= 0) continue;
+            $thumb = (string) ($i['thumb'] ?? '');
+            $out[] = ['id' => $id, 'at' => $at,
+                      'kind' => in_array($i['kind'] ?? '', self::KINDS, true) ? $i['kind'] : 'post',
+                      'text' => mb_substr((string) ($i['text'] ?? ''), 0, 300),
+                      'media' => max(0, (int) ($i['media'] ?? 0)),
+                      'thumb' => preg_match('#^https://pbs\.twimg\.com/#', $thumb) ? $thumb : ''];
+        }
+        usort($out, static fn ($a, $b) => $a['at'] <=> $b['at']);
+        self::update((int) $watch['user_id'], ['scheduled' => json_encode($out, JSON_UNESCAPED_UNICODE),
+                                               'scheduled_at' => gmdate('Y-m-d H:i:s')]);
+        return count($out);
+    }
+
+    /**
+     * Upcoming scheduled posts with the gap to the post before each (the last real post for the
+     * first one), colored by the same thresholds as the timeline.
+     */
+    public static function scheduled(array $watch, ?int $last): array
+    {
+        $synced = $watch['scheduled_at'] ?? null;
+        $list   = json_decode((string) ($watch['scheduled'] ?? ''), true) ?: [];
+        $kinds  = self::countedKinds($watch);
+        $gapMin = max(0, (int) $watch['gap_min']);
+        $gapWarn = min($gapMin, max(0, (int) ($watch['gap_warn'] ?? 10)));
+        $now  = time();
+        $prev = $last;
+        $out  = [];
+        foreach ($list as $i) {
+            if ($i['at'] <= $now) continue; // sent already: it shows up among the posts
+            $counted = in_array($i['kind'], $kinds, true);
+            $gap = ($counted && $prev) ? intdiv($i['at'] - $prev, 60) : null;
+            $out[] = $i + ['gap' => $gap, 'counted' => $counted,
+                           'short' => $gap !== null && $gap < $gapMin, 'danger' => $gap !== null && $gap < $gapWarn];
+            if ($counted) $prev = $i['at'];
+        }
+        return ['items' => $out, 'synced' => $synced ? strtotime($synced . ' UTC') : null];
+    }
+
     /** Payload for the extension popup / badge. */
     public static function status(array $watch): array
     {
@@ -646,6 +693,7 @@ class XWatch
             'next_check' => $watch['next_check_at'] ? strtotime($watch['next_check_at'] . ' UTC') : null,
             'restricted' => self::restricted((int) $watch['user_id']),
             'timeline' => $tl,
+            'scheduled' => self::scheduled($watch, $tl['last'] ?: null),
             'now'      => time(),
         ];
     }
