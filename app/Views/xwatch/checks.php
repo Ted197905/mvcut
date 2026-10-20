@@ -61,7 +61,7 @@ $detail = static function (array $t): string {
           <tr class="xw-detail" data-for="<?= $i ?>" hidden>
             <td colspan="<?= 4 + count($short) ?>">
               <dl class="list">
-                <div class="row"><dt>검사 방법</dt><dd><?= ['yuzurisa' => 'shadowban.yuzurisa.com', 'banchecker' => 'banchecker.org'][$r['source'] ?? ''] ?? ('부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '')) ?></dd></div>
+                <div class="row"><dt>검사 방법</dt><dd><?= ['yuzurisa' => 'shadowban.yuzurisa.com', 'banchecker' => 'banchecker.org', 'xautodm' => 'xautodm.com', 'taishin' => 'taishin-miyamoto.com'][$r['source'] ?? ''] ?? ('부계정' . (! empty($r['probe']) ? ' @' . esc($r['probe']) : '')) ?></dd></div>
                 <?php foreach (XWatch::TESTS as $k => $label): $t = is_array($r[$k] ?? null) ? $r[$k] : []; [$c, $tx] = $badge($t['ban'] ?? null); ?>
                   <div class="row"><dt><?= esc($label) ?></dt><dd><span class="ck-badge <?= $c ?>"><?= $tx === '-' ? '확인 불가' : $tx ?></span>
                     <?php if ($d = $detail($t)): ?> <span class="muted small"><?= esc($d) ?></span><?php endif ?>

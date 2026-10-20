@@ -11,9 +11,14 @@ class XWatch
 {
     public const PROBE = 'xprobe';            // Cookies platform key of the probe account
     public const INTERVAL = 600;              // a check on :00, :10, :20 ... (KST is a whole-hour offset)
-    public const SOURCES  = ['probe' => '부계정', 'yuzurisa' => 'yuzurisa', 'banchecker' => 'banchecker'];
+    public const SOURCES  = ['probe' => '부계정', 'yuzurisa' => 'yuzurisa', 'banchecker' => 'banchecker', 'xautodm' => 'xautodm', 'taishin' => 'taishin'];
+    /** Checkers on trial: their "restricted" verdicts are stored in x_check_diffs, not acted on. */
+    public const TRIAL    = ['xautodm', 'taishin'];
+    private const ROTATION = ['probe', 'yuzurisa', 'banchecker', 'xautodm', 'taishin'];
     private const YUZURISA   = 'https://shadowban-api.yuzurisa.com:444/';
     private const BANCHECKER = 'https://banchecker.org/api/check-twitter?username=';
+    private const XAUTODM    = 'https://xautodm.com/api/shadowban-check';
+    private const TAISHIN    = 'https://taishin-miyamoto.com/ShadowBan/api/?screen_name=';
     private const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
@@ -217,12 +222,12 @@ class XWatch
     }
 
     /**
-     * Checker for the slot that contains $t, rotating every 10 minutes:
-     * :00/:30 probe account, :10/:40 shadowban.yuzurisa.com, :20/:50 banchecker.org.
+     * Checker for the slot that contains $t, rotating every 10 minutes through ROTATION
+     * (probe account, shadowban.yuzurisa.com, banchecker.org, xautodm.com, taishin-miyamoto.com).
      */
     public static function sourceAt(int $t): string
     {
-        $src = ['probe', 'yuzurisa', 'banchecker'][intdiv($t, self::INTERVAL) % 3];
+        $src = self::ROTATION[intdiv($t, self::INTERVAL) % count(self::ROTATION)];
         return $src === 'probe' && ! (self::probeReady() && is_file(ROOTPATH . 'bin/xcheck.py')) ? 'yuzurisa' : $src;
     }
 
@@ -332,6 +337,12 @@ class XWatch
         if ($source === 'banchecker') {
             return self::record($watch, self::banchecker((string) $watch['handle']));
         }
+        if ($source === 'xautodm') {
+            return self::record($watch, self::xautodm((string) $watch['handle']));
+        }
+        if ($source === 'taishin') {
+            return self::record($watch, self::taishin((string) $watch['handle']));
+        }
         $env = [
             'PLAYWRIGHT_BROWSERS_PATH' => rtrim(ROOTPATH, '/') . '/browsers',
             'HOME'                     => rtrim(WRITEPATH, '/'),
@@ -392,14 +403,84 @@ class XWatch
         return $res;
     }
 
-    /** GET returning [http code, decoded JSON or null, curl error]. */
-    private static function getJson(string $url, array $headers): array
+    /**
+     * xautodm.com: POST {handle} -> checks[] with status ok | banned | not_tested (exists,
+     * search_suggestion, search_ban, reply_deboost). Ghost ban is not tested. Results may be cached.
+     */
+    public static function xautodm(string $handle): array
+    {
+        $res = ['ok' => false, 'source' => 'xautodm', 'handle' => $handle];
+        [$code, $j, $err] = self::getJson(self::XAUTODM, ['Content-Type: application/json', 'Origin: https://xautodm.com',
+            'Referer: https://xautodm.com/tools/twitter-shadowban-checker'], json_encode(['handle' => $handle]));
+        if ($code !== 200 || ! is_array($j) || ! is_array($j['checks'] ?? null)) {
+            $res['error'] = 'xautodm ' . ($err !== '' ? $err : 'HTTP ' . $code . (is_array($j) && ! empty($j['error']) ? ' ' . $j['error'] : ''));
+            return $res;
+        }
+        $by = [];
+        foreach ($j['checks'] as $c) $by[(string) ($c['key'] ?? '')] = $c;
+        $ban = static function (?array $c): ?bool {
+            $s = (string) ($c['status'] ?? '');
+            return $s === 'ok' ? false : (in_array($s, ['banned', 'fail', 'failed', 'limited', 'warn', 'warning'], true) ? true : null);
+        };
+        $exists = $ban($by['exists'] ?? null);
+        if ($exists === null) {
+            $res['error'] = 'xautodm: 계정 확인 결과 없음 (' . ($j['verdict'] ?? '') . ')';
+            return $res;
+        }
+        $p = is_array($j['profile'] ?? null) ? $j['profile'] : [];
+        $res['ok']        = true;
+        $res['cached']    = ! empty($j['cached']);
+        $res['profile']   = ['exists' => ! $exists, 'suspended' => false,
+                             'protected' => ! empty($p['protected']), 'has_tweets' => true];
+        $res['search']    = ['ban' => $ban($by['search_ban'] ?? null), 'note' => (string) ($by['search_ban']['detail'] ?? '')];
+        $res['typeahead'] = ['ban' => $ban($by['search_suggestion'] ?? null), 'note' => (string) ($by['search_suggestion']['detail'] ?? '')];
+        $res['ghost']     = ['ban' => null];
+        $res['deboost']   = ['ban' => $ban($by['reply_deboost'] ?? null)];
+        $res['raw']       = $j;
+        return $res;
+    }
+
+    /**
+     * taishin-miyamoto.com/ShadowBan: booleans search_ban, search_suggestion_ban, ghost_ban,
+     * reply_deboosting plus not_found / suspend / protect / no_tweet / error. On not_found the
+     * ban flags are all false, so the flags only count for an account that was found.
+     */
+    public static function taishin(string $handle): array
+    {
+        $res = ['ok' => false, 'source' => 'taishin', 'handle' => $handle];
+        [$code, $j, $err] = self::getJson(self::TAISHIN . rawurlencode($handle), ['Referer: https://taishin-miyamoto.com/ShadowBan/']);
+        if ($code !== 200 || ! is_array($j) || ! array_key_exists('search_ban', $j)) {
+            $res['error'] = 'taishin ' . ($err !== '' ? $err : 'HTTP ' . $code);
+            return $res;
+        }
+        if (! empty($j['error']) || empty($j['user']['id']) && empty($j['not_found'])) {
+            $res['error'] = 'taishin: 검사 오류';
+            return $res;
+        }
+        $res['ok']      = true;
+        $res['profile'] = ['exists' => empty($j['not_found']), 'suspended' => ! empty($j['suspend']),
+                           'protected' => ! empty($j['protect']), 'has_tweets' => empty($j['no_tweet'])];
+        if (! empty($j['not_found']) || ! empty($j['suspend']) || ! empty($j['protect']) || ! empty($j['no_tweet'])) {
+            foreach (['search', 'typeahead', 'ghost', 'deboost'] as $k) $res[$k] = ['ban' => null];
+        } else {
+            $res['search']    = ['ban' => (bool) $j['search_ban']];
+            $res['typeahead'] = ['ban' => (bool) ($j['search_suggestion_ban'] ?? false)];
+            $res['ghost']     = ['ban' => (bool) ($j['ghost_ban'] ?? false)];
+            $res['deboost']   = ['ban' => (bool) ($j['reply_deboosting'] ?? false)];
+        }
+        $res['raw'] = $j;
+        return $res;
+    }
+
+    /** GET (or POST with $post) returning [http code, decoded JSON or null, curl error]. */
+    private static function getJson(string $url, array $headers, ?string $post = null): array
     {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 120, CURLOPT_CONNECTTIMEOUT => 15,
             CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers), CURLOPT_USERAGENT => self::UA,
         ]);
+        if ($post !== null) curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $post]);
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err  = curl_error($ch);
@@ -448,6 +529,20 @@ class XWatch
     private static function record(array $watch, array $j): array
     {
         [$status, $summary] = self::judge($j);
+        // a checker on trial does not get to declare a restriction: keep its verdict for analysis
+        if ($status === 'banned' && in_array($j['source'] ?? '', self::TRIAL, true)) {
+            $ref = self::db()->table('x_checks')->where('user_id', $watch['user_id'])->where('status !=', 'error')
+                ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(1)->get()->getRowArray();
+            self::db()->table('x_check_diffs')->insert([
+                'user_id' => $watch['user_id'], 'handle' => $watch['handle'], 'source' => $j['source'],
+                'summary' => mb_substr($summary, 0, 200), 'result' => json_encode($j, JSON_UNESCAPED_UNICODE),
+                'ref_check_id' => $ref['id'] ?? null, 'ref_source' => $ref ? (json_decode((string) $ref['result'], true)['source'] ?? 'probe') : '',
+                'ref_status' => $ref['status'] ?? '', 'ref_summary' => mb_substr((string) ($ref['summary'] ?? ''), 0, 200),
+                'checked_at' => gmdate('Y-m-d H:i:s'),
+            ]);
+            $status  = 'error';
+            $summary = '미확정: ' . $summary . ' (' . $j['source'] . ' 검증 중, 판정에 반영 안 함)';
+        }
         $row = ['user_id' => $watch['user_id'], 'handle' => $watch['handle'], 'status' => $status,
                 'summary' => mb_substr($summary, 0, 200), 'result' => json_encode($j, JSON_UNESCAPED_UNICODE),
                 'checked_at' => gmdate('Y-m-d H:i:s')];
