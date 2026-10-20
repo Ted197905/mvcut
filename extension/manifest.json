@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MV Cut",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "MV Cut 라이브러리 영상을 X 작성 창에 올려 두고(Send to X), 내 X 게시 간격과 서치밴 검사 결과를 알려 주며, TikTok에서 SAVE 버튼으로 영상을 라이브러리에 담습니다.",
   "icons": {
     "16": "icon16.png",

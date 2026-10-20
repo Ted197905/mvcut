@@ -16,6 +16,7 @@
     .mvcut-fbsave.ok { background: #30a14e; }
     .mvcut-fbsave.bad { background: #d93025; }
     .mvcut-fbsave.dup { background: #8e8e93; }
+    .mvcut-fbsave.col { height: 26px; margin: 6px auto 0; padding: 0 9px; font-size: 11px; line-height: 26px; }
     #mvcutToast { position: fixed; right: 18px; bottom: 60px; z-index: 2147483646; max-width: 320px; padding: 10px 14px; border-radius: 12px;
       background: rgba(28,28,30,.96); color: #fff; font: 500 13px/1.45 system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0,0,0,.35); white-space: pre-line; }`;
   document.getElementById('mvcutFbSaveCss')?.remove();
@@ -70,12 +71,14 @@
   const isShare = (b) => {
     const t = (b.innerText || '').trim();
     const al = b.getAttribute('aria-label') || '';
-    return t === '공유하기' || t === '공유' || t === 'Share' || /^(공유|Share)\b/.test(al);
+    // reels: aria-label "공유, 공유 27회" / "Share, 27 shares" (\b does not match after Hangul)
+    return t === '공유하기' || t === '공유' || t === 'Share' || /^(공유|Share)(,|$)/.test(al);
   };
 
   const state = (btn, cls, label, ms = 2500) => {
-    btn.className = 'mvcut-fbsave ' + cls; btn.textContent = label;
-    setTimeout(() => { btn.className = 'mvcut-fbsave'; btn.textContent = 'SAVE'; btn.disabled = false; }, ms);
+    const base = btn.classList.contains('col') ? 'mvcut-fbsave col' : 'mvcut-fbsave';
+    btn.className = base + ' ' + cls; btn.textContent = label;
+    setTimeout(() => { btn.className = base; btn.textContent = 'SAVE'; btn.disabled = false; }, ms);
   };
 
   const onClick = async (btn, shareBtn) => {
@@ -107,7 +110,9 @@
       if (!post) continue;
       share.dataset.mvcutSave = '1';
       const btn = document.createElement('button');
-      btn.type = 'button'; btn.className = 'mvcut-fbsave'; btn.textContent = 'SAVE'; btn.title = 'MV Cut 라이브러리에 저장';
+      // reels stack their buttons in a narrow column
+      const col = share.parentElement && getComputedStyle(share.parentElement).flexDirection === 'column';
+      btn.type = 'button'; btn.className = 'mvcut-fbsave' + (col ? ' col' : ''); btn.textContent = 'SAVE'; btn.title = 'MV Cut 라이브러리에 저장';
       btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); onClick(btn, share); });
       share.insertAdjacentElement('afterend', btn);
     }
