@@ -40,6 +40,7 @@ class Library extends BaseController
         }
         if ($cat === CategoryModel::NONE) $builder->where('category', '');
         elseif ($cat !== CategoryModel::ALL) $builder->where('category', $cat);
+        else $builder->where('category !=', CategoryModel::HIDDEN);
         match ($kind) {
             'original' => $builder->where('kind', 'original'),
             'result'   => $builder->where('kind', 'result'),

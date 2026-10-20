@@ -35,7 +35,11 @@
   <div class="progress-list" id="progressList"></div>
 
   <div class="segmented cat-filter" role="radiogroup" aria-label="카테고리">
-    <?php foreach (array_merge(['ALL' => 'ALL'], array_combine($cats, $cats) ?: [], ['_none' => '미지정']) as $v => $labelText): ?>
+    <?php
+      $shown  = array_values(array_filter($cats, static fn ($c) => $c !== \App\Models\CategoryModel::HIDDEN));
+      $hidden = in_array(\App\Models\CategoryModel::HIDDEN, $cats, true) ? [\App\Models\CategoryModel::HIDDEN => \App\Models\CategoryModel::HIDDEN] : [];
+    ?>
+    <?php foreach (array_merge(['ALL' => 'ALL'], array_combine($shown, $shown) ?: [], ['_none' => '미지정'], $hidden) as $v => $labelText): ?>
       <label><input type="radio" name="cat" form="filterForm" value="<?= esc($v, 'attr') ?>"<?= $cat === (string) $v ? ' checked' : '' ?> onchange="filterForm.submit()"><span><?= esc($labelText) ?></span></label>
     <?php endforeach ?>
   </div>

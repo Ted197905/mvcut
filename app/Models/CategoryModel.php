@@ -15,6 +15,8 @@ class CategoryModel extends Model
     /** Library filter values that are not category names. */
     public const ALL  = 'ALL';
     public const NONE = '_none';
+    /** Personal scratch category: left out of ALL, shown last, listed only when picked. */
+    public const HIDDEN = 'TEMP';
 
     public function ordered(): array
     {
