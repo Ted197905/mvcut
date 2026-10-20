@@ -1,12 +1,12 @@
-// Opens X's own compose page with the text already in it (X fills its editor itself:
-// injecting text from outside leaves its editor state empty), then hands the file over.
+// Opens X's compose modal (not /intent/post: that page rebuilds the composer from its URL
+// whenever a sub-screen such as the content warning closes, dropping the edited text and the
+// attachment), then hands the text and the file over to the content script.
 const pending = new Map();
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.type === 'send-to-x') {
-    const url = 'https://x.com/intent/post?text=' + encodeURIComponent(msg.text || '');
-    chrome.tabs.create({ url }, (tab) => {
-      pending.set(tab.id, { url: msg.url, filename: msg.filename, mime: msg.mime });
+    chrome.tabs.create({ url: 'https://x.com/compose/post' }, (tab) => {
+      pending.set(tab.id, { url: msg.url, filename: msg.filename, mime: msg.mime, text: String(msg.text || '') });
       reply({ ok: true });
     });
     return true;

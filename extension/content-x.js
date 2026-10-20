@@ -1,13 +1,4 @@
-// Attaches the file to the compose window X opened with our text. Posting stays manual.
-
-// The intent URL carries the whole post text, and X sends the page URL as Referer with every
-// API call: a long post makes those headers too large (HTTP 431 on media upload / posting).
-if (location.pathname.startsWith('/intent/')) {
-  const m = document.createElement('meta');
-  m.name = 'referrer';
-  m.content = 'origin';
-  (document.head || document.documentElement).appendChild(m);
-}
+// Fills the compose modal with the post text and attaches the file. Posting stays manual.
 
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
@@ -49,7 +40,22 @@ if (location.pathname.startsWith('/intent/')) {
     }
   };
 
+  // The composer is a rich editor that only takes text through events it handles itself;
+  // a paste event is one of them (and, unlike the /intent URL, the text then survives the
+  // caption / content-warning sub-screens).
+  const fillText = async (text) => {
+    if (!text) return;
+    const box = await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_0"][contenteditable="true"]');
+    box.focus();
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+    box.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
+    await new Promise((r) => setTimeout(r, 400));
+    if (!box.innerText.trim()) document.execCommand('insertText', false, text);
+  };
+
   try {
+    await fillText(job.text);
     // the compose modal, not the inline composer behind it
     const input = await waitFor('div[role="dialog"] input[data-testid="fileInput"]');
     const file = new File([await load()], job.filename, { type: job.mime });
