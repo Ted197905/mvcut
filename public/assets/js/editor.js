@@ -396,6 +396,22 @@
     renderOverlay();
   });
   function openSheet() { if (isSheet()) inspector.classList.add('open'); }
+  function setSheet(open) {
+    inspector.classList.toggle('open', open);
+    $('sheetBtn').setAttribute('aria-label', open ? '메뉴 접기' : '메뉴 펼치기');
+    renderOverlay();
+  }
+  $('sheetBtn').addEventListener('click', (e) => { e.stopPropagation(); setSheet(!inspector.classList.contains('open')); });
+  // swipe the tab bar down to fold the sheet, up to unfold it
+  let swipeY = null;
+  $('tabs').addEventListener('touchstart', (e) => { swipeY = e.touches.length === 1 ? e.touches[0].clientY : null; }, { passive: true });
+  $('tabs').addEventListener('touchend', (e) => {
+    if (swipeY === null || !isSheet()) return;
+    const dy = e.changedTouches[0].clientY - swipeY; swipeY = null;
+    if (Math.abs(dy) < 30) return;
+    setSheet(dy < 0);
+    e.preventDefault(); // not a tab tap
+  });
 
   /* ---------- stage / crop / masks ---------- */
   const stage = $('stage'), overlay = $('overlay'), cropRect = $('cropRect'), maskLayer = $('maskLayer');

@@ -68,6 +68,7 @@ $icons = [
         <button class="tab" data-tab="subtitle">자막</button>
         <button class="tab" data-tab="watermark">워터마크</button>
         <button class="tab" data-tab="output">출력</button>
+        <button class="sheet-btn" id="sheetBtn" type="button" aria-label="메뉴 접기" title="메뉴 접기/펼치기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
 
       <div class="panel active" data-panel="segments">
