@@ -141,9 +141,10 @@ class XWatch
             $ts = strtotime($r['posted_at'] . ' UTC');
             $counted = in_array($r['kind'], $kinds, true);
             if ($r['kind'] === 'reply') $replyTimes[] = $ts;
-            $gap = ($counted && $prev) ? intdiv($ts - $prev, 60) : null;
+            // nearest minute: X sends a scheduled post a second or two late, 14:58 is a 15-minute gap
+            $gap = ($counted && $prev) ? (int) round(($ts - $prev) / 60) : null;
             $isPlain  = in_array($r['kind'], $plain, true);
-            $gapPlain = ($isPlain && $prevPlain) ? intdiv($ts - $prevPlain, 60) : null;
+            $gapPlain = ($isPlain && $prevPlain) ? (int) round(($ts - $prevPlain) / 60) : null;
             $posts[] = ['id' => $r['tweet_id'], 'kind' => $r['kind'], 'ts' => $ts, 'text' => $r['text'],
                         'reply_to' => $r['reply_to'], 'gap' => $gap, 'gap_noquote' => $gapPlain,
                         'short' => $gap !== null && $gap < $gapMin, 'danger' => $gap !== null && $gap < $gapWarn, 'counted' => $counted];
@@ -668,7 +669,7 @@ class XWatch
         foreach ($list as $i) {
             if ($i['at'] <= $now) continue; // sent already: it shows up among the posts
             $counted = in_array($i['kind'], $kinds, true);
-            $gap = ($counted && $prev) ? intdiv($i['at'] - $prev, 60) : null;
+            $gap = ($counted && $prev) ? (int) round(($i['at'] - $prev) / 60) : null;
             $out[] = $i + ['gap' => $gap, 'counted' => $counted,
                            'short' => $gap !== null && $gap < $gapMin, 'danger' => $gap !== null && $gap < $gapWarn];
             if ($counted) $prev = $i['at'];

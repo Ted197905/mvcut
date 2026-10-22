@@ -198,7 +198,8 @@ async function addPosts(list) {
     if (now - t > 10 * 60000 || !counted(p.kind, limits)) continue;
     const before = Object.values(posts).filter((q) => q.id !== p.id && counted(q.kind, limits) && Date.parse(q.time) < t)
       .map((q) => Date.parse(q.time)).sort((a, b) => b - a)[0];
-    if (before && t - before < limits.gap_min * 60000) {
+    // nearest minute, as on the server: a scheduled post lands a second or two late
+    if (before && Math.round((t - before) / 60000) < limits.gap_min) {
       notify('gap', '게시 간격이 짧습니다', '직전 게시와 ' + Math.round((t - before) / 60000) + '분 간격입니다 (권장 ' + limits.gap_min + '분 이상).');
     }
     if (local.hour > limits.hour_max) notify('hour', '1시간 게시 수 초과', '최근 1시간 ' + local.hour + '개 (권장 ' + limits.hour_max + '개 이하).');
