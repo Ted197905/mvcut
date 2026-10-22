@@ -101,7 +101,20 @@ class Keywords extends BaseController
     public function collapseAll()
     {
         $in = $this->request->getJSON(true) ?? [];
-        (new KeywordModel())->where('user_id', $this->uid())->where('parent_id', null)->set('collapsed', ! empty($in['collapsed']) ? 1 : 0)->update();
+        (new KeywordModel())->builder()->where('user_id', $this->uid())->where('parent_id', null)->update(['collapsed' => ! empty($in['collapsed']) ? 1 : 0]);
+        return $this->json(['ok' => true]);
+    }
+
+    /** POST /api/keywords/reorder  {ids: [..]} - sort = position, for ids the user owns */
+    public function reorder()
+    {
+        $in  = $this->request->getJSON(true) ?? [];
+        $ids = array_values(array_unique(array_map('intval', (array) ($in['ids'] ?? []))));
+        if ($ids === []) return $this->json(['ok' => true]);
+        $m = new KeywordModel();
+        foreach ($ids as $i => $id) {
+            $m->builder()->where('user_id', $this->uid())->where('id', $id)->update(['sort' => $i]);
+        }
         return $this->json(['ok' => true]);
     }
 

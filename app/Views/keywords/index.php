@@ -4,6 +4,13 @@
 main.wide.settings.keywords { max-width: 760px; }
 .kw-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
 .kw-top .spacer { flex: 1; }
+.kw-search { position: relative; margin: 0 0 14px; }
+.kw-search .input { padding-left: 38px; padding-right: 38px; }
+.kw-search .ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--label3); pointer-events: none; display: flex; }
+.kw-search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+.kw-nomatch { text-align: center; padding: 28px 10px; color: var(--label2); }
+.kw-name mark { background: color-mix(in srgb, #ffd60a 55%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.kw-acts .iconbtn.sort { font-size: 11px; font-weight: 700; letter-spacing: -0.02em; }
 .kw-tree { list-style: none; margin: 0; padding: 0; }
 .kw-tree ul { list-style: none; margin: 0 0 0 18px; padding: 0 0 0 14px; border-left: 1px solid var(--separator); }
 .kw-row { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 2px 0; }
@@ -41,8 +48,15 @@ main.wide.settings.keywords { max-width: 760px; }
   <p class="muted" style="margin:0 0 22px">키워드를 누르면 클립보드에 복사됩니다. X 게시물에 붙여 넣으세요.</p>
   <?= view('partials/alerts') ?>
 
+  <div class="kw-search">
+    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+    <input class="input" type="search" id="kwSearch" placeholder="키워드 검색" autocomplete="off">
+    <button class="iconbtn clear" type="button" id="kwSearchClear" title="지우기" hidden>&times;</button>
+  </div>
   <div class="kw-top">
     <button class="btn sm" type="button" id="kwAddTop">+ 상위 키워드</button>
+    <button class="btn sm secondary" type="button" id="kwSortAsc" title="상위 키워드 오름차순 (하위는 각 그룹 안에서)">정렬 A→Z</button>
+    <button class="btn sm secondary" type="button" id="kwSortDesc" title="상위 키워드 내림차순 (하위는 각 그룹 안에서)">정렬 Z→A</button>
     <span class="spacer"></span>
     <button class="btn sm secondary" type="button" id="kwExpand">전체 펼치기</button>
     <button class="btn sm secondary" type="button" id="kwCollapse">전체 접기</button>
@@ -50,6 +64,7 @@ main.wide.settings.keywords { max-width: 760px; }
 
   <section class="set-card">
     <ul class="kw-tree" id="kwTree"></ul>
+    <div class="kw-nomatch" id="kwNoMatch" hidden>검색 결과가 없습니다.</div>
     <div class="kw-empty" id="kwEmpty" hidden>
       <p>아직 키워드가 없습니다.</p>
       <button class="btn sm" type="button" id="kwSeed">기본 키워드 불러오기</button>
@@ -67,6 +82,21 @@ main.wide.settings.keywords { max-width: 760px; }
   const hdr = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' };
   let tree = <?= json_encode($tree, JSON_UNESCAPED_UNICODE) ?>;
   let editing = null;   // { kind: 'edit'|'add', id, parentId }
+  let query = '';       // search text, lower-cased
+  const hit = (n) => query !== '' && n.name.toLowerCase().includes(query);
+  const coll = new Intl.Collator(['ko', 'en', 'ja'], { sensitivity: 'base', numeric: true });
+  const sortList = (list, dir) => list.sort((a, b) => dir * coll.compare(a.name, b.name));
+  // highlighted name: the query's matches wrapped in <mark>
+  const nameHtml = (text) => {
+    if (query === '') return document.createTextNode(text);
+    const frag = document.createDocumentFragment(), low = text.toLowerCase(); let i = 0, j;
+    while ((j = low.indexOf(query, i)) !== -1) {
+      if (j > i) frag.appendChild(document.createTextNode(text.slice(i, j)));
+      const m = document.createElement('mark'); m.textContent = text.slice(j, j + query.length); frag.appendChild(m); i = j + query.length;
+    }
+    if (i < text.length) frag.appendChild(document.createTextNode(text.slice(i)));
+    return frag;
+  };
   const treeEl = $('kwTree');
 
   async function api(path, body) {
@@ -98,6 +128,7 @@ main.wide.settings.keywords { max-width: 760px; }
     pen: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
     plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+    sort: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h5"/><path d="M19 12v8M16 17l3 3 3-3"/></svg>',
     chev: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   };
 
@@ -144,8 +175,8 @@ main.wide.settings.keywords { max-width: 760px; }
     });
     r.appendChild(tog);
 
-    const name = document.createElement('button'); name.type = 'button'; name.className = 'kw-name'; name.title = '클립보드에 복사'; name.textContent = node.name;
-    if (hasKids && node.collapsed) { const c = document.createElement('span'); c.className = 'kw-count'; c.textContent = node.children.length; name.appendChild(c); }
+    const name = document.createElement('button'); name.type = 'button'; name.className = 'kw-name'; name.title = '클립보드에 복사'; name.appendChild(nameHtml(node.name));
+    if (hasKids && node.collapsed && query === '') { const c = document.createElement('span'); c.className = 'kw-count'; c.textContent = node.children.length; name.appendChild(c); }
     name.addEventListener('click', () => copy(node.name, r));
     r.appendChild(name);
 
@@ -157,6 +188,11 @@ main.wide.settings.keywords { max-width: 760px; }
       const add = icon('', '하위 키워드 추가', SVG.plus);
       add.addEventListener('click', () => { node.collapsed = false; editing = { kind: 'add', parentId: node.id }; render(); });
       acts.appendChild(add);
+      if (node.children.length > 1) {
+        const srt = icon('sort', '하위 키워드 정렬 (다시 누르면 역순)', SVG.sort);
+        srt.addEventListener('click', () => { node.sortDir = node.sortDir === 1 ? -1 : 1; sortList(node.children, node.sortDir); node.collapsed = false; render(); reorder(node.children); });
+        acts.appendChild(srt);
+      }
     }
     const del = icon('del', '삭제', SVG.trash);
     del.addEventListener('click', async () => {
@@ -176,9 +212,10 @@ main.wide.settings.keywords { max-width: 760px; }
 
   function kids(li, node, isGroup, hasKids) {
     const adding = editing && editing.kind === 'add' && editing.parentId === node.id;
-    if (!isGroup || node.collapsed || !(hasKids || adding)) return;
+    if (!isGroup || (node.collapsed && query === '') || !(hasKids || adding)) return;
     const ul = document.createElement('ul');
-    node.children.forEach((c) => ul.appendChild(row(c, node)));
+    const shown = query === '' || hit(node) ? node.children : node.children.filter(hit);
+    shown.forEach((c) => ul.appendChild(row(c, node)));
     if (adding) ul.appendChild(addRow(node));
     li.appendChild(ul);
   }
@@ -196,10 +233,30 @@ main.wide.settings.keywords { max-width: 760px; }
 
   function render() {
     treeEl.innerHTML = '';
-    tree.forEach((n) => treeEl.appendChild(row(n, null)));
+    const shown = query === '' ? tree : tree.filter((n) => hit(n) || n.children.some(hit));
+    shown.forEach((n) => treeEl.appendChild(row(n, null)));
     if (editing && editing.kind === 'add' && editing.parentId === null) treeEl.appendChild(addRow(null));
     $('kwEmpty').hidden = tree.length > 0 || !!editing;
+    $('kwNoMatch').hidden = !(query !== '' && shown.length === 0);
   }
+
+  /** Persists the current order of a list (top level or one group's members). */
+  async function reorder(list) {
+    try { await api('/reorder', { ids: list.map((n) => n.id) }); } catch (e) { alert(e.message); }
+  }
+  async function sortAll(dir) {
+    sortList(tree, dir);
+    await reorder(tree);
+    for (const g of tree) { if (g.children.length > 1) { g.sortDir = dir; sortList(g.children, dir); await reorder(g.children); } }
+    render();
+  }
+  $('kwSortAsc').addEventListener('click', () => sortAll(1));
+  $('kwSortDesc').addEventListener('click', () => sortAll(-1));
+
+  const search = $('kwSearch');
+  search.addEventListener('input', () => { query = search.value.trim().toLowerCase(); $('kwSearchClear').hidden = query === ''; render(); });
+  search.addEventListener('keydown', (e) => { if (e.key === 'Escape') { search.value = ''; search.dispatchEvent(new Event('input')); } });
+  $('kwSearchClear').addEventListener('click', () => { search.value = ''; search.dispatchEvent(new Event('input')); search.focus(); });
 
   $('kwAddTop').addEventListener('click', () => { editing = { kind: 'add', parentId: null }; render(); treeEl.lastElementChild.scrollIntoView({ block: 'nearest' }); });
   $('kwExpand').addEventListener('click', async () => { tree.forEach((n) => { n.collapsed = false; }); render(); try { await api('/collapse-all', { collapsed: false }); } catch (e) {} });

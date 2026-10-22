@@ -54,6 +54,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/keywords', 'Keywords::create');
     $routes->post('api/keywords/seed', 'Keywords::seed');
     $routes->post('api/keywords/collapse-all', 'Keywords::collapseAll');
+    $routes->post('api/keywords/reorder', 'Keywords::reorder');
     $routes->post('api/keywords/(:num)', 'Keywords::update/$1');
     $routes->post('api/keywords/(:num)/collapse', 'Keywords::collapse/$1');
     $routes->post('api/keywords/(:num)/delete', 'Keywords::delete/$1');
