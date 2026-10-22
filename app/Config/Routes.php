@@ -50,6 +50,14 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('xwatch/check', 'XWatchPage::checkNow');
     $routes->post('xwatch/posts/(:num)/delete', 'XWatchPage::deletePost/$1');
 
+    $routes->get('keywords', 'Keywords::index');
+    $routes->post('api/keywords', 'Keywords::create');
+    $routes->post('api/keywords/seed', 'Keywords::seed');
+    $routes->post('api/keywords/collapse-all', 'Keywords::collapseAll');
+    $routes->post('api/keywords/(:num)', 'Keywords::update/$1');
+    $routes->post('api/keywords/(:num)/collapse', 'Keywords::collapse/$1');
+    $routes->post('api/keywords/(:num)/delete', 'Keywords::delete/$1');
+
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
     $routes->post('library/delete', 'Library::bulkDelete');

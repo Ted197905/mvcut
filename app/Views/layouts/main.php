@@ -21,6 +21,7 @@
     <?php if (session()->get('role') === 'admin'): ?>
       <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
     <?php endif ?>
+    <a href="<?= site_url('keywords') ?>" class="<?= str_starts_with(uri_string(), 'keywords') ? 'active' : '' ?>">키워드</a>
     <a href="<?= site_url('xwatch') ?>" class="<?= str_starts_with(uri_string(), 'xwatch') ? 'active' : '' ?>">X 관리</a>
     <a href="<?= site_url('settings') ?>" class="<?= str_starts_with(uri_string(), 'settings') || uri_string() === 'account' ? 'active' : '' ?>">설정</a>
     <span class="nav-user"><?= esc(session()->get('display_name')) ?></span>
