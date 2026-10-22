@@ -77,6 +77,41 @@ def run_whisper(wav: str, model_dir: str, lang: str | None) -> tuple[list[dict],
     return out, language, prob
 
 
+SENT_END = ".!?。！？"
+CLAUSE_END = SENT_END + ",、，;"
+
+
+def pre_split(segs: list[dict], max_len: float = 7.0) -> list[dict]:
+    """A whisper segment longer than a subtitle should be is cut at word timestamps: after a
+    sentence end if there is one, else after a comma, else near the middle. Each part keeps
+    a full clause, so the translation of one part does not bleed into the next."""
+    out = []
+    for s in segs:
+        words = s.get("words") or []
+        if s["end"] - s["start"] <= max_len or len(words) < 4:
+            out.append(s)
+            continue
+        n = len(words)
+        def ends_with(k, chars):
+            return words[k]["word"].strip()[-1:] in chars
+        cut = None
+        for chars in (SENT_END, CLAUSE_END):
+            cands = [k + 1 for k in range(1, n - 1) if ends_with(k, chars)
+                     and words[k]["end"] - s["start"] >= 1.5 and s["end"] - words[k + 1]["start"] >= 1.5]
+            if cands:
+                cut = min(cands, key=lambda k: abs(k - n / 2))
+                break
+        if cut is None:
+            cut = n // 2
+        parts = []
+        for ws in (words[:cut], words[cut:]):
+            txt = "".join(w["word"] for w in ws).strip()
+            if txt:
+                parts.append(dict(s, start=ws[0]["start"], end=ws[-1]["end"], text=txt, words=ws))
+        out.extend(pre_split(parts, max_len) if len(parts) == 2 else [s])
+    return out
+
+
 def split_cues(cues: list[dict], max_len: float = 6.0, max_chars: int = 36) -> list[dict]:
     """A phone subtitle: a long translated line is cut in two at a space near its middle, the
     time split in proportion to the characters (the source text stays whole on both halves)."""
@@ -88,9 +123,10 @@ def split_cues(cues: list[dict], max_len: float = 6.0, max_chars: int = 36) -> l
             out.append(c)
             continue
         mid = len(text) // 2
-        cands = [k for k, ch in enumerate(text) if ch == " " and 0 < k < len(text) - 1]
-        # prefer a cut after punctuation / a Korean clause ending near the middle
-        best = min(cands, key=lambda k: abs(k - mid) - (6 if text[k - 1] in ",.!?~고서면데" else 0))
+        spaces = [k for k, ch in enumerate(text) if ch == " " and 0 < k < len(text) - 1]
+        # a cut after punctuation wins when it leaves both halves a reasonable size; else the middle
+        punct = [k for k in spaces if text[k - 1] in CLAUSE_END + "~" and 0.25 <= k / len(text) <= 0.75]
+        best = min(punct or spaces, key=lambda k: abs(k - mid))
         a, b = text[:best].strip(), text[best:].strip()
         if not a or not b:
             out.append(c)
@@ -251,8 +287,9 @@ def run_ocr(src: str, duration: float, url: str, model: str, lang: str | None, a
                 cues[-1]["text"] = text
             continue
         cues.append({"start": t, "end": t + step, "text": text, "words": []})
-    # a caption seen in a single frame of a 1 fps sample is usually noise
-    cues = [c for c in cues if c["end"] - c["start"] >= step * 2 - 0.01 or len(cues) <= 2]
+    # a caption seen in a single frame, or with no letters in it, is noise (timers, counters, logos)
+    cues = [c for c in cues if c["end"] - c["start"] >= step * 2 - 0.01
+            and len(c["text"]) >= 2 and any(ch.isalpha() for ch in c["text"])]
     for c in cues:
         c["end"] = min(duration, c["end"])
     return cues
@@ -275,6 +312,7 @@ def main() -> int:
     lang = None if a.lang in ("", "auto") else a.lang
     t0 = time.time()
     engines: dict = {}
+    timing: dict = {}
 
     with tempfile.TemporaryDirectory(prefix="autosub-") as d:
         wav = os.path.join(d, "a.wav")
@@ -286,9 +324,12 @@ def main() -> int:
             segs, language, prob = run_whisper(wav, a.whisper, lang)
             engines["whisper"] = {"language": language, "probability": round(prob, 3),
                                   "segments": [{"start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"]} for s in segs]}
+            timing["whisper"] = round(time.time() - t0, 1)
             log(f"whisper: {len(segs)} segments, {language} ({prob:.2f}), {time.time() - t0:.1f}s")
-            # hallucinated or near-silent audio: little speech, low confidence
-            speech = sum(s["end"] - s["start"] for s in segs if s["no_speech"] < 0.6)
+            # whisper's own silence rule: a segment is noise when it is both probably non-speech
+            # and decoded with low confidence (sung lyrics often score high no_speech alone)
+            segs = [s for s in segs if not (s["no_speech"] > 0.6 and s["avg_logprob"] < -1.0)]
+            speech = sum(s["end"] - s["start"] for s in segs)
             if speech < 1.0 or (prob < 0.4 and speech < 3.0):
                 log(f"little speech ({speech:.1f}s): falling back to on-screen text")
                 segs = []
@@ -297,10 +338,12 @@ def main() -> int:
         source = "speech" if segs else "ocr"
         alt = None
         if segs:
+            segs = pre_split(segs)
             if a.sensevoice and language in SV_LANGS and os.path.isdir(a.sensevoice):
                 try:
                     alt = run_sensevoice(read_wav(wav), segs, a.sensevoice, language)
                     engines["sensevoice"] = alt
+                    timing["sensevoice"] = round(time.time() - t0, 1)
                     log(f"sensevoice: {sum(1 for x in alt if x)} of {len(alt)} segments, {time.time() - t0:.1f}s")
                 except Exception as e:  # noqa: BLE001
                     log(f"sensevoice failed: {e}")
@@ -310,10 +353,11 @@ def main() -> int:
                 raise SystemExit("no speech and no --duration for frame sampling")
             segs = run_ocr(a.src, a.duration, a.ollama, a.vlm, lang, 40, 30)
             engines["ocr"] = [{"start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"]} for s in segs]
+            timing["ocr"] = round(time.time() - t0, 1)
             log(f"ocr: {len(segs)} captions, {time.time() - t0:.1f}s")
             ollama_unload(a.ollama, a.vlm)
             if not segs:
-                json.dump({"language": language, "source": source, "cues": [], "engines": engines},
+                json.dump({"language": language, "source": source, "cues": [], "engines": engines, "timing": timing},
                           open(a.out, "w", encoding="utf-8"), ensure_ascii=False)
                 progress(100)
                 return 0
@@ -322,11 +366,12 @@ def main() -> int:
             progress(70)
 
     cues = translate(a.ollama, a.llm, segs, alt, language, a.context, source)
+    timing["translate"] = round(time.time() - t0, 1)
     log(f"translated {len(cues)} lines, {time.time() - t0:.1f}s")
     cues = split_cues(cues)
     progress(98)
     with open(a.out, "w", encoding="utf-8") as fh:
-        json.dump({"language": language, "source": source, "cues": cues, "engines": engines}, fh, ensure_ascii=False)
+        json.dump({"language": language, "source": source, "cues": cues, "engines": engines, "timing": timing}, fh, ensure_ascii=False)
     progress(100)
     return 0
 
