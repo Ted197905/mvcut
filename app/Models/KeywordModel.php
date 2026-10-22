@@ -40,13 +40,17 @@ class KeywordModel extends Model
         return $max === null ? 0 : (int) $max + 1;
     }
 
-    /** Trimmed single-line name, or an error message. */
+    public const MAX = 2000;
+
+    /** Lines trimmed, blank lines dropped, or an error message. */
     public static function clean(string $name, ?string &$error): string
     {
-        $name  = trim(preg_replace('/\s+/u', ' ', $name));
+        $lines = preg_split('/\R/u', $name);
+        $lines = array_filter(array_map(static fn ($l) => trim(preg_replace('/[ \t]+/u', ' ', $l)), $lines), static fn ($l) => $l !== '');
+        $name  = implode("\n", $lines);
         $error = null;
         if ($name === '') $error = '키워드를 입력하세요.';
-        elseif (mb_strlen($name) > 255) $error = '키워드는 255자 이하로 입력하세요.';
+        elseif (mb_strlen($name) > self::MAX) $error = '키워드는 ' . self::MAX . '자 이하로 입력하세요.';
         return $name;
     }
 }

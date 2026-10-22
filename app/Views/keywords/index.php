@@ -12,7 +12,7 @@ main.wide.settings.keywords { max-width: 760px; }
 .kw-tog:hover { background: var(--fill3); }
 .kw-tog.open { transform: rotate(90deg); }
 .kw-tog.none { visibility: hidden; }
-.kw-name { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 15px; padding: 7px 10px; border-radius: var(--r-control); cursor: pointer; overflow-wrap: anywhere; line-height: 1.35; transition: background .15s; }
+.kw-name { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 15px; padding: 7px 10px; border-radius: var(--r-control); cursor: pointer; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; transition: background .15s; }
 .kw-row.group .kw-name { font-weight: 600; font-size: 16px; }
 .kw-name:hover { background: var(--blue-tint); color: var(--blue); }
 .kw-name:active { transform: scale(0.99); }
@@ -23,8 +23,9 @@ main.wide.settings.keywords { max-width: 760px; }
 .kw-acts .iconbtn.del:hover { background: var(--red-tint); color: var(--red); }
 .kw-copied { flex: none; font-size: 12px; font-weight: 600; color: var(--green); padding: 0 6px; animation: kw-fade 1.4s ease forwards; }
 @keyframes kw-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
-.kw-edit { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; padding: 2px 0; }
-.kw-edit .input { flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 15px; }
+.kw-edit { display: flex; align-items: flex-start; gap: 6px; flex: 1; min-width: 0; padding: 2px 0; }
+.kw-edit .input { flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 15px; resize: none; line-height: 1.35; font-family: inherit; overflow: hidden; }
+.kw-edit .btns { display: flex; gap: 6px; flex: none; }
 .kw-empty { text-align: center; padding: 36px 10px; color: var(--label2); }
 .kw-empty p { margin: 0 0 16px; }
 .kw-hint { font-size: 13px; color: var(--label3); margin: 14px 0 0; }
@@ -54,7 +55,7 @@ main.wide.settings.keywords { max-width: 760px; }
       <button class="btn sm" type="button" id="kwSeed">기본 키워드 불러오기</button>
     </div>
   </section>
-  <p class="kw-hint">상위 키워드의 + 는 그 아래에 멤버 키워드를 추가합니다. 연필은 수정, 휴지통은 삭제(상위를 지우면 하위도 함께 삭제).</p>
+  <p class="kw-hint">상위 키워드의 + 는 그 아래에 멤버 키워드를 추가합니다. 연필은 수정, 휴지통은 삭제(상위를 지우면 하위도 함께 삭제). 키워드는 여러 줄로 쓸 수 있습니다(Enter 줄바꿈, Ctrl+Enter 저장).</p>
 </main>
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
@@ -102,7 +103,9 @@ main.wide.settings.keywords { max-width: 760px; }
 
   function editor(value, onSave, onCancel) {
     const wrap = document.createElement('div'); wrap.className = 'kw-edit';
-    const inp = document.createElement('input'); inp.className = 'input'; inp.value = value; inp.maxLength = 255; inp.autocomplete = 'off'; inp.placeholder = '키워드 (태그들을 공백으로 구분)';
+    const inp = document.createElement('textarea'); inp.className = 'input'; inp.value = value; inp.maxLength = <?= \App\Models\KeywordModel::MAX ?>; inp.rows = 1; inp.placeholder = '키워드 (여러 줄 가능, Ctrl+Enter 저장)';
+    const grow = () => { inp.style.height = 'auto'; inp.style.height = inp.scrollHeight + 'px'; };
+    inp.addEventListener('input', grow);
     const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn sm'; ok.textContent = '저장';
     const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '취소';
     const save = async () => {
@@ -112,9 +115,10 @@ main.wide.settings.keywords { max-width: 760px; }
     };
     ok.addEventListener('click', save);
     no.addEventListener('click', onCancel);
-    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } else if (e.key === 'Escape') onCancel(); });
-    wrap.append(inp, ok, no);
-    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } else if (e.key === 'Escape') onCancel(); });
+    const btns = document.createElement('div'); btns.className = 'btns'; btns.append(ok, no);
+    wrap.append(inp, btns);
+    setTimeout(() => { grow(); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 0);
     return wrap;
   }
 
