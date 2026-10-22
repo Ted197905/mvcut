@@ -115,11 +115,16 @@ class Ffmpeg
 
     public static function hasNvenc(): bool
     {
-        static $ok = null;
-        if ($ok === null) {
+        // the worker runs for days: re-check every 10 minutes, since the WSL GPU driver can break
+        // (nvenc then segfaults) or come back after a WSL restart
+        static $ok = null, $at = 0;
+        if ($ok === null || time() - $at > 600) {
+            $at = time();
             $bin = self::bin('ffmpeg');
             $out = $bin ? self::run([$bin, '-hide_banner', '-encoders']) : ['stdout' => ''];
-            $ok = str_contains($out['stdout'], 'h264_nvenc') && (file_exists('/dev/dxg') || file_exists('/dev/nvidia0'));
+            $ok = str_contains($out['stdout'], 'h264_nvenc') && (file_exists('/dev/dxg') || file_exists('/dev/nvidia0'))
+                // listed is not enough: actually encode a few frames
+                && self::run([$bin, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=d=0.2:s=256x256', '-c:v', 'h264_nvenc', '-f', 'null', '-'], 20)['code'] === 0;
         }
         return $ok;
     }
