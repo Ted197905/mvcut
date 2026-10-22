@@ -153,7 +153,9 @@ class XWatch
 
         $now   = time();
         $hour  = count(array_filter($times, static fn ($t) => $t > $now - 3600));
-        $day   = count(array_filter($times, static fn ($t) => $t > $now - 86400));
+        // the daily limit resets at 00:00 UTC (09:00 KST), the hourly one is a rolling hour
+        $dayStart = intdiv($now, 86400) * 86400;
+        $day   = count(array_filter($times, static fn ($t) => $t >= $dayStart));
         $last  = $times ? end($times) : $prev;
 
         // earliest moment a new post breaks none of the three limits
@@ -165,15 +167,12 @@ class XWatch
             $recent = array_values(array_filter($times, static fn ($t) => $t > $now - 3600));
             $next = max($next, $recent[count($recent) - $hourMax] + 3600);
         }
-        if ($day >= $dayMax) {
-            $recent = array_values(array_filter($times, static fn ($t) => $t > $now - 86400));
-            $next = max($next, $recent[count($recent) - $dayMax] + 86400);
-        }
+        if ($day >= $dayMax) $next = max($next, $dayStart + 86400);
 
         $warn = [];
         if ($last && $now - $last < $gapMin * 60) $warn[] = sprintf('직전 게시 후 %d분 - %d분 간격 권장', intdiv($now - $last, 60), $gapMin);
         if ($hour >= $hourMax) $warn[] = sprintf('최근 1시간 %d개 (기준 %d개 미만)', $hour, $hourMax);
-        if ($day >= $dayMax) $warn[] = sprintf('최근 24시간 %d개 (기준 %d개 미만)', $day, $dayMax);
+        if ($day >= $dayMax) $warn[] = sprintf('오늘(09시 이후) %d개 (기준 %d개 미만, 09시 리셋)', $day, $dayMax);
         $danger = count(array_filter($posts, static fn ($p) => $p['danger']));
         $short  = count(array_filter($posts, static fn ($p) => $p['short'])) - $danger;
         if ($danger) $warn[] = sprintf('최근 %d시간 동안 %d분 미만 간격 %d회 (경고)', $hours, $gapWarn, $danger);
@@ -181,7 +180,7 @@ class XWatch
 
         $replyHour = count(array_filter($replyTimes, static fn ($t) => $t > $now - 3600));
         return ['posts' => array_reverse($posts), 'hour' => $hour, 'day' => $day, 'last' => $last, 'reply_hour' => $replyHour,
-                'next_ok' => $next, 'can_post' => $next <= $now, 'warnings' => $warn];
+                'next_ok' => $next, 'day_reset' => $dayStart + 86400, 'can_post' => $next <= $now, 'warnings' => $warn];
     }
 
     /** @return string[] kinds that count toward the cadence limits */

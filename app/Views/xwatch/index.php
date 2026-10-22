@@ -87,7 +87,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     </div>
     <div class="stats">
       <div class="stat"><b><?= $tl['hour'] ?></b><span>최근 1시간 (기준 <?= (int) $w['hour_max'] ?> 미만)</span></div>
-      <div class="stat"><b><?= $tl['day'] ?></b><span>최근 24시간 (기준 <?= (int) $w['day_max'] ?> 미만)</span></div>
+      <div class="stat"><b><?= $tl['day'] ?></b><span>오늘 09시 이후 (기준 <?= (int) $w['day_max'] ?> 미만, 매일 09시 리셋)</span></div>
       <div class="stat"><b><?= $tl['last'] ? esc($ago($tl['last'])) : '-' ?></b><span>마지막 게시</span></div>
       <div class="stat"><b><?= (int) $tl['reply_hour'] ?></b><span>최근 1시간 답글</span></div>
     </div>
@@ -139,7 +139,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <div class="field"><label for="gap_min">권장 간격 (분, 미만이면 주황)</label><input class="input" type="number" id="gap_min" name="gap_min" min="0" max="720" value="<?= (int) $w['gap_min'] ?>"></div>
         <div class="field"><label for="gap_warn">경고 간격 (분, 미만이면 빨강)</label><input class="input" type="number" id="gap_warn" name="gap_warn" min="0" max="720" value="<?= (int) ($w['gap_warn'] ?? 10) ?>"></div>
         <div class="field"><label for="hour_max">1시간 경고 개수</label><input class="input" type="number" id="hour_max" name="hour_max" min="1" max="100" value="<?= (int) $w['hour_max'] ?>"></div>
-        <div class="field"><label for="day_max">24시간 경고 개수</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
+        <div class="field"><label for="day_max">하루 경고 개수 (09시 리셋)</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
       </div>
       <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)</label>
       <p class="muted small">제한이 감지되면 풀릴 때까지 매시 정각에 부계정으로만 검사하고, 부계정 검사에서 정상이 나오면 10분 주기로 돌아갑니다.</p>

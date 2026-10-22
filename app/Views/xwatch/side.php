@@ -72,7 +72,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     </div>
     <div class="xw-stats">
       <div><b><?= $tl['hour'] ?>/<?= (int) $xw['limits']['hour_max'] ?></b><span>1시간</span></div>
-      <div><b><?= $tl['day'] ?>/<?= (int) $xw['limits']['day_max'] ?></b><span>24시간</span></div>
+      <div><b><?= $tl['day'] ?>/<?= (int) $xw['limits']['day_max'] ?></b><span>오늘 (09시 리셋)</span></div>
       <div><b><?= $tl['last'] ? $ago($tl['last']) : '-' ?></b><span>마지막</span></div>
     </div>
     <?php foreach ($tl['warnings'] as $m): ?><p class="xw-warn"><?= esc($m) ?></p><?php endforeach ?>

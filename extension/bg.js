@@ -31,11 +31,12 @@ function computeLocal(posts, limits) {
     .map((p) => Date.parse(p.time) / 1000).filter((t) => t > now - 86400 * 2).sort((a, b) => a - b);
   const last = times.length ? times[times.length - 1] : 0;
   const hourList = times.filter((t) => t > now - 3600);
-  const dayList = times.filter((t) => t > now - 86400);
+  const dayStart = Math.floor(now / 86400) * 86400; // daily limit resets at 00:00 UTC (09:00 KST)
+  const dayList = times.filter((t) => t >= dayStart);
   let next = now;
   if (last) next = Math.max(next, last + limits.gap_min * 60);
   if (hourList.length >= limits.hour_max) next = Math.max(next, hourList[hourList.length - limits.hour_max] + 3600);
-  if (dayList.length >= limits.day_max) next = Math.max(next, dayList[dayList.length - limits.day_max] + 86400);
+  if (dayList.length >= limits.day_max) next = Math.max(next, dayStart + 86400);
   return { last, hour: hourList.length, day: dayList.length, next_ok: next, at: now };
 }
 
