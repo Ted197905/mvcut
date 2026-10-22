@@ -1,75 +1,106 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('head') ?>
 <style>
-main.wide.settings.keywords { max-width: 760px; }
-.kw-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
-.kw-top .spacer { flex: 1; }
-.kw-search { position: relative; margin: 0 0 14px; }
-.kw-search .input { padding-left: 38px; padding-right: 38px; }
-.kw-search .ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--label3); pointer-events: none; display: flex; }
-.kw-search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
-.kw-nomatch { text-align: center; padding: 28px 10px; color: var(--label2); }
-.kw-name mark { background: color-mix(in srgb, #ffd60a 55%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
-.kw-acts .iconbtn.sort { font-size: 11px; font-weight: 700; letter-spacing: -0.02em; }
-.kw-tree { list-style: none; margin: 0; padding: 0; }
-.kw-tree ul { list-style: none; margin: 0 0 0 18px; padding: 0 0 0 14px; border-left: 1px solid var(--separator); }
-.kw-row { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 2px 0; }
-.kw-row.group { min-height: 44px; }
-.kw-tog { flex: none; width: 28px; height: 28px; border: 0; border-radius: 50%; background: transparent; color: var(--label2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; transition: transform .18s, background .15s; }
-.kw-tog:hover { background: var(--fill3); }
+body { background: var(--bg-grouped); }
+main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
+.kw-head { margin: 0 0 16px; }
+.kw-head h1 { margin: 0; font-size: 34px; letter-spacing: -0.022em; }
+.kw-head p { margin: 4px 0 0; color: var(--label2); font-size: 14px; }
+.kw-search { position: relative; margin: 0 0 12px; }
+.kw-search input { width: 100%; height: 38px; border: 0; border-radius: 12px; background: var(--fill1); padding: 0 38px 0 36px; font: inherit; font-size: 16px; color: var(--label); outline: none; -webkit-appearance: none; appearance: none; transition: background .15s, box-shadow .15s; }
+.kw-search input::placeholder { color: var(--label3); }
+.kw-search input::-webkit-search-cancel-button { display: none; }
+.kw-search input:focus { background: var(--bg-elev); box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--blue) 18%, transparent), var(--shadow-sm); }
+.kw-search .ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--label3); pointer-events: none; display: flex; }
+.kw-search .clear { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--label3); color: var(--bg-elev); font-size: 14px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.kw-search .clear:hover { background: var(--label2); }
+.kw-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; }
+.kw-bar .spacer { flex: 1; }
+.kw-pill { height: 34px; padding: 0 14px 0 10px; border: 0; border-radius: 17px; background: var(--blue-tint); color: var(--blue); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: background .15s; }
+.kw-pill:hover { background: color-mix(in srgb, var(--blue) 18%, transparent); }
+.kw-pill:active { transform: scale(0.97); }
+.kw-seg { display: inline-flex; background: var(--fill1); border-radius: 9px; padding: 2px; }
+.kw-seg button { border: 0; background: transparent; height: 28px; padding: 0 12px; border-radius: 7px; font: inherit; font-size: 13px; font-weight: 500; color: var(--label); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: background .15s, box-shadow .15s; }
+.kw-seg button:hover { background: var(--bg-elev); box-shadow: var(--shadow-sm); }
+.kw-ib { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--fill1); color: var(--label2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.kw-ib:hover { background: var(--fill2); color: var(--label); }
+.kw-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.kw-card { background: var(--bg-elev); border-radius: 16px; box-shadow: var(--shadow-sm); overflow: hidden; }
+.kw-row { display: flex; align-items: center; gap: 4px; min-height: 46px; padding: 4px 8px 4px 0; }
+.kw-card > .kw-row { min-height: 54px; padding-left: 18px; }
+.kw-members { list-style: none; margin: 0 0 0 18px; padding: 0 0 4px; border-top: 1px solid var(--separator); }
+.kw-members li + li { border-top: 1px solid var(--separator); }
+.kw-members .kw-row { padding-left: 14px; }
+.kw-name { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 15px; padding: 8px 10px 8px 0; cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; transition: color .12s, opacity .12s; -webkit-tap-highlight-color: transparent; }
+.kw-card > .kw-row .kw-name { font-size: 17px; font-weight: 600; letter-spacing: -0.012em; }
+.kw-name:hover { color: var(--blue); }
+.kw-name:active { opacity: 0.45; }
+.kw-name mark { background: color-mix(in srgb, #ffd60a 50%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.kw-count { display: inline-block; vertical-align: 2px; font-weight: 600; font-size: 12px; color: var(--label2); background: var(--fill1); border-radius: 10px; padding: 2px 8px; margin-left: 8px; letter-spacing: 0; }
+.kw-acts { display: flex; flex: none; opacity: 0.5; transition: opacity .15s; }
+.kw-row:hover .kw-acts, .kw-row:focus-within .kw-acts { opacity: 1; }
+.kw-acts button { width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--label2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.kw-acts button:hover { background: var(--fill1); color: var(--label); }
+.kw-acts button.del:hover { background: var(--red-tint); color: var(--red); }
+.kw-tog { flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--label3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: transform .22s cubic-bezier(.2, .8, .2, 1), background .15s, color .15s; }
+.kw-tog:hover { background: var(--fill1); color: var(--label); }
 .kw-tog.open { transform: rotate(90deg); }
 .kw-tog.none { visibility: hidden; }
-.kw-name { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; color: var(--label); font: inherit; font-size: 15px; padding: 7px 10px; border-radius: var(--r-control); cursor: pointer; overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.35; transition: background .15s; }
-.kw-row.group .kw-name { font-weight: 600; font-size: 16px; }
-.kw-name:hover { background: var(--blue-tint); color: var(--blue); }
-.kw-name:active { transform: scale(0.99); }
-.kw-count { font-weight: 400; font-size: 12px; color: var(--label3); margin-left: 6px; }
-.kw-acts { display: flex; gap: 2px; flex: none; }
-.kw-acts .iconbtn { width: 30px; height: 30px; background: transparent; }
-.kw-acts .iconbtn:hover { background: var(--fill2); }
-.kw-acts .iconbtn.del:hover { background: var(--red-tint); color: var(--red); }
-.kw-copied { flex: none; font-size: 12px; font-weight: 600; color: var(--green); padding: 0 6px; animation: kw-fade 1.4s ease forwards; }
-@keyframes kw-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
-.kw-edit { display: flex; align-items: flex-start; gap: 6px; flex: 1; min-width: 0; padding: 2px 0; }
-.kw-edit .input { flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px; font-size: 15px; resize: none; line-height: 1.35; font-family: inherit; overflow: hidden; }
+.kw-copied { flex: none; font-size: 12px; font-weight: 600; color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); border-radius: 10px; padding: 3px 9px; margin-right: 4px; animation: kw-fade 1.4s ease forwards; }
+@keyframes kw-fade { 0% { opacity: 0; transform: translateX(4px); } 12%, 72% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.kw-edit { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; padding: 8px 0; }
+.kw-edit textarea { flex: 1; min-width: 0; min-height: 38px; border: 0; border-radius: 10px; background: var(--fill1); padding: 8px 12px; font: inherit; font-size: 15px; line-height: 1.4; color: var(--label); resize: none; overflow: hidden; outline: none; }
+.kw-edit textarea:focus { box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--blue) 18%, transparent); background: var(--bg-elev); }
 .kw-edit .btns { display: flex; gap: 6px; flex: none; }
-.kw-empty { text-align: center; padding: 36px 10px; color: var(--label2); }
+.kw-edit .btns button { height: 34px; padding: 0 14px; border: 0; border-radius: 17px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.kw-edit .btns .ok { background: var(--blue); color: #fff; }
+.kw-edit .btns .ok:hover { background: var(--blue-hover); }
+.kw-edit .btns .no { background: var(--fill1); color: var(--label); }
+.kw-edit .btns .no:hover { background: var(--fill2); }
+.kw-edit .btns button:disabled { opacity: 0.4; }
+.kw-empty, .kw-nomatch { background: var(--bg-elev); border-radius: 16px; box-shadow: var(--shadow-sm); text-align: center; padding: 40px 16px; color: var(--label2); font-size: 15px; }
 .kw-empty p { margin: 0 0 16px; }
-.kw-hint { font-size: 13px; color: var(--label3); margin: 14px 0 0; }
-@media (max-width: 480px) {
-  .kw-tree ul { margin-left: 8px; padding-left: 8px; }
-  .kw-name { padding: 7px 6px; }
+.kw-hint { font-size: 13px; color: var(--label3); margin: 16px 4px 0; line-height: 1.5; }
+@media (max-width: 520px) {
+  main.wide.settings.keywords { padding-left: 14px; padding-right: 14px; }
+  .kw-head h1 { font-size: 30px; }
+  .kw-card > .kw-row { padding-left: 14px; }
+  .kw-members { margin-left: 14px; }
+  .kw-members .kw-row { padding-left: 10px; }
+  .kw-acts { opacity: 0.7; }
 }
 </style>
 <?= $this->endSection() ?>
 <?= $this->section('content') ?>
 <main class="wide settings keywords">
-  <h1>키워드</h1>
-  <p class="muted" style="margin:0 0 22px">키워드를 누르면 클립보드에 복사됩니다. X 게시물에 붙여 넣으세요.</p>
+  <div class="kw-head">
+    <h1>키워드</h1>
+    <p>키워드를 누르면 클립보드에 복사됩니다. X 게시물에 붙여 넣으세요.</p>
+  </div>
   <?= view('partials/alerts') ?>
 
   <div class="kw-search">
-    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
-    <input class="input" type="search" id="kwSearch" placeholder="키워드 검색" autocomplete="off">
-    <button class="iconbtn clear" type="button" id="kwSearchClear" title="지우기" hidden>&times;</button>
+    <span class="ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+    <input type="search" id="kwSearch" placeholder="검색" autocomplete="off" aria-label="키워드 검색">
+    <button class="clear" type="button" id="kwSearchClear" title="지우기" aria-label="지우기" hidden>&times;</button>
   </div>
-  <div class="kw-top">
-    <button class="btn sm" type="button" id="kwAddTop">+ 상위 키워드</button>
-    <button class="btn sm secondary" type="button" id="kwSortAsc" title="상위 키워드 오름차순 (하위는 각 그룹 안에서)">정렬 A→Z</button>
-    <button class="btn sm secondary" type="button" id="kwSortDesc" title="상위 키워드 내림차순 (하위는 각 그룹 안에서)">정렬 Z→A</button>
+  <div class="kw-bar">
+    <button class="kw-pill" type="button" id="kwAddTop"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>상위 키워드</button>
+    <div class="kw-seg" role="group" aria-label="정렬">
+      <button type="button" id="kwSortAsc" title="이름 오름차순 (상위, 그리고 각 그룹 안의 하위)">A→Z</button>
+      <button type="button" id="kwSortDesc" title="이름 내림차순 (상위, 그리고 각 그룹 안의 하위)">Z→A</button>
+    </div>
     <span class="spacer"></span>
-    <button class="btn sm secondary" type="button" id="kwExpand">전체 펼치기</button>
-    <button class="btn sm secondary" type="button" id="kwCollapse">전체 접기</button>
+    <button class="kw-ib" type="button" id="kwExpand" title="전체 펼치기" aria-label="전체 펼치기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg></button>
+    <button class="kw-ib" type="button" id="kwCollapse" title="전체 접기" aria-label="전체 접기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></svg></button>
   </div>
 
-  <section class="set-card">
-    <ul class="kw-tree" id="kwTree"></ul>
-    <div class="kw-nomatch" id="kwNoMatch" hidden>검색 결과가 없습니다.</div>
-    <div class="kw-empty" id="kwEmpty" hidden>
-      <p>아직 키워드가 없습니다.</p>
-      <button class="btn sm" type="button" id="kwSeed">기본 키워드 불러오기</button>
-    </div>
-  </section>
+  <ul class="kw-tree" id="kwTree"></ul>
+  <div class="kw-nomatch" id="kwNoMatch" hidden>검색 결과가 없습니다.</div>
+  <div class="kw-empty" id="kwEmpty" hidden>
+    <p>아직 키워드가 없습니다.</p>
+    <button class="kw-pill" type="button" id="kwSeed">기본 키워드 불러오기</button>
+  </div>
   <p class="kw-hint">상위 키워드의 + 는 그 아래에 멤버 키워드를 추가합니다. 연필은 수정, 휴지통은 삭제(상위를 지우면 하위도 함께 삭제). 키워드는 여러 줄로 쓸 수 있습니다(Enter 줄바꿈, Ctrl+Enter 저장).</p>
 </main>
 <?= $this->endSection() ?>
@@ -123,23 +154,23 @@ main.wide.settings.keywords { max-width: 760px; }
   }
 
   const icon = (cls, title, svg) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'iconbtn ' + cls; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = svg; return b;
+    const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = svg; return b;
   };
   const SVG = {
     pen: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
     plus: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
     sort: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h5"/><path d="M19 12v8M16 17l3 3 3-3"/></svg>',
-    chev: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+    chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
   };
 
   function editor(value, onSave, onCancel) {
     const wrap = document.createElement('div'); wrap.className = 'kw-edit';
-    const inp = document.createElement('textarea'); inp.className = 'input'; inp.value = value; inp.maxLength = <?= \App\Models\KeywordModel::MAX ?>; inp.rows = 1; inp.placeholder = '키워드 (여러 줄 가능, Ctrl+Enter 저장)';
+    const inp = document.createElement('textarea'); inp.value = value; inp.maxLength = <?= \App\Models\KeywordModel::MAX ?>; inp.rows = 1; inp.placeholder = '키워드 (여러 줄 가능, Ctrl+Enter 저장)';
     const grow = () => { inp.style.height = 'auto'; inp.style.height = inp.scrollHeight + 'px'; };
     inp.addEventListener('input', grow);
-    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn sm'; ok.textContent = '저장';
-    const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '취소';
+    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'ok'; ok.textContent = '저장';
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'no'; no.textContent = '취소';
     const save = async () => {
       const v = inp.value.trim(); if (!v) { inp.focus(); return; }
       ok.disabled = no.disabled = true;
@@ -155,13 +186,12 @@ main.wide.settings.keywords { max-width: 760px; }
   }
 
   function row(node, parent) {
-    const li = document.createElement('li');
-    const r = document.createElement('div'); r.className = 'kw-row' + (parent ? '' : ' group'); li.appendChild(r);
+    const li = document.createElement('li'); if (!parent) li.className = 'kw-card';
+    const r = document.createElement('div'); r.className = 'kw-row'; li.appendChild(r);
     const isGroup = !parent;
     const hasKids = isGroup && node.children.length > 0;
 
     if (editing && editing.kind === 'edit' && editing.id === node.id) {
-      const tog = document.createElement('span'); tog.className = 'kw-tog none'; r.appendChild(tog);
       r.appendChild(editor(node.name, async (v) => {
         const j = await api('/' + node.id, { name: v }); node.name = j.name; editing = null; render();
       }, () => { editing = null; render(); }));
@@ -174,7 +204,6 @@ main.wide.settings.keywords { max-width: 760px; }
       node.collapsed = !node.collapsed; render();
       try { await api('/' + node.id + '/collapse', { collapsed: node.collapsed }); } catch (e) {}
     });
-    r.appendChild(tog);
 
     const name = document.createElement('button'); name.type = 'button'; name.className = 'kw-name'; name.title = '클립보드에 복사'; name.appendChild(nameHtml(node.name));
     if (hasKids && node.collapsed && query === '') { const c = document.createElement('span'); c.className = 'kw-count'; c.textContent = node.children.length; name.appendChild(c); }
@@ -206,6 +235,7 @@ main.wide.settings.keywords { max-width: 760px; }
     });
     acts.appendChild(del);
     r.appendChild(acts);
+    if (isGroup) r.appendChild(tog);
 
     kids(li, node, isGroup, hasKids);
     return li;
@@ -214,7 +244,7 @@ main.wide.settings.keywords { max-width: 760px; }
   function kids(li, node, isGroup, hasKids) {
     const adding = editing && editing.kind === 'add' && editing.parentId === node.id;
     if (!isGroup || (node.collapsed && query === '') || !(hasKids || adding)) return;
-    const ul = document.createElement('ul');
+    const ul = document.createElement('ul'); ul.className = 'kw-members';
     const shown = query === '' || hit(node) ? node.children : node.children.filter(hit);
     shown.forEach((c) => ul.appendChild(row(c, node)));
     if (adding) ul.appendChild(addRow(node));
@@ -222,9 +252,8 @@ main.wide.settings.keywords { max-width: 760px; }
   }
 
   function addRow(parent) {
-    const li = document.createElement('li');
-    const r = document.createElement('div'); r.className = 'kw-row' + (parent ? '' : ' group'); li.appendChild(r);
-    const tog = document.createElement('span'); tog.className = 'kw-tog none'; r.appendChild(tog);
+    const li = document.createElement('li'); if (!parent) li.className = 'kw-card';
+    const r = document.createElement('div'); r.className = 'kw-row'; li.appendChild(r);
     r.appendChild(editor('', async (v) => {
       const j = await api('', { parent_id: parent ? parent.id : null, name: v });
       (parent ? parent.children : tree).push(j.node); editing = null; render();
