@@ -134,3 +134,7 @@ _modules/*
 /secrets/
 /pylibs/
 /vendor_ml/
+
+# build/cache outputs
+__pycache__/
+/extension.zip

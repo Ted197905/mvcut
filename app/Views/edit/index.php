@@ -112,9 +112,10 @@ $icons = [
             <span class="lbl">회전</span>
             <div class="presets icons" id="rotPresets">
               <button data-rot="0" class="active" title="원본" aria-label="원본"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/></svg></button>
-              <button data-rot="90" title="오른쪽 90도" aria-label="오른쪽 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M6.5 3.6h4.6a2.4 2.4 0 0 1 2.4 2.4v1.3"/><path d="M8.3 1.8 6.4 3.6l1.9 1.8"/></svg></button>
-              <button data-rot="180" title="180도" aria-label="180도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 0 1 10 0 5 5 0 0 1-5 5"/><path d="M6.1 10.9 8 13l-1.9 2"/><path d="M3 8H1.6M3 8l1.4-1.4M3 8l1.4 1.4"/></svg></button>
-              <button data-rot="270" title="왼쪽 90도" aria-label="왼쪽 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M9.5 3.6H4.9A2.4 2.4 0 0 0 2.5 6v1.3"/><path d="M7.7 1.8 9.6 3.6 7.7 5.4"/></svg></button>
+              <button data-turn="270" title="반시계 90도" aria-label="반시계 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M6.5 3.6h4.6a2.4 2.4 0 0 1 2.4 2.4v1.3"/><path d="M8.3 1.8 6.4 3.6l1.9 1.8"/></svg></button>
+              <button data-turn="180" title="180도" aria-label="180도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a5 5 0 0 1 10 0 5 5 0 0 1-5 5"/><path d="M6.1 10.9 8 13l-1.9 2"/><path d="M3 8H1.6M3 8l1.4-1.4M3 8l1.4 1.4"/></svg></button>
+              <button data-turn="90" title="시계 90도" aria-label="시계 90도"><svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="7" height="7" rx="1.2"/><path d="M9.5 3.6H4.9A2.4 2.4 0 0 0 2.5 6v1.3"/><path d="M7.7 1.8 9.6 3.6 7.7 5.4"/></svg></button>
+              <span class="val" id="rotVal">0도</span>
             </div>
           </div>
           <div class="iconrow">

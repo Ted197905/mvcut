@@ -360,7 +360,7 @@ class EditParams
         if (! empty($t['rotate']) || ! empty($t['flipH']) || ! empty($t['flipV'])) {
             $bits = [];
             if (! empty($t['rotate'])) $bits[] = match ((int) $t['rotate']) {
-                90 => '오른쪽 90도', 180 => '180도', 270 => '왼쪽 90도', default => '',
+                90 => '시계 90도', 180 => '180도', 270 => '반시계 90도', default => '',
             };
             if (! empty($t['flipH'])) $bits[] = '좌우 반전';
             if (! empty($t['flipV'])) $bits[] = '상하 반전';

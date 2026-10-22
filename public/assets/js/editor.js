@@ -1028,16 +1028,22 @@
     );
   }
   function syncTransform() {
-    document.querySelectorAll('#rotPresets button').forEach(b => b.classList.toggle('active', +b.dataset.rot === state.transform.rotate));
+    document.querySelectorAll('#rotPresets button[data-rot]').forEach(b => b.classList.toggle('active', +b.dataset.rot === state.transform.rotate));
+    $('rotVal').textContent = state.transform.rotate + '\uB3C4';
     document.querySelectorAll('#flipBtns button').forEach(b => b.classList.toggle('active', !!state.transform['flip' + b.dataset.flip]));
   }
   $('rotPresets').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
-    const d = ((+b.dataset.rot - state.transform.rotate) + 360) % 360;
-    if (!d) return;
+    const t = state.transform;
+    // a single mirror reverses what a frame turn looks like on screen
+    const flipped = t.flipH !== t.flipV;
+    const swap = (a) => (flipped && a % 180 ? 360 - a : a);
+    // the arrows turn the picture as it stands; only the first button is an absolute reset
+    const frame = b.dataset.turn !== undefined ? swap(+b.dataset.turn) : (360 - t.rotate) % 360;
+    if (!frame) return;
     commit();
-    turnBy(d);
-    state.transform.rotate = +b.dataset.rot;
+    turnBy(swap(frame));   // coordinates follow the picture, not the frame
+    t.rotate = (t.rotate + frame) % 360;
     syncTransform(); layoutStage();
   });
   $('flipBtns').addEventListener('click', (e) => {
