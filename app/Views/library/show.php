@@ -45,6 +45,25 @@ $srcSum = $isImg
     $cls = $item['media_type'] === 'audio' ? ' audio' : ((! $isVid && ! $isImg && ! $item['has_thumb']) ? ' empty' : '');
 ?>
     <div class="detail-main" style="--arw:<?= $vw ?>;--arh:<?= $vh ?>">
+    <div class="aside-actions">
+      <?php if ($isVid): ?>
+        <a class="btn<?= $playable ? '' : ' disabled' ?>" href="<?= site_url('edit/' . $item['id']) ?>">편집</a>
+      <?php endif ?>
+      <a class="btn secondary" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">원본 받기</a>
+      <button class="btn secondary" type="button" id="btnSendX" title="X 새 글 작성 창에 본문과 파일을 올립니다 (휴대폰에서는 공유 시트로 X 앱에 전달)">Send to X</button>
+      <form method="post" action="<?= site_url('library/' . $item['id'] . '/delete') ?>" id="deleteForm">
+        <?= csrf_field() ?>
+        <button class="btn ghost" type="button" id="btnDelete">삭제</button>
+      </form>
+      <?php if (count($siblings ?? []) > 1): ?>
+        <form method="post" action="<?= site_url('library/' . $item['id'] . '/split') ?>" onsubmit="return confirm('이 게시물의 리소스 <?= count($siblings) ?>개를 각각 따로 라이브러리 항목으로 분리할까요? 게시물 내용은 모두에 그대로 남습니다.')">
+          <?= csrf_field() ?><button class="btn ghost" type="submit" title="같은 게시물의 리소스를 각각 따로 라이브러리 항목으로 나눕니다">분리</button>
+        </form>
+      <?php endif ?>
+    </div>
+    <?php if ($noX): ?>
+      <p class="codec-warn"><?= esc($noX) ?> 영상은 X(트위터)에 업로드할 수 없습니다. 아래 "변환해서 받기"에서 MP4(H.264)로 변환한 파일을 올려 주세요.</p>
+    <?php endif ?>
     <figure class="viewer<?= $cls ?>">
       <?php if ($isVid && $playable): ?>
         <video controls playsinline preload="metadata" src="<?= site_url('media/' . $item['id'] . '/proxy') ?>" <?= $item['has_thumb'] ? 'poster="' . site_url('media/' . $item['id'] . '/thumb') . '"' : '' ?>></video>
@@ -153,25 +172,6 @@ $srcSum = $isImg
 
     <aside>
       <?= view('xwatch/side', ['xw' => $xwatch ?? null, 'compact' => true]) ?>
-      <div class="aside-actions">
-        <?php if ($isVid): ?>
-          <a class="btn<?= $playable ? '' : ' disabled' ?>" href="<?= site_url('edit/' . $item['id']) ?>">편집</a>
-        <?php endif ?>
-        <a class="btn secondary" href="<?= site_url('media/' . $item['id'] . '/file?dl=1') ?>">원본 받기</a>
-        <button class="btn secondary" type="button" id="btnSendX" title="X 새 글 작성 창에 본문과 파일을 올립니다 (휴대폰에서는 공유 시트로 X 앱에 전달)">Send to X</button>
-        <form method="post" action="<?= site_url('library/' . $item['id'] . '/delete') ?>" id="deleteForm">
-          <?= csrf_field() ?>
-          <button class="btn ghost" type="button" id="btnDelete">삭제</button>
-        </form>
-        <?php if (count($siblings ?? []) > 1): ?>
-          <form method="post" action="<?= site_url('library/' . $item['id'] . '/split') ?>" onsubmit="return confirm('이 게시물의 리소스 <?= count($siblings) ?>개를 각각 따로 라이브러리 항목으로 분리할까요? 게시물 내용은 모두에 그대로 남습니다.')">
-            <?= csrf_field() ?><button class="btn ghost" type="submit" title="같은 게시물의 리소스를 각각 따로 라이브러리 항목으로 나눕니다">분리</button>
-          </form>
-        <?php endif ?>
-      </div>
-      <?php if ($noX): ?>
-        <p class="codec-warn"><?= esc($noX) ?> 영상은 X(트위터)에 업로드할 수 없습니다. 아래 "변환해서 받기"에서 MP4(H.264)로 변환한 파일을 올려 주세요.</p>
-      <?php endif ?>
 
       <div class="panel-block">
         <p class="eyebrow">정보</p>

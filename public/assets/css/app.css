@@ -330,6 +330,8 @@ select.input { appearance: none; padding-right: 34px;
 .meta-line { color: var(--label2); font-size: 13px; margin: 0 0 26px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .meta-line .dot { color: var(--label3); }
 .aside-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+.detail-main > .aside-actions { align-self: stretch; margin-bottom: 14px; }
+.detail-main > .codec-warn { align-self: stretch; margin: 0 0 14px; }
 .panel-block { margin-top: 26px; }
 .codec-warn { margin: -12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--red-tint); color: var(--red); font-size: 13px; line-height: 1.45; }
 .codec-bad { color: var(--red); font-weight: 600; }
