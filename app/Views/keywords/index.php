@@ -84,7 +84,8 @@ main.wide.settings.keywords { max-width: 760px; }
   let editing = null;   // { kind: 'edit'|'add', id, parentId }
   let query = '';       // search text, lower-cased
   const hit = (n) => query !== '' && n.name.toLowerCase().includes(query);
-  const coll = new Intl.Collator(['ko', 'en', 'ja'], { sensitivity: 'base', numeric: true });
+  // root collation, like Windows Explorer's name order: symbols, numbers (natural), A-Z, then Hangul, kana, CJK
+  const coll = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
   const sortList = (list, dir) => list.sort((a, b) => dir * coll.compare(a.name, b.name));
   // highlighted name: the query's matches wrapped in <mark>
   const nameHtml = (text) => {
