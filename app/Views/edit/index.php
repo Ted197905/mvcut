@@ -275,6 +275,21 @@ $icons = [
             <button class="btn sm secondary" id="btnCueAdd">현재 위치에 추가</button>
             <button class="btn sm ghost" id="btnCueClear">모두 지우기</button>
           </div>
+          <div class="autosub" id="autosubRow">
+            <select id="autosubLang" title="영상 속 언어">
+              <option value="auto">언어 자동</option>
+              <option value="en">영어</option>
+              <option value="ja">일본어</option>
+              <option value="zh">중국어</option>
+              <option value="vi">베트남어</option>
+              <option value="th">태국어</option>
+              <option value="id">인도네시아어</option>
+              <option value="es">스페인어</option>
+              <option value="ko">한국어</option>
+            </select>
+            <button class="btn sm" id="btnAutosub" title="음성(없으면 화면 자막)을 인식해 한국어 자막을 이 레이어에 채웁니다">자동자막</button>
+            <span class="hint" id="autosubStatus"></span>
+          </div>
           <div class="cuelist" id="cueList"></div>
           <div class="row4" id="cueFields" hidden>
             <label>시작<input class="tc-off" id="cueStart"></label>
@@ -283,6 +298,7 @@ $icons = [
           <div class="field-lite" id="cueTextField" hidden>
             <label for="cueText">내용</label>
             <input class="tc-off" id="cueText" maxlength="200" autocomplete="off">
+            <p class="hint cue-src" id="cueSrc" hidden></p>
           </div>
           <div class="row2"><button class="btn sm ghost" id="btnStyleAll">이 디자인을 모든 문장에</button></div>
           <p class="hint">문장마다 디자인, 폰트, 크기, 색, 위치가 따로 저장됩니다. 문장을 고르면 위 "디자인"이 그 문장을 편집하고, 아무 문장도 고르지 않았을 때는 새로 만들 문장의 기본값을 편집합니다. 전부 같게 맞추려면 "이 디자인을 모든 문장에"를 누르세요.</p>

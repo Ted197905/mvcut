@@ -41,6 +41,7 @@ class JobRunner
                 'proxy'   => $this->runProxy($job, $log),
                 'import'  => $this->xReady($job, $this->runImport($job, $log), $log),
                 'youtube' => $this->runYoutube($job, $log),
+                'autosub' => $this->runAutosub($job, $log),
                 default   => throw new \RuntimeException('unknown job type ' . $job['type']),
             };
             $this->jobs->update($job['id'], ['status' => 'done', 'progress' => 100, 'result_media_id' => $result, 'finished_at' => date('Y-m-d H:i:s')]);
@@ -57,6 +58,43 @@ class JobRunner
         if (! $src) throw new \RuntimeException('source media missing');
         $p = EditParams::normalize(json_decode($job['params'], true) ?: [], $src);
         return $this->encode($job, $src, $p, 'edit', ' - edit', json_encode($p, JSON_UNESCAPED_UNICODE), $log);
+    }
+
+    /**
+     * Auto subtitles: speech (or burned-in captions) of the source video -> Korean cues,
+     * written to <media dir>/autosub.json for the editor to pick up. The media is not changed.
+     */
+    private function runAutosub(array $job, callable $log): int
+    {
+        $src = $this->media->find($job['media_id']);
+        if (! $src) throw new \RuntimeException('source media missing');
+        $py = Ffmpeg::python();
+        $whisper = glob(ROOTPATH . 'vendor_ml/asr/hf/models--Systran--faster-whisper-large-v3/snapshots/*')[0] ?? null;
+        if (! $py || ! $whisper || ! is_file(ROOTPATH . 'bin/autosub.py')) throw new \RuntimeException('자동 자막 엔진이 설치되어 있지 않습니다.');
+        $p   = json_decode($job['params'], true) ?: [];
+        $dir = MediaModel::dir($src);
+        $in  = $dir . '/' . $src['filename'];
+        if (! is_file($in)) throw new \RuntimeException('source file missing');
+        $out = $dir . '/autosub.json';
+        @unlink($out);
+        $lang = preg_match('/^[a-z]{2,3}$/', (string) ($p['lang'] ?? '')) ? $p['lang'] : 'auto';
+        $context = trim(($src['title'] ?? '') . "\n" . mb_substr((string) ($src['description'] ?? ''), 0, 500));
+        $args = [$py, ROOTPATH . 'bin/autosub.py', '--in', $in, '--out', $out, '--lang', $lang,
+                 '--duration', (string) (float) $src['duration'], '--context', $context,
+                 '--whisper', $whisper, '--sensevoice', ROOTPATH . 'vendor_ml/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
+                 '--ollama', getenv('OLLAMA_URL') ?: 'http://localhost:11434'];
+        if ($m = getenv('AUTOSUB_LLM')) array_push($args, '--llm', $m);
+        if ($m = getenv('AUTOSUB_VLM')) array_push($args, '--vlm', $m);
+        $log('autosub ' . $lang . ' ' . basename($in));
+        $this->jobs->update($job['id'], ['status' => 'running', 'progress' => 1]);
+        $r = $this->runPython($args, fn (int $pct) => $this->jobs->update($job['id'], ['progress' => max(1, min(99, $pct))]));
+        if ($r['code'] !== 0 || ! is_file($out)) {
+            $log('autosub failed: ' . mb_substr(trim($r['stderr']), -600));
+            throw new \RuntimeException('자동 자막 실패: ' . mb_substr(trim(preg_replace('/^(progress \d+|.*Warning.*)$/m', '', $r['stderr'])), -300));
+        }
+        $j = json_decode((string) file_get_contents($out), true);
+        $log('autosub done: ' . count($j['cues'] ?? []) . ' cues, ' . ($j['language'] ?? '?') . ' / ' . ($j['source'] ?? '?'));
+        return (int) $src['id'];
     }
 
     private function runConvert(array $job, callable $log): int

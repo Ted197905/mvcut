@@ -227,6 +227,10 @@
 .wm.sel { outline: 1px dashed rgba(255,255,255,.7); outline-offset: 3px; }
 .wm span { display: inline-block; }
 .field-lite { margin-bottom: 10px; }
+.autosub { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.autosub select { flex: 0 0 auto; background: var(--e-panel2); border: 1px solid var(--e-line); color: var(--e-fg); border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+.autosub .hint { margin: 0; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cue-src { margin: 6px 0 0; white-space: normal; line-height: 1.4; }
 .field-lite label { display: block; font-size: 11px; color: var(--e-fg2); margin-bottom: 4px; }
 .ed .tc-off, .ed #wmFont { width: 100%; background: var(--e-panel2); border: 1px solid var(--e-line); color: var(--e-fg);
   border-radius: 6px; padding: 7px 9px; font-size: 13px; }

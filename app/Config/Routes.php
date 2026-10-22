@@ -70,6 +70,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('fonts/([a-z0-9]+)', 'Media::font/$1');
     $routes->get('edit/(:num)', 'Edit::index/$1');
     $routes->post('api/edit/(:num)', 'Edit::submit/$1');
+    $routes->post('api/edit/(:num)/autosub', 'Edit::autosub/$1');
+    $routes->get('api/edit/(:num)/autosub/(:num)', 'Edit::autosubStatus/$1/$2');
     $routes->post('api/prefs/watermark', 'Prefs::watermark');
     $routes->get('api/jobs/(:num)', 'Jobs::show/$1');
     $routes->get('api/jobs', 'Jobs::index');

@@ -222,6 +222,9 @@ class EditParams
                 if ($ce - $cs < 0.05) continue;
                 $cue = ['start' => round($cs, 3), 'end' => round($ce, 3),
                         'text' => mb_substr($text, 0, 200)];
+                // the original-language line an auto subtitle was translated from (shown, never rendered)
+                $srcText = trim(preg_replace('/[\r\t]+/u', ' ', (string) ($c['src'] ?? '')));
+                if ($srcText !== '') $cue['src'] = mb_substr($srcText, 0, 200);
                 // a single line may override the layer's look
                 $ov = self::cueStyle((array) ($c['style'] ?? []), $W, $H);
                 if ($ov !== []) $cue['style'] = $ov;

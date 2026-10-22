@@ -583,6 +583,7 @@
       if (document.activeElement !== $('cueStart')) $('cueStart').value = tc(c.start, false);
       if (document.activeElement !== $('cueEnd')) $('cueEnd').value = tc(c.end, false);
       if (document.activeElement !== $('cueText')) $('cueText').value = c.text;
+      $('cueSrc').hidden = !c.src; $('cueSrc').textContent = c.src ? '원문: ' + c.src : '';
     }
   }
   /* ---------- subtitle tracks on the timeline ---------- */
@@ -731,6 +732,56 @@
     state.subCue = sub.cues.findIndex(c => Math.abs(c.start - t) < 0.001);
     renderSubs(); $('cueText').focus(); $('cueText').select();
   });
+  /* auto subtitles: the server transcribes (two engines) and translates; the Korean lines land in this layer */
+  let autosubTimer = 0;
+  function autosubState(msg, busy) {
+    $('autosubStatus').textContent = msg || '';
+    $('btnAutosub').disabled = !!busy; $('autosubLang').disabled = !!busy;
+    $('btnAutosub').textContent = busy ? '인식 중...' : '자동자막';
+  }
+  async function autosubStart() {
+    if (!D.aiEnabled) { flash('AI 기능은 관리자 승인이 필요합니다.'); return; }
+    if (!D.hasAudio && !confirm('이 영상에는 소리가 없습니다. 화면에 박힌 자막을 읽어서 번역할까요?')) return;
+    const li = state.subLayer, cur = state.subtitles[li];
+    if (cur && cur.cues.length && !confirm('자막 ' + (li + 1) + '의 문장 ' + cur.cues.length + '개를 자동 자막으로 바꿉니다. 계속할까요?')) return;
+    autosubState('요청 중...', true);
+    const csrf = MV.csrf();
+    try {
+      const res = await fetch(D.submitUrl + '/autosub', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify({ lang: $('autosubLang').value }) });
+      let j = {}; try { j = await res.json(); } catch (e) {}
+      if (MV.expired(res.status, j)) return;
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      autosubPoll(j.job, li);
+    } catch (err) { autosubState('실패: ' + err.message, false); }
+  }
+  function autosubPoll(jobId, li) {
+    clearTimeout(autosubTimer);
+    autosubTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(D.submitUrl + '/autosub/' + jobId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || MV.httpError(res.status));
+        if (j.status === 'failed') { autosubState('실패: ' + (j.error || '알 수 없는 오류'), false); return; }
+        if (j.status !== 'done') {
+          const step = j.progress < 40 ? '음성 인식' : j.progress < 70 ? (j.source === 'ocr' ? '화면 자막 읽기' : '교차 확인') : '번역';
+          autosubState((j.status === 'queued' ? '대기 중' : step) + ' ' + j.progress + '%', true);
+          autosubPoll(jobId, li); return;
+        }
+        const cues = (j.cues || []).filter(c => c.end - c.start >= 0.05 && c.text);
+        if (!cues.length) { autosubState(j.source === 'ocr' ? '음성도 화면 자막도 찾지 못했습니다.' : '인식된 문장이 없습니다.', false); return; }
+        commit();
+        if (!state.subtitles[li]) state.subtitles[li] = defaultSub();
+        const sub = state.subtitles[li];
+        sub.cues = cues.map(c => ({ start: +(+c.start).toFixed(3), end: +Math.min(D.duration, +c.end).toFixed(3), text: String(c.text).slice(0, 200), src: String(c.src || '').slice(0, 200), style: styleOf(sub) }));
+        sub.cues.sort((a, b) => a.start - b.start);
+        state.subCue = 0;
+        const langName = { en: '영어', ja: '일본어', zh: '중국어', vi: '베트남어', ko: '한국어', th: '태국어', id: '인도네시아어', es: '스페인어' }[j.language] || j.language || '';
+        autosubState((j.source === 'ocr' ? '화면 자막 ' : '') + langName + ' ' + cues.length + '문장 · 내용을 확인한 뒤 저장하세요', false);
+        renderSubs(); renderCueTrack(true); seek(sub.cues[0].start);
+      } catch (e) { autosubState('실패: ' + e.message, false); }
+    }, 1500);
+  }
+  $('btnAutosub').addEventListener('click', autosubStart);
   $('btnCueClear').addEventListener('click', () => {
     const sub = curSub(); if (!sub || !sub.cues.length) return;
     commit(); sub.cues = []; state.subCue = -1; renderSubs();
