@@ -571,6 +571,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .yt-cues .at:hover { text-decoration: underline; }
 /* X watch status on the media detail page: the two boxes, in the flow above the actions */
 .xw-side.compact { position: static; max-height: none; margin-bottom: 20px; }
+.xw-side.compact .xw-box.xw-list { overflow: visible; flex: none; }
 
 /* ---------- mobile: nav hamburger + tighter library controls ---------- */
 .nav .brand span { white-space: nowrap; }

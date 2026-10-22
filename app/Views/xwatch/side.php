@@ -1,7 +1,7 @@
 <?php
 /**
  * Compact X watch panel (library sidebar). $xw = XWatch::status() + 'row' (decoded latest check) or null.
- * $compact = true (media detail page): the status boxes and scheduled posts, without the post list.
+ * $compact = true (media detail page): the post list is cut to the latest 10.
  */
 use App\Libraries\XWatch;
 
@@ -78,12 +78,11 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php foreach ($tl['warnings'] as $m): ?><p class="xw-warn"><?= esc($m) ?></p><?php endforeach ?>
   </div>
 
-  <?php if (! $compact): ?>
   <div class="xw-box xw-list">
     <?php if (! $tl['posts']): ?>
       <p class="muted small" style="margin:0;padding:10px 12px">최근 48시간 기록 없음</p>
     <?php endif ?>
-    <?php foreach (array_slice($tl['posts'], 0, 40) as $p): ?>
+    <?php foreach (array_slice($tl['posts'], 0, $compact ? 10 : 40) as $p): ?>
       <a class="xw-item<?= ! empty($p['danger']) ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
         <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
         <span class="b">
@@ -93,5 +92,4 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       </a>
     <?php endforeach ?>
   </div>
-  <?php endif ?>
 </aside>
