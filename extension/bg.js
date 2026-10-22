@@ -118,6 +118,52 @@ async function upload() {
   }
 }
 
+// ---- scheduled posts, read from X every 10 minutes even with no x.com tab open ----
+// (the same request X's "예약됨" screen makes; hook.js does it too while an x.com tab is visible)
+const SCHED_QID = 'H2elmT2R9DLhWoo0DZFNkA';
+const X_WEB_AUTH = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+
+function schedItems(j) {
+  const list = j && j.data && j.data.viewer && j.data.viewer.scheduled_tweet_list;
+  if (!Array.isArray(list)) return null;
+  return list.map((x) => {
+    const req = x.tweet_create_request || {};
+    const info = x.scheduling_info || {};
+    let at = Number(info.execute_at) || 0;
+    if (at > 1e12) at = Math.round(at / 1000);
+    const mi = ((x.media_entities || [])[0] || {}).media_info;
+    return {
+      id: String(x.rest_id || ''), at, state: info.state || '',
+      kind: req.in_reply_to_status_id ? 'reply' : req.attachment_url ? 'quote' : 'post',
+      text: String(req.status || '').slice(0, 300),
+      media: (req.media_ids || []).length,
+      thumb: (mi && ((mi.preview_image && mi.preview_image.original_img_url) || mi.original_img_url)) || ''
+    };
+  }).filter((x) => x.id && x.at).slice(0, 100);
+}
+
+async function pollScheduled() {
+  const s = await get(['status', 'viewer', 'schedQid']);
+  const handle = (s.status && s.status.handle) || '';
+  // the list belongs to whoever is signed in to x.com in this browser
+  if (!handle || !s.viewer || s.viewer.toLowerCase() !== handle.toLowerCase()) return;
+  const ct0 = await new Promise((r) => chrome.cookies.get({ url: 'https://x.com', name: 'ct0' }, (c) => r(c && c.value)));
+  if (!ct0) return; // signed out
+  try {
+    const res = await fetch('https://x.com/i/api/graphql/' + (s.schedQid || SCHED_QID) + '/FetchScheduledTweets?variables=' + encodeURIComponent('{"ascending":true}'), {
+      credentials: 'include',
+      headers: { authorization: X_WEB_AUTH, 'x-csrf-token': ct0, 'x-twitter-active-user': 'yes', 'x-twitter-auth-type': 'OAuth2Session' }
+    });
+    if (!res.ok) throw new Error('X 예약 목록 HTTP ' + res.status);
+    const items = schedItems(await res.json());
+    if (!items) throw new Error('X 예약 목록 응답 형식이 바뀌었습니다');
+    await api('/xapi/scheduled', { method: 'POST', body: JSON.stringify({ items, viewer: s.viewer }) });
+    await set({ schedAt: Date.now() });
+  } catch (e) {
+    await set({ lastError: String(e.message || e) });
+  }
+}
+
 async function addPosts(list) {
   const s = await get(['posts', 'status', 'viewer']);
   const posts = s.posts || {};
@@ -163,6 +209,7 @@ async function addPosts(list) {
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'posts') { addPosts(msg.posts || []); return false; }
   if (msg && msg.type === 'scheduled') {
+    if (msg.qid && /^[A-Za-z0-9_-]{10,40}$/.test(msg.qid)) set({ schedQid: msg.qid });
     api('/xapi/scheduled', { method: 'POST', body: JSON.stringify({ items: msg.items || [], viewer: msg.viewer || '' }) })
       .catch((e) => set({ lastError: String(e.message || e) }));
     return false;
@@ -207,12 +254,15 @@ chrome.runtime.onInstalled.addListener(() => {
   injectOpenTabs();
   chrome.alarms.create('poll', { periodInMinutes: 5 });
   chrome.alarms.create('badge', { periodInMinutes: 1 });
+  chrome.alarms.create('sched', { periodInMinutes: 10 });
   poll();
+  pollScheduled();
 });
 chrome.runtime.onStartup.addListener(() => { poll(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'poll') upload().then(poll);
   if (a.name === 'badge') refreshBadge();
+  if (a.name === 'sched') pollScheduled();
 });
 chrome.notifications.onClicked.addListener(async () => {
   const { server } = await settings();

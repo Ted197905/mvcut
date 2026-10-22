@@ -64,7 +64,9 @@
     if (!v) { if (tries < 10) setTimeout(() => sendScheduled(items, tries + 1), 2000); return; } // sidebar not rendered yet
     if (!handle) handle = v;
     if (v.toLowerCase() !== handle.toLowerCase()) return;
-    live(() => chrome.runtime.sendMessage({ type: 'scheduled', items: items.slice(0, 100), viewer: v }).catch(() => {}));
+    let qid = '';
+    try { qid = localStorage.getItem('mvx_sched_qid') || ''; } catch (e) { /* ignore */ }
+    live(() => chrome.runtime.sendMessage({ type: 'scheduled', items: items.slice(0, 100), viewer: v, qid }).catch(() => {}));
   }
 
   function viewerHandle() {
