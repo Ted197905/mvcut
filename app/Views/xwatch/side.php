@@ -1,7 +1,7 @@
 <?php
 /**
  * Compact X watch panel (library sidebar). $xw = XWatch::status() + 'row' (decoded latest check) or null.
- * $compact = true (media detail page): the two status boxes only, without the post list.
+ * $compact = true (media detail page): the status boxes and scheduled posts, without the post list.
  */
 use App\Libraries\XWatch;
 
@@ -41,7 +41,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <a class="btn sm secondary xw-more" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
   </div>
 
-  <?php if (! $compact): $sc = $xw['scheduled'] ?? ['items' => [], 'synced' => null]; ?>
+  <?php $sc = $xw['scheduled'] ?? ['items' => [], 'synced' => null]; ?>
   <div class="xw-box xw-sched">
     <div class="xw-row"><a href="https://x.com/compose/post/unsent/scheduled" target="_blank" rel="noopener">예약 게시</a>
       <span class="ck-badge <?= $sc['items'] ? 'ok' : 'none' ?>"><?= count($sc['items']) ?>개</span>
@@ -65,7 +65,6 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <p class="muted small" style="margin:6px 0 0"><?= $ago($sc['synced']) ?> 전 확인</p>
     <?php endif ?>
   </div>
-  <?php endif ?>
 
   <div class="xw-box">
     <div class="xw-row"><span>다음 게시</span>
