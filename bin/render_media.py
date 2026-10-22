@@ -141,6 +141,20 @@ def progressive_urls(html: str) -> dict[str, str]:
         r = rank[m.group(1)]
         if key not in best or r < best[key][0]:
             best[key] = (r, u)
+    # Instagram / Threads: "video_versions" lists progressive mp4s (video + audio), best first
+    dec = json.JSONDecoder()
+    for m in re.finditer(r'"video_versions":(?=\[)', html or ""):
+        try:
+            vers, _ = dec.raw_decode(html, m.end())
+        except ValueError:
+            continue
+        for v in vers if isinstance(vers, list) else []:
+            u = str(v.get("url") or "") if isinstance(v, dict) else ""
+            if not u or not MEDIA_HOST.search(u):
+                continue
+            key = str(efg_of(u).get("xpv_asset_id") or u.split("?")[0])
+            best.setdefault(key, (0, u))
+            break
     return {k: v[1] for k, v in best.items()}
 
 
