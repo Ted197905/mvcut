@@ -144,7 +144,7 @@ class Library extends BaseController
         }
         $playable = MediaSupport::browserPlayable($item) || (bool) $item['has_proxy'];
         $pending  = (new JobModel())->where('media_id', $id)->whereIn('status', ['queued', 'running'])->orderBy('id', 'DESC')->first();
-        return view('library/show', ['title' => $item['title'], 'item' => $item, 'playable' => $playable,
+        return view('library/show', ['title' => '라이브러리 상세', 'item' => $item, 'playable' => $playable,
                                      'cats' => (new CategoryModel())->names(),
                                      'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl(),
                                      'xwatch' => self::xwatchPanel((int) session()->get('user_id'))]);

@@ -19,7 +19,7 @@ class Edit extends BaseController
         $params = $item['edit_params'] ? json_decode($item['edit_params'], true) : null;
         $prefs  = (new \App\Models\UserModel())->prefs((int) session()->get('user_id'));
         return view('edit/index', [
-            'title'    => '편집: ' . $item['title'],
+            'title'    => '편집',
             'item'     => $item,
             'params'   => $params,
             'wmPreset' => $prefs['watermark'] ?? null,

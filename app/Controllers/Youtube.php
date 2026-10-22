@@ -70,7 +70,7 @@ class Youtube extends BaseController
     {
         $row = (new YtVideoModel())->find($id);
         if (! $row) return redirect()->to(site_url('youtube'))->with('flash', '존재하지 않는 영상입니다.');
-        return view('youtube/show', ['title' => $row['title'] ?: 'YouTube', 'item' => $row, 'subs' => YtVideoModel::subs($row),
+        return view('youtube/show', ['title' => 'YouTube', 'item' => $row, 'subs' => YtVideoModel::subs($row),
                                      'cast' => YtVideoModel::cast($row), 'transcript' => YouTubeTool::transcriptSub($row)]);
     }
 
