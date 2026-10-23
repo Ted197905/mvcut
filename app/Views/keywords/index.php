@@ -59,11 +59,13 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
 .kw-edit .btns .no:hover { background: var(--fill2); }
 .kw-edit .btns button:disabled { opacity: 0.4; }
 /* reference photos: 500x500 crops, shown only while the toggle is on */
-.kw-pic { flex: none; width: 64px; height: 64px; margin: 4px 10px 4px 0; border: 0; padding: 0; border-radius: 12px; background: var(--fill1); color: var(--label3); cursor: pointer; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
-.kw-members .kw-pic { width: 56px; height: 56px; border-radius: 10px; }
-.kw-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.kw-pic.empty:hover { background: var(--fill2); color: var(--label); }
-.kw-pic:not(.empty):hover img { opacity: 0.85; }
+.kw-row { flex-wrap: wrap; }
+.kw-picwrap { flex: 1 0 100%; padding: 10px 0 4px; }
+.kw-members .kw-picwrap { padding-left: 0; }
+.kw-pic { display: block; width: 500px; max-width: 100%; aspect-ratio: 1 / 1; border: 0; padding: 0; border-radius: 14px; background: var(--fill1); cursor: zoom-in; overflow: hidden; }
+.kw-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
+.kw-pic:hover img { opacity: 0.9; }
+.kw-acts button.cam.has { color: var(--blue); }
 .kw-ib.on { background: var(--blue); color: #fff; }
 .kw-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
 .kw-modal .box { background: var(--bg-elev); border-radius: 18px; box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,.4)); max-width: min(92vw, 560px); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -190,7 +192,7 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
     sort: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h5"/><path d="M19 12v8M16 17l3 3 3-3"/></svg>',
     chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
-    cam: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    cam: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   };
 
   /* ---------- reference photos ---------- */
@@ -240,7 +242,7 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     const zoomRow = document.createElement('div'); zoomRow.className = 'kw-crop-zoom';
     zoomRow.innerHTML = '<span>확대</span><input type="range" min="1" max="4" step="0.01" value="1">';
     const zoom = zoomRow.querySelector('input');
-    const hint = document.createElement('p'); hint.className = 'kw-crop-hint'; hint.textContent = '사진을 끌어서 얼굴을 네모 안에 맞추세요';
+    const hint = document.createElement('p'); hint.className = 'kw-crop-hint'; hint.textContent = '사진을 끌어서 얼굴을 네모 안에 맞추세요. 네모 안이 1:1 실제 크기로 저장됩니다';
     const bar = document.createElement('div'); bar.className = 'bar';
     const ok = btn('저장', 'ok', () => save()); const no = btn('취소', '', close);
     bar.append(ok, no);
@@ -286,13 +288,14 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
         }
         node.image = true; node.imgv = j.imgv; node.crop = j.crop;
         if (file) URL.revokeObjectURL(src);
+        if (!showImg) { showImg = true; try { localStorage.setItem('mvcut.kwimg', '1'); } catch (e) {} paintToggle(); }
         close(); render();
       } catch (e) { alert(e.message); ok.disabled = no.disabled = false; ok.textContent = '저장'; }
     }
   }
 
   const imgToggle = $('kwImgToggle');
-  const paintToggle = () => { imgToggle.classList.toggle('on', showImg); imgToggle.title = showImg ? '사진 숨기기' : '사진 표시 (얼굴 확인용)'; };
+  function paintToggle() { imgToggle.classList.toggle('on', showImg); imgToggle.title = showImg ? '사진 숨기기' : '사진 표시 (얼굴 확인용)'; }
   imgToggle.addEventListener('click', () => { showImg = !showImg; try { localStorage.setItem('mvcut.kwimg', showImg ? '1' : '0'); } catch (e) {} paintToggle(); render(); });
   paintToggle();
 
@@ -337,14 +340,6 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
       try { await api('/' + node.id + '/collapse', { collapsed: node.collapsed }); } catch (e) {}
     });
 
-    if (showImg) {
-      const pic = document.createElement('button'); pic.type = 'button'; pic.className = 'kw-pic' + (node.image ? '' : ' empty');
-      pic.title = node.image ? '원본 보기' : '사진 올리기 (500x500 자르기)';
-      if (node.image) { const im = document.createElement('img'); im.src = picUrl(node, 'thumb'); im.alt = ''; im.loading = 'lazy'; pic.appendChild(im); }
-      else pic.innerHTML = SVG.cam;
-      pic.addEventListener('click', () => node.image ? viewImage(node) : pickImage(node));
-      r.appendChild(pic);
-    }
     const name = document.createElement('button'); name.type = 'button'; name.className = 'kw-name'; name.title = '클립보드에 복사'; name.appendChild(nameHtml(node.name));
     if (hasKids && node.collapsed && query === '') { const c = document.createElement('span'); c.className = 'kw-count'; c.textContent = node.children.length; name.appendChild(c); }
     name.addEventListener('click', () => copy(node.name, r));
@@ -364,6 +359,9 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
         acts.appendChild(srt);
       }
     }
+    const cam = icon('cam' + (node.image ? ' has' : ''), node.image ? '사진 바꾸기' : '사진 올리기 (1:1 자르기)', SVG.cam);
+    cam.addEventListener('click', () => pickImage(node));
+    acts.appendChild(cam);
     const del = icon('del', '삭제', SVG.trash);
     del.addEventListener('click', async () => {
       const n = isGroup && node.children.length ? '"' + node.name + '"과(와) 하위 ' + node.children.length + '개를 삭제할까요?' : '"' + node.name + '"을(를) 삭제할까요?';
@@ -376,6 +374,13 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     acts.appendChild(del);
     r.appendChild(acts);
     if (isGroup) r.appendChild(tog);
+    if (showImg && node.image) {
+      const wrap = document.createElement('div'); wrap.className = 'kw-picwrap';
+      const pic = document.createElement('button'); pic.type = 'button'; pic.className = 'kw-pic'; pic.title = '원본 보기';
+      const im = document.createElement('img'); im.src = picUrl(node, 'thumb'); im.alt = ''; im.loading = 'lazy'; pic.appendChild(im);
+      pic.addEventListener('click', () => viewImage(node));
+      wrap.appendChild(pic); r.appendChild(wrap);
+    }
 
     kids(li, node, isGroup, hasKids);
     return li;

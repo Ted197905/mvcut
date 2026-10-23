@@ -134,7 +134,7 @@ class Keywords extends BaseController
 
     /* ---------------- reference photo (500x500 crop of an uploaded image) ---------------- */
 
-    private const THUMB = 500;
+    private const CROP_MAX = 3000;   // a 1:1 crop larger than this is scaled down to it
     private const IMAGE_MAX = 20 * 1024 * 1024;
 
     /** GET /keywords/{id}/image/thumb|orig - streams the file (small, so no X-Accel needed). */
@@ -150,7 +150,7 @@ class Keywords extends BaseController
             ->setHeader('Content-Length', (string) filesize($file))->setBody((string) file_get_contents($file));
     }
 
-    /** POST /api/keywords/{id}/image  multipart: file + crop (JSON {x,y,w,h} in source pixels, after EXIF rotation) */
+    /** POST /api/keywords/{id}/image  multipart: file + crop (JSON {x,y,w,h} in source pixels, after EXIF rotation); the 1:1 crop is kept at full size */
     public function imageUpload(int $id)
     {
         $m   = new KeywordModel();
@@ -208,9 +208,9 @@ class Keywords extends BaseController
     }
 
     /**
-     * Writes the 500x500 thumb: the crop square (clamped to the picture, the centred largest
-     * square when none is given) scaled down. Coordinates refer to the EXIF-upright picture,
-     * which is what the browser showed the user. Returns the crop actually used.
+     * Writes the 1:1 crop at its real size (the centred largest square when none is given;
+     * clamped to the picture). Coordinates refer to the EXIF-upright picture, which is what the
+     * browser showed the user. Returns the crop actually used.
      */
     private function makeThumb(string $src, string $dst, ?array $crop): array
     {
@@ -224,7 +224,9 @@ class Keywords extends BaseController
         $w = max(16, min($w, $side));
         $x = max(0, min($x, $W - $w));
         $y = max(0, min($y, $H - $w));
-        $img->crop($w, $w, $x, $y)->resize(self::THUMB, self::THUMB)->convert(IMAGETYPE_JPEG)->save($dst, 88);
+        $img->crop($w, $w, $x, $y);
+        if ($w > self::CROP_MAX) $img->resize(self::CROP_MAX, self::CROP_MAX);
+        $img->convert(IMAGETYPE_JPEG)->save($dst, 90);
         return ['x' => $x, 'y' => $y, 'w' => $w, 'h' => $w];
     }
 
