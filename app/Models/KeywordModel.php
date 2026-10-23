@@ -9,7 +9,7 @@ class KeywordModel extends Model
     protected $table         = 'keywords';
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
-    protected $allowedFields = ['user_id', 'parent_id', 'name', 'sort', 'collapsed'];
+    protected $allowedFields = ['user_id', 'parent_id', 'name', 'sort', 'collapsed', 'image', 'crop', 'image_at'];
     protected $useTimestamps = true;
 
     /** Whole tree of one user: top-level rows with their children, in sort order. */
@@ -19,7 +19,9 @@ class KeywordModel extends Model
         $top  = [];
         $kids = [];
         foreach ($rows as $r) {
-            $node = ['id' => (int) $r['id'], 'name' => $r['name'], 'collapsed' => (bool) $r['collapsed'], 'children' => []];
+            $node = ['id' => (int) $r['id'], 'name' => $r['name'], 'collapsed' => (bool) $r['collapsed'], 'children' => [],
+                     'image' => $r['image'] !== null, 'imgv' => $r['image_at'] ? strtotime($r['image_at']) : 0,
+                     'crop' => $r['crop'] ? json_decode($r['crop'], true) : null];
             if ($r['parent_id'] === null) $top[$node['id']] = $node;
             else $kids[(int) $r['parent_id']][] = $node;
         }
@@ -41,6 +43,12 @@ class KeywordModel extends Model
     }
 
     public const MAX = 2000;
+
+    /** Folder of one keyword's image files (original + thumb.jpg). */
+    public static function imageDir(array $row): string
+    {
+        return WRITEPATH . 'keywords/' . $row['user_id'] . '/' . $row['id'];
+    }
 
     /** Lines trimmed, blank lines dropped, or an error message. */
     public static function clean(string $name, ?string &$error): string

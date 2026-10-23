@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\KeywordModel;
+use CodeIgniter\Exceptions\PageNotFoundException;
 
 /** /keywords - keyword tree (group -> members) to paste into X posts. Tree state lives in the DB. */
 class Keywords extends BaseController
@@ -123,9 +124,108 @@ class Keywords extends BaseController
     {
         $m = new KeywordModel();
         if (! $m->findOwned($id, $this->uid())) return $this->json(['error' => '키워드가 없습니다.'], 404);
+        foreach ($m->where('user_id', $this->uid())->groupStart()->where('id', $id)->orWhere('parent_id', $id)->groupEnd()->findAll() as $r) {
+            if ($r['image']) { foreach (glob(KeywordModel::imageDir($r) . '/*') ?: [] as $old) @unlink($old); @rmdir(KeywordModel::imageDir($r)); }
+        }
         $m->where('user_id', $this->uid())->where('parent_id', $id)->delete();
         $m->delete($id);
         return $this->json(['ok' => true]);
+    }
+
+    /* ---------------- reference photo (500x500 crop of an uploaded image) ---------------- */
+
+    private const THUMB = 500;
+    private const IMAGE_MAX = 20 * 1024 * 1024;
+
+    /** GET /keywords/{id}/image/thumb|orig - streams the file (small, so no X-Accel needed). */
+    public function image(int $id, string $kind = 'thumb')
+    {
+        $row = (new KeywordModel())->findOwned($id, $this->uid());
+        if (! $row || ! $row['image']) throw PageNotFoundException::forPageNotFound();
+        $dir  = KeywordModel::imageDir($row);
+        $file = $kind === 'orig' ? $dir . '/' . $row['image'] : $dir . '/thumb.jpg';
+        if (! is_file($file)) throw PageNotFoundException::forPageNotFound();
+        $mime = $kind === 'orig' ? (mime_content_type($file) ?: 'application/octet-stream') : 'image/jpeg';
+        return $this->response->setHeader('Content-Type', $mime)->setHeader('Cache-Control', 'private, max-age=86400')
+            ->setHeader('Content-Length', (string) filesize($file))->setBody((string) file_get_contents($file));
+    }
+
+    /** POST /api/keywords/{id}/image  multipart: file + crop (JSON {x,y,w,h} in source pixels, after EXIF rotation) */
+    public function imageUpload(int $id)
+    {
+        $m   = new KeywordModel();
+        $row = $m->findOwned($id, $this->uid());
+        if (! $row) return $this->json(['error' => '키워드가 없습니다.'], 404);
+        $f = $this->request->getFile('file');
+        if (! $f || ! $f->isValid()) return $this->json(['error' => '이미지 파일을 선택하세요.'], 422);
+        if ($f->getSize() > self::IMAGE_MAX) return $this->json(['error' => '이미지는 20MB 이하만 올릴 수 있습니다.'], 422);
+        $info = @getimagesize($f->getTempName());
+        $ext  = match ($info[2] ?? 0) { IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp', default => null };
+        if (! $ext) return $this->json(['error' => 'JPG, PNG, GIF, WEBP 이미지만 올릴 수 있습니다 (HEIC는 변환 후).'], 422);
+        $dir = KeywordModel::imageDir($row);
+        if (! is_dir($dir) && ! @mkdir($dir, 0775, true)) return $this->json(['error' => '저장 폴더를 만들지 못했습니다.'], 500);
+        foreach (glob($dir . '/*') ?: [] as $old) @unlink($old);
+        $name = 'orig.' . $ext;
+        $f->move($dir, $name, true);
+        $crop = json_decode((string) $this->request->getPost('crop'), true);
+        try {
+            $crop = $this->makeThumb($dir . '/' . $name, $dir . '/thumb.jpg', is_array($crop) ? $crop : null);
+        } catch (\Throwable $e) {
+            @unlink($dir . '/' . $name);
+            return $this->json(['error' => '이미지를 처리하지 못했습니다: ' . $e->getMessage()], 422);
+        }
+        $m->update($id, ['image' => $name, 'crop' => json_encode($crop), 'image_at' => date('Y-m-d H:i:s')]);
+        return $this->json(['ok' => true, 'imgv' => time(), 'crop' => $crop]);
+    }
+
+    /** POST /api/keywords/{id}/image/crop  {x,y,w,h} - a new 500x500 from the stored original */
+    public function imageCrop(int $id)
+    {
+        $m   = new KeywordModel();
+        $row = $m->findOwned($id, $this->uid());
+        if (! $row || ! $row['image']) return $this->json(['error' => '사진이 없습니다.'], 404);
+        $dir = KeywordModel::imageDir($row);
+        try {
+            $crop = $this->makeThumb($dir . '/' . $row['image'], $dir . '/thumb.jpg', $this->request->getJSON(true) ?: null);
+        } catch (\Throwable $e) {
+            return $this->json(['error' => '이미지를 처리하지 못했습니다: ' . $e->getMessage()], 422);
+        }
+        $m->update($id, ['crop' => json_encode($crop), 'image_at' => date('Y-m-d H:i:s')]);
+        return $this->json(['ok' => true, 'imgv' => time(), 'crop' => $crop]);
+    }
+
+    /** POST /api/keywords/{id}/image/delete */
+    public function imageDelete(int $id)
+    {
+        $m   = new KeywordModel();
+        $row = $m->findOwned($id, $this->uid());
+        if (! $row) return $this->json(['error' => '키워드가 없습니다.'], 404);
+        $dir = KeywordModel::imageDir($row);
+        foreach (glob($dir . '/*') ?: [] as $old) @unlink($old);
+        @rmdir($dir);
+        $m->update($id, ['image' => null, 'crop' => null, 'image_at' => null]);
+        return $this->json(['ok' => true]);
+    }
+
+    /**
+     * Writes the 500x500 thumb: the crop square (clamped to the picture, the centred largest
+     * square when none is given) scaled down. Coordinates refer to the EXIF-upright picture,
+     * which is what the browser showed the user. Returns the crop actually used.
+     */
+    private function makeThumb(string $src, string $dst, ?array $crop): array
+    {
+        $img = \Config\Services::image('gd')->withFile($src);
+        try { $img->reorient(); } catch (\Throwable $e) { /* no EXIF */ }
+        $W = $img->getWidth(); $H = $img->getHeight();
+        $side = min($W, $H);
+        $x = (int) round((float) ($crop['x'] ?? ($W - $side) / 2));
+        $y = (int) round((float) ($crop['y'] ?? ($H - $side) / 2));
+        $w = (int) round((float) ($crop['w'] ?? $side));
+        $w = max(16, min($w, $side));
+        $x = max(0, min($x, $W - $w));
+        $y = max(0, min($y, $H - $w));
+        $img->crop($w, $w, $x, $y)->resize(self::THUMB, self::THUMB)->convert(IMAGETYPE_JPEG)->save($dst, 88);
+        return ['x' => $x, 'y' => $y, 'w' => $w, 'h' => $w];
     }
 
     /** POST /api/keywords/seed - loads the starter set when the user has no keywords yet */

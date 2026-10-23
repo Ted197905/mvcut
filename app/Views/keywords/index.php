@@ -58,6 +58,29 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
 .kw-edit .btns .no { background: var(--fill1); color: var(--label); }
 .kw-edit .btns .no:hover { background: var(--fill2); }
 .kw-edit .btns button:disabled { opacity: 0.4; }
+/* reference photos: 500x500 crops, shown only while the toggle is on */
+.kw-pic { flex: none; width: 64px; height: 64px; margin: 4px 10px 4px 0; border: 0; padding: 0; border-radius: 12px; background: var(--fill1); color: var(--label3); cursor: pointer; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.kw-members .kw-pic { width: 56px; height: 56px; border-radius: 10px; }
+.kw-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.kw-pic.empty:hover { background: var(--fill2); color: var(--label); }
+.kw-pic:not(.empty):hover img { opacity: 0.85; }
+.kw-ib.on { background: var(--blue); color: #fff; }
+.kw-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.kw-modal .box { background: var(--bg-elev); border-radius: 18px; box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,.4)); max-width: min(92vw, 560px); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; }
+.kw-modal .box.view { background: transparent; box-shadow: none; max-width: 96vw; max-height: 96vh; align-items: center; }
+.kw-modal .view img { max-width: 96vw; max-height: calc(96vh - 60px); object-fit: contain; border-radius: 10px; background: #000; }
+.kw-modal .bar { display: flex; gap: 8px; justify-content: center; align-items: center; padding: 12px 14px; flex-wrap: wrap; }
+.kw-modal .bar button { height: 34px; padding: 0 14px; border: 0; border-radius: 17px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--fill1); color: var(--label); }
+.kw-modal .view .bar button { background: rgba(255,255,255,.14); color: #fff; }
+.kw-modal .bar button.ok { background: var(--blue); color: #fff; }
+.kw-modal .bar button.del { color: var(--red); }
+.kw-modal .bar button:disabled { opacity: .4; }
+.kw-crop { position: relative; width: min(80vw, 360px); height: min(80vw, 360px); margin: 16px auto 0; overflow: hidden; background: #111; border-radius: 8px; touch-action: none; cursor: grab; user-select: none; }
+.kw-crop img { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; max-width: none; }
+.kw-crop::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); pointer-events: none; }
+.kw-crop-zoom { display: flex; align-items: center; gap: 10px; padding: 12px 20px 0; font-size: 13px; color: var(--label2); }
+.kw-crop-zoom input { flex: 1; accent-color: var(--blue); }
+.kw-crop-hint { text-align: center; font-size: 12px; color: var(--label3); margin: 8px 0 0; }
 .kw-empty, .kw-nomatch { background: var(--bg-elev); border-radius: 16px; box-shadow: var(--shadow-sm); text-align: center; padding: 40px 16px; color: var(--label2); font-size: 15px; }
 .kw-empty p { margin: 0 0 16px; }
 .kw-hint { font-size: 13px; color: var(--label3); margin: 16px 4px 0; line-height: 1.5; }
@@ -91,6 +114,7 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
       <button type="button" id="kwSortDesc" title="이름 내림차순 (상위, 그리고 각 그룹 안의 하위)">Z→A</button>
     </div>
     <span class="spacer"></span>
+    <button class="kw-ib" type="button" id="kwImgToggle" title="사진 표시 (얼굴 확인용)" aria-label="사진 표시"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg></button>
     <button class="kw-ib" type="button" id="kwExpand" title="전체 펼치기" aria-label="전체 펼치기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg></button>
     <button class="kw-ib" type="button" id="kwCollapse" title="전체 접기" aria-label="전체 접기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l5 5 5-5M7 20l5-5 5 5"/></svg></button>
   </div>
@@ -101,6 +125,7 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     <p>아직 키워드가 없습니다.</p>
     <button class="kw-pill" type="button" id="kwSeed">기본 키워드 불러오기</button>
   </div>
+  <input type="file" id="kwFile" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
   <p class="kw-hint">상위 키워드의 + 는 그 아래에 멤버 키워드를 추가합니다. 연필은 수정, 휴지통은 삭제(상위를 지우면 하위도 함께 삭제). 키워드는 여러 줄로 쓸 수 있습니다(Enter 줄바꿈, Ctrl+Enter 저장).</p>
 </main>
 <?= $this->endSection() ?>
@@ -130,6 +155,9 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     return frag;
   };
   const treeEl = $('kwTree');
+  const imgBase = <?= json_encode(site_url('keywords')) ?>;
+  let showImg = false; try { showImg = localStorage.getItem('mvcut.kwimg') === '1'; } catch (e) {}
+  const picUrl = (node, kind) => imgBase + '/' + node.id + '/image/' + kind + '?v=' + (node.imgv || 0);
 
   async function api(path, body) {
     const res = await fetch(base + path, { method: 'POST', headers: hdr, body: JSON.stringify(body || {}) });
@@ -162,7 +190,111 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
     trash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
     sort: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h5"/><path d="M19 12v8M16 17l3 3 3-3"/></svg>',
     chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+    cam: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   };
+
+  /* ---------- reference photos ---------- */
+  function modal(cls) {
+    const m = document.createElement('div'); m.className = 'kw-modal';
+    const box = document.createElement('div'); box.className = 'box ' + cls; m.appendChild(box);
+    const close = () => { m.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    m.addEventListener('click', (e) => { if (e.target === m) close(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(m);
+    return { m, box, close };
+  }
+  const btn = (label, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', fn); return b; };
+
+  // original on click, with re-crop / replace / delete
+  function viewImage(node) {
+    const { box, close } = modal('view');
+    const im = document.createElement('img'); im.src = picUrl(node, 'orig'); im.alt = node.name;
+    im.addEventListener('click', close);
+    const bar = document.createElement('div'); bar.className = 'bar';
+    bar.append(
+      btn('다시 자르기', '', () => { close(); cropImage(node, picUrl(node, 'orig'), null, node.crop); }),
+      btn('사진 바꾸기', '', () => { close(); pickImage(node); }),
+      btn('삭제', 'del', async () => {
+        if (!confirm('이 사진을 삭제할까요?')) return;
+        try { await api('/' + node.id + '/image/delete'); node.image = false; node.crop = null; close(); render(); } catch (e) { alert(e.message); }
+      }),
+      btn('닫기', '', close));
+    box.append(im, bar);
+  }
+
+  let pickFor = null;
+  function pickImage(node) { pickFor = node; $('kwFile').value = ''; $('kwFile').click(); }
+  $('kwFile').addEventListener('change', () => {
+    const f = $('kwFile').files[0], node = pickFor; pickFor = null;
+    if (!f || !node) return;
+    if (f.size > 20 * 1024 * 1024) { alert('이미지는 20MB 이하만 올릴 수 있습니다.'); return; }
+    cropImage(node, URL.createObjectURL(f), f, null);
+  });
+
+  // the photo moves under a fixed square (drag) and zooms (slider); the square is the 500x500 thumb
+  function cropImage(node, src, file, initial) {
+    const { box, close } = modal('');
+    const vp = document.createElement('div'); vp.className = 'kw-crop';
+    const im = document.createElement('img'); im.src = src; im.alt = ''; im.draggable = false; vp.appendChild(im);
+    const zoomRow = document.createElement('div'); zoomRow.className = 'kw-crop-zoom';
+    zoomRow.innerHTML = '<span>확대</span><input type="range" min="1" max="4" step="0.01" value="1">';
+    const zoom = zoomRow.querySelector('input');
+    const hint = document.createElement('p'); hint.className = 'kw-crop-hint'; hint.textContent = '사진을 끌어서 얼굴을 네모 안에 맞추세요';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const ok = btn('저장', 'ok', () => save()); const no = btn('취소', '', close);
+    bar.append(ok, no);
+    box.append(vp, zoomRow, hint, bar);
+
+    let nw = 0, nh = 0, s0 = 1, s = 1, ox = 0, oy = 0, V = 0;
+    const clamp = () => { V = vp.clientWidth; ox = Math.min(0, Math.max(V - nw * s, ox)); oy = Math.min(0, Math.max(V - nh * s, oy)); };
+    const draw = () => { clamp(); im.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + s + ')'; };
+    im.onload = () => {
+      nw = im.naturalWidth; nh = im.naturalHeight; V = vp.clientWidth;
+      s0 = Math.max(V / nw, V / nh);
+      if (initial && initial.w) {      // reopen on the crop in use
+        s = V / initial.w; zoom.value = Math.min(4, Math.max(1, s / s0)); s = s0 * zoom.value;
+        ox = -initial.x * s; oy = -initial.y * s;
+      } else { s = s0; ox = (V - nw * s) / 2; oy = (V - nh * s) / 2; }
+      draw();
+    };
+    im.onerror = () => { alert('이미지를 열지 못했습니다.'); close(); };
+    zoom.addEventListener('input', () => {
+      const ns = s0 * parseFloat(zoom.value), c = V / 2;    // zoom around the centre of the square
+      ox = c - (c - ox) * ns / s; oy = c - (c - oy) * ns / s; s = ns; draw();
+    });
+    let drag = null;
+    vp.addEventListener('pointerdown', (e) => { drag = { x: e.clientX - ox, y: e.clientY - oy }; vp.setPointerCapture(e.pointerId); });
+    vp.addEventListener('pointermove', (e) => { if (!drag) return; ox = e.clientX - drag.x; oy = e.clientY - drag.y; draw(); });
+    vp.addEventListener('pointerup', () => { drag = null; }); vp.addEventListener('pointercancel', () => { drag = null; });
+    vp.addEventListener('wheel', (e) => { e.preventDefault(); zoom.value = Math.min(4, Math.max(1, parseFloat(zoom.value) * (e.deltaY < 0 ? 1.08 : 0.93))); zoom.dispatchEvent(new Event('input')); }, { passive: false });
+
+    async function save() {
+      if (!nw) return;
+      const crop = { x: Math.round(-ox / s), y: Math.round(-oy / s), w: Math.round(V / s), h: Math.round(V / s) };
+      ok.disabled = no.disabled = true; ok.textContent = '저장 중...';
+      try {
+        let j;
+        if (file) {
+          const fd = new FormData(); fd.append('file', file); fd.append('crop', JSON.stringify(crop));
+          const res = await fetch(base + '/' + node.id + '/image', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: fd });
+          try { j = await res.json(); } catch (e) { j = {}; }
+          if (MV.expired(res.status, j)) return;
+          if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+        } else {
+          j = await api('/' + node.id + '/image/crop', crop);
+        }
+        node.image = true; node.imgv = j.imgv; node.crop = j.crop;
+        if (file) URL.revokeObjectURL(src);
+        close(); render();
+      } catch (e) { alert(e.message); ok.disabled = no.disabled = false; ok.textContent = '저장'; }
+    }
+  }
+
+  const imgToggle = $('kwImgToggle');
+  const paintToggle = () => { imgToggle.classList.toggle('on', showImg); imgToggle.title = showImg ? '사진 숨기기' : '사진 표시 (얼굴 확인용)'; };
+  imgToggle.addEventListener('click', () => { showImg = !showImg; try { localStorage.setItem('mvcut.kwimg', showImg ? '1' : '0'); } catch (e) {} paintToggle(); render(); });
+  paintToggle();
 
   function editor(value, onSave, onCancel) {
     const wrap = document.createElement('div'); wrap.className = 'kw-edit';
@@ -205,6 +337,14 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
       try { await api('/' + node.id + '/collapse', { collapsed: node.collapsed }); } catch (e) {}
     });
 
+    if (showImg) {
+      const pic = document.createElement('button'); pic.type = 'button'; pic.className = 'kw-pic' + (node.image ? '' : ' empty');
+      pic.title = node.image ? '원본 보기' : '사진 올리기 (500x500 자르기)';
+      if (node.image) { const im = document.createElement('img'); im.src = picUrl(node, 'thumb'); im.alt = ''; im.loading = 'lazy'; pic.appendChild(im); }
+      else pic.innerHTML = SVG.cam;
+      pic.addEventListener('click', () => node.image ? viewImage(node) : pickImage(node));
+      r.appendChild(pic);
+    }
     const name = document.createElement('button'); name.type = 'button'; name.className = 'kw-name'; name.title = '클립보드에 복사'; name.appendChild(nameHtml(node.name));
     if (hasKids && node.collapsed && query === '') { const c = document.createElement('span'); c.className = 'kw-count'; c.textContent = node.children.length; name.appendChild(c); }
     name.addEventListener('click', () => copy(node.name, r));

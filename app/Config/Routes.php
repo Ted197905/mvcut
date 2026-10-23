@@ -58,6 +58,10 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/keywords/(:num)', 'Keywords::update/$1');
     $routes->post('api/keywords/(:num)/collapse', 'Keywords::collapse/$1');
     $routes->post('api/keywords/(:num)/delete', 'Keywords::delete/$1');
+    $routes->get('keywords/(:num)/image/(:segment)', 'Keywords::image/$1/$2');
+    $routes->post('api/keywords/(:num)/image', 'Keywords::imageUpload/$1');
+    $routes->post('api/keywords/(:num)/image/crop', 'Keywords::imageCrop/$1');
+    $routes->post('api/keywords/(:num)/image/delete', 'Keywords::imageDelete/$1');
 
     $routes->get('library', 'Library::index');
     $routes->post('library/upload', 'Library::upload');
