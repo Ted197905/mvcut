@@ -85,6 +85,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/jobs/(:num)', 'Jobs::show/$1');
     $routes->get('api/jobs', 'Jobs::index');
     $routes->post('api/jobs/(:num)/retry', 'Jobs::retry/$1');
+    $routes->post('api/jobs/(:num)/cancel', 'Jobs::cancel/$1');
     $routes->post('api/jobs/(:num)/dismiss', 'Jobs::dismiss/$1');
     $routes->get('api/media/(:num)', 'Media::info/$1');
     $routes->post('api/media/(:num)/rename', 'Media::rename/$1');

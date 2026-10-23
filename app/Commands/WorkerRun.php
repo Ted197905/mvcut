@@ -25,6 +25,11 @@ class WorkerRun extends BaseCommand
         $runner = new JobRunner();
         $log    = static fn (string $m) => CLI::write('[' . date('H:i:s') . '] ' . $m);
         $log('worker started (pid ' . getmypid() . ')');
+        // only one worker runs: anything still 'running' was cut off when the previous one stopped
+        $db = db_connect();
+        $db->table('jobs')->whereIn('status', ['running', 'cancelled'])->update([
+            'status' => 'failed', 'error' => '워커가 재시작되어 중단됨 (재시도 가능)', 'finished_at' => date('Y-m-d H:i:s')]);
+        if ($db->affectedRows() > 0) $log('marked ' . $db->affectedRows() . ' interrupted job(s) as failed');
         $nextCleanup = time() + 300;
         $nextXWatch  = time() + 20;
         $lastImport  = ['platform' => '', 'at' => 0];

@@ -31,9 +31,17 @@ class JobRunner
         return $this->jobs->find($id);
     }
 
+    /** True once the user pressed 중단 on this job (Jobs::cancel sets status 'cancelled'). */
+    private function cancelled(int $id): bool
+    {
+        $row = $this->jobs->db->table('jobs')->select('status')->where('id', $id)->get()->getRowArray();
+        return ($row['status'] ?? '') === 'cancelled';
+    }
+
     public function run(array $job, ?callable $log = null): void
     {
         $log ??= static function (string $m): void {};
+        Ffmpeg::$abort = fn () => $this->cancelled((int) $job['id']);
         try {
             $result = match ($job['type']) {
                 'edit'    => $this->runEdit($job, $log),
@@ -44,12 +52,20 @@ class JobRunner
                 'autosub' => $this->runAutosub($job, $log),
                 default   => throw new \RuntimeException('unknown job type ' . $job['type']),
             };
+            if ($this->cancelled((int) $job['id'])) throw new \RuntimeException('cancelled');
             $this->jobs->update($job['id'], ['status' => 'done', 'progress' => 100, 'result_media_id' => $result, 'finished_at' => date('Y-m-d H:i:s')]);
             $log("job {$job['id']} done -> media {$result}");
         } catch (\Throwable $e) {
-            $this->jobs->update($job['id'], ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 2000), 'finished_at' => date('Y-m-d H:i:s')]);
-            $log("job {$job['id']} FAILED: " . $e->getMessage());
+            if ($this->cancelled((int) $job['id'])) {
+                // a cancelled job ends as a failed one, so the queue offers 재시도 / 삭제 for it
+                $this->jobs->update($job['id'], ['status' => 'failed', 'error' => '사용자가 중단했습니다', 'finished_at' => date('Y-m-d H:i:s')]);
+                $log("job {$job['id']} cancelled");
+            } else {
+                $this->jobs->update($job['id'], ['status' => 'failed', 'error' => mb_substr($e->getMessage(), 0, 2000), 'finished_at' => date('Y-m-d H:i:s')]);
+                $log("job {$job['id']} FAILED: " . $e->getMessage());
+            }
         }
+        Ffmpeg::$abort = null;
     }
 
     private function runEdit(array $job, callable $log): int
@@ -440,6 +456,7 @@ class JobRunner
             stream_get_contents($pipes[1]);
             $st = proc_get_status($proc);
             if (! $st['running']) break;
+            if (Ffmpeg::aborted()) { proc_terminate($proc, 9); $err .= "\ncancelled\n"; break; }
             usleep(200000);
         }
         $err .= (string) stream_get_contents($pipes[2]) . $buf;
@@ -562,7 +579,17 @@ class JobRunner
         $args[] = $p['url'];
         $log('yt-dlp ' . implode(' ', array_map('escapeshellarg', array_slice($args, 1))));
         $this->jobs->update($job['id'], ['progress' => 5]);
-        $r = MediaSupport::ytdlpRun($args, $platform, 900);
+        // "[download]  42.3% of ..." lines (--newline) drive the bar from 5% to 85%
+        array_splice($args, 1, 0, ['--newline']);
+        $lastPct = -1; $lastAt = 0.0;
+        $onLine = function (string $l) use ($job, &$lastPct, &$lastAt): void {
+            if (! preg_match('/^\[download\]\s+(\d+(?:\.\d+)?)%/', $l, $m)) return;
+            $pct = 5 + (int) floor((float) $m[1] * 0.8);
+            if ($pct !== $lastPct && microtime(true) - $lastAt > 1) {
+                $this->jobs->update($job['id'], ['progress' => $pct]); $lastPct = $pct; $lastAt = microtime(true);
+            }
+        };
+        $r = MediaSupport::ytdlpRun($args, $platform, 900, $onLine);
         if (! empty($r['fallback'])) $log($r['fallback'] === 'nocookie' ? 'Facebook page unparsable when logged in; retried without cookies' : 'X cookies rejected; used the probe account cookies');
         $files = glob($dir . '/original.*') ?: [];
         // In a carousel our list order is not the slide order, so the item we asked for can
@@ -1289,6 +1316,7 @@ class JobRunner
             }
             $st = proc_get_status($proc);
             if (! $st['running']) break;
+            if (Ffmpeg::aborted()) { proc_terminate($proc, 9); $stderr .= "\ncancelled"; break; }
             usleep(100000);
         }
         $stderr .= (string) stream_get_contents($pipes[2]);

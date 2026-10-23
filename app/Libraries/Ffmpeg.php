@@ -139,7 +139,24 @@ class Ffmpeg
         return null;
     }
 
-    public static function run(array $args, int $timeout = 30, array $env = []): array
+    /**
+     * Set by the worker for the job in hand: returns true when the user has cancelled it, and every
+     * process loop (here, JobRunner::runPython, JobRunner::runWithProgress) then kills its child.
+     * @var callable|null
+     */
+    public static $abort = null;
+
+    /** Polls the abort hook at most every 2 seconds. */
+    public static function aborted(): bool
+    {
+        static $at = 0;
+        if (! self::$abort || microtime(true) - $at < 2) return false;
+        $at = microtime(true);
+        return (bool) (self::$abort)();
+    }
+
+    /** @param callable|null $onLine called with every complete stdout line as it arrives */
+    public static function run(array $args, int $timeout = 30, array $env = [], ?callable $onLine = null): array
     {
         $spec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $env = array_merge(['PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin'], $env);
@@ -150,13 +167,17 @@ class Ffmpeg
         fclose($pipes[0]);
         stream_set_blocking($pipes[1], false);
         stream_set_blocking($pipes[2], false);
-        $stdout = ''; $stderr = ''; $start = time();
+        $stdout = ''; $stderr = ''; $start = time(); $seen = 0;
         while (true) {
             $stdout .= (string) stream_get_contents($pipes[1]);
             $stderr .= (string) stream_get_contents($pipes[2]);
+            if ($onLine) {
+                while (($nl = strpos($stdout, "\n", $seen)) !== false) { $onLine(substr($stdout, $seen, $nl - $seen)); $seen = $nl + 1; }
+            }
             $st = proc_get_status($p);
             if (! $st['running']) break;
             if (time() - $start > $timeout) { proc_terminate($p, 9); $stderr .= "\ntimeout"; break; }
+            if (self::aborted()) { proc_terminate($p, 9); $stderr .= "\ncancelled"; break; }
             usleep(50000);
         }
         $stdout .= (string) stream_get_contents($pipes[1]);

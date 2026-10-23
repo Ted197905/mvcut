@@ -307,10 +307,30 @@
     }
     return el;
   }
+  // queued / running row: 중단 (a cancelled row then comes back as failed, with 재시도 / 삭제)
+  function jqCancelButton(el, id, status) {
+    const act = el.querySelector('.jq-act');
+    if (status === 'cancelled') { if (!el.dataset.cancelUi) { el.dataset.cancelUi = '1'; jqFailed(el, id, '', '중단 중...'); } return; }
+    if (act.querySelector('.jq-cancel')) return;
+    act.innerHTML = '<button type="button" class="linkbtn jq-cancel">중단</button>';
+    act.querySelector('.jq-cancel').addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!confirm('이 작업을 중단할까요?')) return;
+      e.target.disabled = true;
+      try {
+        const r = await fetch(base + 'api/jobs/' + id + '/cancel', { method: 'POST', headers: hdr });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (j.removed) { el.remove(); jq.rows.delete(id); }
+        else { el.querySelector('.pct').textContent = '중단 중...'; act.innerHTML = ''; }
+        clearTimeout(jq.timer); jqPoll();
+      } catch (err) { e.target.disabled = false; alert('중단하지 못했습니다: ' + err.message); }
+    });
+  }
   // failed row: message plus 재시도 / 삭제
-  function jqFailed(el, id, error) {
+  function jqFailed(el, id, error, label) {
     el.classList.add('fail');
-    el.querySelector('.pct').textContent = '실패' + (error ? ': ' + String(error).slice(0, 160) : '');
+    el.querySelector('.pct').textContent = (label || '실패') + (error ? ': ' + String(error).slice(0, 160) : '');
     const act = el.querySelector('.jq-act');
     act.innerHTML = '<button type="button" class="linkbtn jq-retry">재시도</button> <button type="button" class="linkbtn jq-dismiss">삭제</button>';
     const call = async (what) => {
@@ -338,8 +358,9 @@
     live.forEach((j, i) => {
       const el = jqRow({ ...j, id: +j.id });
       const running = j.status === 'running';
-      el.querySelector('.pct').textContent = running ? (+j.progress || 0) + '%' : '대기 ' + (i + 1) + '번째';
+      el.querySelector('.pct').textContent = j.status === 'cancelled' ? '중단 중...' : running ? (+j.progress || 0) + '%' : '대기 ' + (i + 1) + '번째';
       el.querySelector('.bar i').style.width = (running ? +j.progress || 0 : 0) + '%';
+      jqCancelButton(el, +j.id, j.status);
     });
     // failed jobs stay until retried or dismissed (also after a reload)
     active.filter(j => j.status === 'failed').forEach(j => {
@@ -352,6 +373,7 @@
     for (const [id, el] of jq.rows) {
       if (ids.has(id) || el.dataset.end) continue;
       el.dataset.end = '1';
+      el.querySelector('.jq-act').innerHTML = '';
       try {
         const j = (await (await fetch(base + 'api/jobs/' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json()).job || {};
         if (j.status === 'done') {

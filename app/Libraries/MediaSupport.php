@@ -107,10 +107,10 @@ class MediaSupport
      * ("Could not authenticate you" - logged out, or the file was exported from a logged-out tab),
      * the X watch probe account's cookies are tried, since fetching media needs any login, not that one.
      */
-    public static function ytdlpRun(array $args, string $platform, int $timeout): array
+    public static function ytdlpRun(array $args, string $platform, int $timeout, ?callable $onLine = null): array
     {
         $c = self::cookieFile($platform);
-        $r = Ffmpeg::run($c ? [...$args, '--cookies', $c] : $args, $timeout);
+        $r = Ffmpeg::run($c ? [...$args, '--cookies', $c] : $args, $timeout, [], $onLine);
         if ($platform === 'x' && $r['code'] !== 0 && str_contains($r['stderr'], 'Could not authenticate')
             && ($p = self::cookieFile('xprobe')) && $p !== $c) {
             $r = Ffmpeg::run([...$args, '--cookies', $p], $timeout);
