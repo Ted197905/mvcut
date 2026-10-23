@@ -62,7 +62,7 @@ main.wide.settings.keywords { max-width: 720px; padding-top: 84px; }
 .kw-row { flex-wrap: wrap; }
 .kw-picwrap { flex: 1 0 100%; padding: 10px 0 4px; }
 .kw-members .kw-picwrap { padding-left: 0; }
-.kw-pic { display: block; width: 500px; max-width: 100%; aspect-ratio: 1 / 1; border: 0; padding: 0; border-radius: 14px; background: var(--fill1); cursor: zoom-in; overflow: hidden; }
+.kw-pic { display: block; width: 320px; max-width: 100%; aspect-ratio: 1 / 1; border: 0; padding: 0; border-radius: 14px; background: var(--fill1); cursor: zoom-in; overflow: hidden; }
 .kw-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
 .kw-pic:hover img { opacity: 0.9; }
 .kw-acts button.cam.has { color: var(--blue); }
