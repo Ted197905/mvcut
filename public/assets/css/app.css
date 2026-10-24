@@ -639,3 +639,4 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .xw-sched { flex: none; }  /* full height; the post list below takes what is left */
 .xw-sched .xw-row a { color: inherit; font-weight: 600; }
 .xw-sched .xw-item .t { flex-basis: auto; white-space: nowrap; }
+.xw-sched-n { font-style: normal; color: var(--blue); }

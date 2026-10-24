@@ -674,7 +674,9 @@ class XWatch
                            'short' => $gap !== null && $gap < $gapMin, 'danger' => $gap !== null && $gap < $gapWarn];
             if ($counted) $prev = $i['at'];
         }
-        return ['items' => $out, 'synced' => $synced ? strtotime($synced . ' UTC') : null];
+        $reset = intdiv($now, 86400) * 86400 + 86400;   // same day boundary as timeline(): 00:00 UTC
+        $today = count(array_filter($out, static fn ($i) => $i['counted'] && $i['at'] < $reset));
+        return ['items' => $out, 'synced' => $synced ? strtotime($synced . ' UTC') : null, 'today' => $today];
     }
 
     /** Payload for the extension popup / badge. */

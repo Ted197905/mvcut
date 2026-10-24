@@ -87,7 +87,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     </div>
     <div class="stats">
       <div class="stat"><b><?= $tl['hour'] ?></b><span>최근 1시간 (기준 <?= (int) $w['hour_max'] ?> 미만)</span></div>
-      <div class="stat"><b><?= $tl['day'] ?></b><span>오늘 09시 이후 (기준 <?= (int) $w['day_max'] ?> 미만, 매일 09시 리셋)</span></div>
+      <?php $schedToday = (int) ($st['scheduled']['today'] ?? 0); ?>
+      <div class="stat"><b><?= $tl['day'] ?><?= $schedToday ? ' <i class="xw-sched-n">+ ' . $schedToday . '</i>' : '' ?></b><span>오늘 09시 이후<?= $schedToday ? ' + 예약' : '' ?> (기준 <?= (int) $w['day_max'] ?> 미만, 매일 09시 리셋)</span></div>
       <div class="stat"><b><?= $tl['last'] ? esc($ago($tl['last'])) : '-' ?></b><span>마지막 게시</span></div>
       <div class="stat"><b><?= (int) $tl['reply_hour'] ?></b><span>최근 1시간 답글</span></div>
     </div>
