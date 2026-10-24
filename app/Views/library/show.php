@@ -168,11 +168,7 @@ $srcSum = $isImg
         <?php endforeach ?>
       </section>
     <?php endif ?>
-    </div>
-
-    <aside>
-      <?= view('xwatch/side', ['xw' => $xwatch ?? null, 'compact' => true]) ?>
-
+    <div class="detail-panels">
       <div class="panel-block">
         <p class="eyebrow">정보</p>
         <dl class="list">
@@ -239,6 +235,12 @@ $srcSum = $isImg
           <div class="dl-status" id="dlStatus" hidden></div>
         </div>
       </div>
+    </div>
+    </div>
+
+    <aside>
+      <?= view('xwatch/side', ['xw' => $xwatch ?? null, 'compact' => true]) ?>
+
     </aside>
   </div>
 </main>
