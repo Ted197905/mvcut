@@ -267,6 +267,9 @@ class EditParams
         $audio = (string) ($in['output']['audio'] ?? 'auto');
         if (! in_array($audio, ['auto', 'aac', 'mp3', 'opus', 'none'], true)) $audio = 'auto';
         if (isset($in['keepAudio']) && ! $in['keepAudio']) $audio = 'none';   // older payloads
+        $bgm = (int) ($in['output']['bgm'] ?? 0);
+        if ($bgm > 0 && ! (new \App\Models\BgmModel())->find($bgm)) $bgm = 0;
+        if ($bgm > 0 && $audio === 'none') $audio = 'auto';   // a chosen track means sound is wanted
         $audio = match ($fmt) {
             'gif'  => 'none',
             'webm' => in_array($audio, ['auto', 'opus', 'none'], true) ? $audio : 'auto',
@@ -288,7 +291,7 @@ class EditParams
             'subtitles' => $subs,
             'speed'     => round($speed, 3),
             'keepAudio' => $audio !== 'none',
-            'output'    => ['format' => $fmt, 'audio' => $audio, 'height' => $height, 'quality' => $quality],
+            'output'    => ['format' => $fmt, 'audio' => $audio, 'height' => $height, 'quality' => $quality, 'bgm' => $audio === 'none' ? 0 : $bgm],
         ];
     }
 
@@ -432,6 +435,10 @@ class EditParams
         $lines[] = '출력: ' . strtoupper($o['format'])
                  . ' · ' . ($o['height'] > 0 ? $o['height'] . 'p' : '원본 해상도')
                  . ' · ' . ($o['quality'] === 'medium' ? '작은 용량' : '높은 품질');
+        if (! empty($o['bgm'])) {
+            $track = (new \App\Models\BgmModel())->find((int) $o['bgm']);
+            $lines[] = '배경음: ' . ($track['name'] ?? ('#' . (int) $o['bgm'])) . ' (원본 소리 제외, 정상 속도)';
+        }
 
         return "[적용한 처리]\n" . implode("\n", $lines);
     }

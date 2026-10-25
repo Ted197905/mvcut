@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\BgmModel;
 use App\Models\CategoryModel;
 use App\Models\JobModel;
 use App\Models\MediaModel;
@@ -25,9 +26,62 @@ class Admin extends BaseController
             'jobs'    => array_column($jobs, 'n', 'user_id'),
             'pending' => count(array_filter($users, static fn ($u) => $u['status'] === 'pending')),
             'categories' => (new CategoryModel())->ordered(),
+            'bgm'     => (new BgmModel())->ordered(),
             'catUse'  => array_column($db->table('media')->select('category, COUNT(*) AS n')->where('category !=', '')
                                          ->groupBy('category')->get()->getResultArray(), 'n', 'category'),
         ]);
+    }
+
+    /** POST /admin/bgm  multipart: file (+ name) - registers a background music track */
+    public function addBgm()
+    {
+        $f = $this->request->getFile('file');
+        if (! $f || ! $f->isValid()) return redirect()->to('/admin')->with('flash', '음원 파일을 선택하세요.');
+        if ($f->getSize() > BgmModel::MAX_BYTES) return redirect()->to('/admin')->with('flash', '음원은 60MB 이하만 올릴 수 있습니다.');
+        $ext = strtolower($f->getClientExtension() ?: $f->guessExtension());
+        if (! in_array($ext, BgmModel::EXT, true)) return redirect()->to('/admin')->with('flash', '지원하는 형식: ' . implode(', ', BgmModel::EXT));
+        $meta = \App\Libraries\Ffmpeg::probe($f->getTempName());
+        if (! $meta || empty($meta['acodec']) || (float) ($meta['duration'] ?? 0) <= 0) return redirect()->to('/admin')->with('flash', '오디오 트랙을 읽지 못했습니다.');
+        $name = trim(preg_replace('/\s+/u', ' ', (string) $this->request->getPost('name')));
+        if ($name === '') $name = preg_replace('/\.[^.]+$/', '', $f->getClientName());
+        $name = mb_substr($name, 0, 120);
+        $m   = new BgmModel();
+        $max = (int) ($m->selectMax('sort')->first()['sort'] ?? 0);
+        $id  = $m->insert(['name' => $name, 'filename' => 'pending', 'duration' => round((float) $meta['duration'], 3),
+                           'size' => (int) $f->getSize(), 'sort' => $max + 1]);
+        $dir = BgmModel::dir();
+        if (! is_dir($dir) && ! @mkdir($dir, 0775, true)) { $m->delete($id); return redirect()->to('/admin')->with('flash', '저장 폴더를 만들지 못했습니다.'); }
+        $f->move($dir, $id . '.' . $ext, true);
+        $m->update($id, ['filename' => $id . '.' . $ext]);
+        return redirect()->to('/admin')->with('flash', '배경음 "' . $name . '"을(를) 등록했습니다.');
+    }
+
+    /** POST /admin/bgm/{id}  action=rename (name=...) | delete | up | down */
+    public function bgm(int $id)
+    {
+        $m   = new BgmModel();
+        $row = $m->find($id);
+        if (! $row) return redirect()->to('/admin')->with('flash', '없는 배경음입니다.');
+        $action = (string) $this->request->getPost('action');
+        if ($action === 'rename') {
+            $name = mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $this->request->getPost('name'))), 0, 120);
+            if ($name === '') return redirect()->to('/admin')->with('flash', '이름을 입력하세요.');
+            $m->update($id, ['name' => $name]);
+        } elseif ($action === 'delete') {
+            @unlink(BgmModel::path($row));
+            $m->delete($id);
+            return redirect()->to('/admin')->with('flash', '배경음 "' . $row['name'] . '"을(를) 삭제했습니다.');
+        } elseif ($action === 'up' || $action === 'down') {
+            $all = $m->ordered();
+            $i = array_search($id, array_column($all, 'id'), false);
+            $j = $action === 'up' ? $i - 1 : $i + 1;
+            if ($i !== false && isset($all[$j])) {
+                foreach ($all as $k => $r) $m->update($r['id'], ['sort' => $k]);
+                $m->update($all[$i]['id'], ['sort' => $j]);
+                $m->update($all[$j]['id'], ['sort' => $i]);
+            }
+        }
+        return redirect()->to('/admin');
     }
 
     /** POST /admin/categories  name=... */

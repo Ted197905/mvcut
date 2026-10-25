@@ -82,6 +82,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 
     $routes->get('fonts/([a-z0-9]+)', 'Media::font/$1');
     $routes->get('edit/(:num)', 'Edit::index/$1');
+    $routes->get('bgm/(:num)/file', 'Edit::bgmFile/$1');
     $routes->post('api/edit/(:num)', 'Edit::submit/$1');
     $routes->post('api/edit/(:num)/autosub', 'Edit::autosub/$1');
     $routes->get('api/edit/(:num)/autosub/(:num)', 'Edit::autosubStatus/$1/$2');
@@ -105,5 +106,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('users/(:num)', 'Admin::update/$1');
         $routes->post('categories', 'Admin::addCategory');
         $routes->post('categories/(:num)', 'Admin::category/$1');
+        $routes->post('bgm', 'Admin::addBgm');
+        $routes->post('bgm/(:num)', 'Admin::bgm/$1');
     });
 });

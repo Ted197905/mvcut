@@ -426,9 +426,15 @@ $icons = [
             <label>품질<select id="outQuality"><option value="high">높음</option><option value="medium">보통 (작은 용량)</option></select></label>
           </div>
           <div class="row2">
+            <label>배경음<select id="outBgm">
+              <option value="0">없음 (원본 소리)</option>
+              <?php foreach ($bgm as $b): ?><option value="<?= (int) $b['id'] ?>" data-url="<?= site_url('bgm/' . $b['id'] . '/file') ?>"><?= esc($b['name']) ?> (<?= gmdate((float) $b['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $b['duration']) ?>)</option><?php endforeach ?>
+            </select></label>
             <label>예상 길이<input id="outDuration" readonly></label>
           </div>
+          <div class="row2" id="bgmPreviewRow" hidden><audio id="bgmPreview" controls preload="none" style="width:100%;height:32px"></audio></div>
           <p class="hint" id="audioHint">자동은 MP4면 AAC, WebM이면 Opus로 넣습니다. 속도를 바꾸면 오디오도 피치를 맞춰 따라갑니다. 무음은 소리를 넣지 않습니다.</p>
+          <p class="hint">배경음을 고르면 원본 소리는 빼고 그 음원만 넣습니다. 배속과 상관없이 정상 속도로 들어가고, 영상 길이에 맞춰 잘립니다(끝 1.5초 페이드아웃, 음원이 짧으면 반복). 배경음은 관리자 페이지에서 등록합니다.</p>
         </div>
         <div class="sec">
           <button class="btn block" id="btnSave2">저장 (라이브러리에 결과 생성)</button>

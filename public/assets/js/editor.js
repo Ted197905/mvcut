@@ -60,7 +60,7 @@
     subtitles: [null, null],   // up to two layers: {template,font,size,color,anchor,x,y,cues:[]}
     subLayer: 0,
     subCue: -1,
-    output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high' },
+    output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high', bgm: 0 },
   };
   const undoStack = [], redoStack = [];
   function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform, facetrack: state.facetrack }); }
@@ -82,7 +82,7 @@
     state.speed = D.params.speed || 1;
     state.watermark = D.params.watermark || null;
     state.keepAudio = D.params.keepAudio !== false;
-    if (D.params.output) state.output = Object.assign({ audio: 'auto' }, D.params.output);
+    if (D.params.output) state.output = Object.assign({ audio: 'auto', bgm: 0 }, D.params.output);
     if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
     if (D.params.transform) state.transform = Object.assign({ rotate: 0, flipH: false, flipV: false }, D.params.transform);
     if (D.params.facetrack) state.facetrack = D.params.facetrack;
@@ -1256,12 +1256,28 @@
   $('outFormat').addEventListener('change', (e) => { state.output.format = e.target.value; syncOutputFields(); });
   $('outAudio').addEventListener('change', (e) => { state.output.audio = e.target.value; state.keepAudio = e.target.value !== 'none'; });
   $('outHeight').addEventListener('change', (e) => state.output.height = +e.target.value);
+  // background music replaces the source audio; picking one while on 무음 turns audio back on
+  function syncBgm() {
+    const sel = $('outBgm');
+    if (![...sel.options].some(o => +o.value === +state.output.bgm)) state.output.bgm = 0;
+    sel.value = String(state.output.bgm || 0);
+    const opt = sel.selectedOptions[0], url = opt && opt.dataset.url;
+    $('bgmPreviewRow').hidden = !url;
+    if (url && $('bgmPreview').getAttribute('src') !== url) { $('bgmPreview').src = url; }
+    if (!url) { $('bgmPreview').pause(); $('bgmPreview').removeAttribute('src'); }
+  }
+  $('outBgm').addEventListener('change', (e) => {
+    state.output.bgm = +e.target.value || 0;
+    if (state.output.bgm && state.output.audio === 'none') { state.output.audio = 'auto'; state.keepAudio = true; }
+    syncOutputFields();
+  });
   $('outQuality').addEventListener('change', (e) => state.output.quality = e.target.value);
   // a container takes only some codecs, and a source without sound takes none
   const AUDIO_OK = { mp4: ['auto', 'aac', 'mp3'], webm: ['auto', 'opus'], gif: [] };
   function syncOutputFields() {
     document.querySelectorAll('#speedPresets button').forEach(x => x.classList.toggle('active', +x.dataset.speed === state.speed));
     $('outFormat').value = state.output.format; $('outHeight').value = String(state.output.height); $('outQuality').value = state.output.quality;
+    syncBgm();
     const ok = AUDIO_OK[state.output.format] || [];
     const silent = !D.hasAudio || !ok.length;
     if (silent) state.output.audio = 'none';

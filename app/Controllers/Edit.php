@@ -25,7 +25,19 @@ class Edit extends BaseController
             'wmPreset' => $prefs['watermark'] ?? null,
             'aiEnabled' => (bool) session()->get('ai_enabled'),
             'fonts'    => \App\Libraries\Fonts::available(),
+            'bgm'      => (new \App\Models\BgmModel())->ordered(),
         ]);
+    }
+
+    /** GET /bgm/{id}/file - streams a background track for preview (any signed-in user). */
+    public function bgmFile(int $id)
+    {
+        $row = (new \App\Models\BgmModel())->find($id);
+        $path = $row ? \App\Models\BgmModel::path($row) : '';
+        if (! $row || ! is_file($path)) throw PageNotFoundException::forPageNotFound();
+        return $this->response->setHeader('Content-Type', mime_content_type($path) ?: 'audio/mpeg')
+            ->setHeader('Cache-Control', 'private, max-age=86400')->setHeader('Content-Length', (string) filesize($path))
+            ->setBody((string) file_get_contents($path));
     }
 
     /** POST /api/edit/{id}/autosub  {"lang": "auto|en|ja|zh|vi|..."} -> queues an 'autosub' job on the source video. */

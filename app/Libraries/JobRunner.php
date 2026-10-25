@@ -1003,7 +1003,13 @@ class JobRunner
     {
         $fmt      = $p['output']['format'];
         $aFmt     = $p['output']['audio'] ?? ($p['keepAudio'] ? 'auto' : 'none');
-        $hasAudio = ! empty($srcMeta['acodec']) && $aFmt !== 'none' && $fmt !== 'gif';
+        // a background track replaces the source audio: the source's audio streams are left out
+        $bgm = null;
+        if (! empty($p['output']['bgm']) && $aFmt !== 'none' && $fmt !== 'gif') {
+            $row = (new \App\Models\BgmModel())->find((int) $p['output']['bgm']);
+            if ($row && is_file(\App\Models\BgmModel::path($row))) $bgm = \App\Models\BgmModel::path($row);
+        }
+        $hasAudio = $bgm === null && ! empty($srcMeta['acodec']) && $aFmt !== 'none' && $fmt !== 'gif';
         $n        = count($p['keep']);
         $f        = [];
         $vin = []; $ain = [];
@@ -1125,11 +1131,21 @@ class JobRunner
             if (abs($sp - 1.0) > 0.001) $a[] = sprintf('atempo=%.4f', $sp);
             $f[] = '[ac]' . ($a ? implode(',', $a) : 'anull') . '[aout]';
         }
+        // background music: input 1 looped, at normal speed whatever the video speed, cut to the
+        // output length with a short fade-out
+        if ($bgm !== null) {
+            $dur  = max(0.1, EditParams::outputDuration($p));
+            $fade = min(1.5, $dur / 2);
+            $f[] = sprintf('[1:a]atrim=0:%.3f,asetpts=PTS-STARTPTS,afade=t=out:st=%.3f:d=%.3f,aresample=48000[aout]', $dur, $dur - $fade, $fade);
+            $hasAudio = true;
+        }
 
         $bin  = Ffmpeg::bin('ffmpeg');
-        $args = [$bin, '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-i', $src,
-                 '-filter_complex', implode(';', $f), '-map', '[vout]'];
+        $args = [$bin, '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-i', $src];
+        if ($bgm !== null) array_push($args, '-stream_loop', '-1', '-i', $bgm);
+        array_push($args, '-filter_complex', implode(';', $f), '-map', '[vout]');
         if ($hasAudio) { $args[] = '-map'; $args[] = '[aout]'; } else { $args[] = '-an'; }
+        if ($bgm !== null) $args[] = '-shortest';
 
         $hq = $p['output']['quality'] === 'high';
         switch ($fmt) {

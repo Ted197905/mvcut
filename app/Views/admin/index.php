@@ -85,5 +85,40 @@
       </form>
     </div>
   </section>
+
+  <section class="set-card">
+    <h2>배경음 <span class="muted small">(<?= count($bgm) ?>개)</span></h2>
+    <p class="muted small" style="margin-bottom:18px">편집 화면의 출력 탭에서 고를 수 있는 음원입니다. 고르면 원본 소리 대신 이 음원이 들어가고, 배속과 상관없이 정상 속도로 재생되며 영상 길이에 맞춰 잘립니다.</p>
+    <div class="adm-list">
+      <?php foreach ($bgm as $i => $b): ?>
+        <div class="adm-row cat-row">
+          <form class="cat-name" method="post" action="<?= site_url('admin/bgm/' . $b['id']) ?>"><?= csrf_field() ?>
+            <input type="hidden" name="action" value="rename">
+            <input class="input" name="name" maxlength="120" value="<?= esc($b['name'], 'attr') ?>" required>
+            <button class="btn sm secondary" type="submit">이름 저장</button>
+          </form>
+          <div class="adm-badges">
+            <span class="ck-badge none"><?= gmdate((float) $b['duration'] >= 3600 ? 'G:i:s' : 'i:s', (int) $b['duration']) ?> · <?= esc(\App\Libraries\MediaSupport::size((int) $b['size'])) ?></span>
+            <audio controls preload="none" src="<?= site_url('bgm/' . $b['id'] . '/file') ?>" style="height:32px;max-width:220px;vertical-align:middle"></audio>
+          </div>
+          <div class="adm-acts">
+            <form method="post" action="<?= site_url('admin/bgm/' . $b['id']) ?>"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="up"><button class="btn sm ghost" type="submit"<?= $i === 0 ? ' disabled' : '' ?>>위로</button></form>
+            <form method="post" action="<?= site_url('admin/bgm/' . $b['id']) ?>"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="down"><button class="btn sm ghost" type="submit"<?= $i === count($bgm) - 1 ? ' disabled' : '' ?>>아래로</button></form>
+            <form method="post" action="<?= site_url('admin/bgm/' . $b['id']) ?>" onsubmit="return confirm('배경음 &quot;<?= esc($b['name'], 'attr') ?>&quot;을(를) 삭제합니다. 계속할까요?')"><?= csrf_field() ?>
+              <input type="hidden" name="action" value="delete"><button class="btn sm ghost" type="submit">삭제</button></form>
+          </div>
+        </div>
+      <?php endforeach ?>
+      <form class="adm-row cat-row cat-add" method="post" action="<?= site_url('admin/bgm') ?>" enctype="multipart/form-data"><?= csrf_field() ?>
+        <div class="cat-name" style="flex-wrap:wrap">
+          <input class="input" type="file" name="file" accept=".mp3,.m4a,.aac,.wav,.ogg,.opus,.flac,audio/*" required>
+          <input class="input" name="name" maxlength="120" placeholder="표시 이름 (비우면 파일 이름)">
+          <button class="btn sm" type="submit">등록</button>
+        </div>
+      </form>
+    </div>
+  </section>
 </main>
 <?= $this->endSection() ?>
