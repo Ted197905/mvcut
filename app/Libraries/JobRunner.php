@@ -98,6 +98,7 @@ class JobRunner
         $args = [$py, ROOTPATH . 'bin/autosub.py', '--in', $in, '--out', $out, '--lang', $lang,
                  '--duration', (string) (float) $src['duration'], '--context', $context,
                  '--whisper', $whisper, '--sensevoice', ROOTPATH . 'vendor_ml/asr/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17',
+                 '--aligner', glob(ROOTPATH . 'vendor_ml/asr/hf/hub/models--MahmoudAshraf--mms-300m-1130-forced-aligner/snapshots/*')[0] ?? '',
                  '--ollama', getenv('OLLAMA_URL') ?: 'http://localhost:11434'];
         if ($m = getenv('AUTOSUB_LLM')) array_push($args, '--llm', $m);
         if ($m = getenv('AUTOSUB_VLM')) array_push($args, '--vlm', $m);

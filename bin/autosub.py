@@ -3,9 +3,11 @@
 MV Cut auto subtitles: speech (or burned-in captions) -> Korean cues.
 
   1. faster-whisper large-v3 (GPU) transcribes with word timestamps and detects the language.
-  2. SenseVoice (CPU, zh/en/ja/ko/yue) transcribes each segment again as a second opinion.
-  3. No usable speech -> frames are sampled and a local vision model (Ollama) reads on-screen text.
-  4. A local LLM (Ollama) reconciles the two transcripts and translates into short Korean lines.
+  2. A CTC forced aligner (MMS 300m, GPU) re-times every word against the audio: whisper's own
+     timestamps drift by seconds behind music or pauses, the aligner does not.
+  3. SenseVoice (CPU, zh/en/ja/ko/yue) transcribes each segment again as a second opinion.
+  4. No usable speech -> frames are sampled and a local vision model (Ollama) reads on-screen text.
+  5. A local LLM (Ollama) reconciles the two transcripts and translates into short Korean lines.
 
 Writes JSON: {"language","source":"speech"|"ocr","cues":[{"start","end","text","src"}],"engines":{...}}
 Progress goes to stderr as "progress N".
@@ -22,6 +24,10 @@ import urllib.request
 import wave
 
 import numpy as np
+
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 SV_LANGS = {"zh", "en", "ja", "ko", "yue"}
 LANG_NAMES = {"en": "English", "ja": "Japanese", "zh": "Chinese", "vi": "Vietnamese", "ko": "Korean",
@@ -77,14 +83,128 @@ def run_whisper(wav: str, model_dir: str, lang: str | None) -> tuple[list[dict],
     return out, language, prob
 
 
+# ---------------------------------------------------------------- forced alignment
+ALIGN_WINDOW = 60.0   # seconds of audio the aligner sees at once
+ALIGN_PAD = 6.0       # whisper segment edges can be seconds off, so a window reaches past them
+ALIGN_TAIL = 0.3      # a cue lingers this long after the last word (CTC ends are tight)
+
+
+def align_words(model, vocab: dict, rom, audio: np.ndarray, words: list[str]) -> list:
+    """Viterbi CTC alignment of the romanised words over the aligner's frame emissions.
+    Returns (start, end) seconds within `audio` per word, None for a word with no letters."""
+    import torch
+
+    toks, owner = [], []
+    for wi, w in enumerate(words):
+        for ch in rom.romanize_string(w).lower():
+            if ch in vocab and ch not in "<":
+                toks.append(vocab[ch]); owner.append(wi)
+    x = torch.from_numpy(audio)
+    x = (x - x.mean()) / (x.std() + 1e-7)
+    with torch.inference_mode():
+        logits = model(x[None].to("cuda", torch.float16)).logits[0].float()
+    emis = torch.log_softmax(logits, dim=-1)
+    T, N = emis.shape[0], len(toks)
+    if not N or N > T:
+        return [None] * len(words)
+    tokens = torch.tensor(toks, device=emis.device)
+    ninf = torch.tensor([-float("inf")], device=emis.device)
+    # trellis[t, j] = best score with j tokens emitted after t frames; back marks "emitted here"
+    trellis = torch.full((T + 1, N + 1), -float("inf"), device=emis.device)
+    trellis[0, 0] = 0
+    back = torch.zeros((T + 1, N + 1), dtype=torch.bool, device=emis.device)
+    blank = emis[:, 0]
+    for t in range(T):
+        stay = trellis[t] + blank[t]
+        move = torch.cat([ninf, trellis[t, :-1] + emis[t, tokens]])
+        back[t + 1] = move > stay
+        trellis[t + 1] = torch.maximum(stay, move)
+    frames = [None] * N
+    b = back.cpu().numpy()
+    j = N
+    for t in range(T, 0, -1):
+        if j > 0 and b[t, j]:
+            frames[j - 1] = t - 1
+            j -= 1
+    spf = len(audio) / 16000 / T
+    out = [None] * len(words)
+    for wi in range(len(words)):
+        fr = [frames[k] for k in range(N) if owner[k] == wi and frames[k] is not None]
+        if fr:
+            out[wi] = (min(fr) * spf, (max(fr) + 1) * spf)
+    return out
+
+
+def run_align(audio: np.ndarray, segs: list[dict], model_dir: str) -> int:
+    """Re-times every whisper word with the MMS forced aligner (1100+ languages through
+    romanisation) and gives each segment the span of its words. Returns the word count."""
+    import torch
+    import uroman
+    from transformers import Wav2Vec2ForCTC
+
+    vocab = json.load(open(os.path.join(model_dir, "vocab.json"), encoding="utf-8"))
+    rom = uroman.Uroman()
+    for s in segs:
+        if not s.get("words"):   # whisper gave no word times: spread the text evenly for now
+            parts = s["text"].split() or [s["text"]]
+            step = (s["end"] - s["start"]) / len(parts)
+            s["words"] = [{"start": s["start"] + i * step, "end": s["start"] + (i + 1) * step, "word": " " + w}
+                          for i, w in enumerate(parts)]
+    model = Wav2Vec2ForCTC.from_pretrained(model_dir, torch_dtype=torch.float16).to("cuda").eval()
+    sr, total = 16000, len(audio) / 16000
+    done = 0
+    i = 0
+    while i < len(segs):
+        j = i
+        while j + 1 < len(segs) and segs[j + 1]["end"] - segs[i]["start"] + 2 * ALIGN_PAD <= ALIGN_WINDOW:
+            j += 1
+        lo = 0.0 if total <= ALIGN_WINDOW + 2 * ALIGN_PAD else max(0.0, segs[i]["start"] - ALIGN_PAD)
+        hi = total if total <= ALIGN_WINDOW + 2 * ALIGN_PAD else min(total, segs[j]["end"] + ALIGN_PAD)
+        ws = [w for s in segs[i:j + 1] for w in s["words"]]
+        if hi - lo >= 0.5:
+            for w, t in zip(ws, align_words(model, vocab, rom, audio[int(lo * sr):int(hi * sr)], [w["word"] for w in ws])):
+                if t:
+                    w["start"], w["end"], w["aligned"] = round(lo + t[0], 3), round(lo + t[1], 3), True
+                    done += 1
+        i = j + 1
+    del model
+    torch.cuda.empty_cache()
+    # words without letters (numbers, symbols) sit between their aligned neighbours
+    allw = [w for s in segs for w in s["words"]]
+    for k, w in enumerate(allw):
+        if w.pop("aligned", False):
+            continue
+        nxt = next((x["start"] for x in allw[k + 1:] if x.get("aligned")), None)
+        if k:
+            s0 = allw[k - 1]["end"]
+        elif nxt is not None:
+            s0 = max(0.0, nxt - 0.5)
+        else:
+            continue   # nothing aligned at all: whisper's times stay
+        e0 = nxt if nxt is not None else s0 + 0.5
+        w["start"], w["end"] = round(s0, 3), round(max(s0 + 0.05, min(e0, s0 + 1.0)), 3)
+    for k, w in enumerate(allw):   # keep the order whisper gave, window edges can nick a neighbour
+        if k and w["start"] < allw[k - 1]["end"]:
+            w["start"] = allw[k - 1]["end"]
+            w["end"] = max(w["end"], w["start"] + 0.05)
+    for n, s in enumerate(segs):
+        s["start"] = s["words"][0]["start"]
+        s["end"] = s["words"][-1]["end"]
+        nxt = segs[n + 1]["words"][0]["start"] if n + 1 < len(segs) else total
+        s["end"] = round(min(nxt, s["end"] + ALIGN_TAIL), 3)
+    return done
+
+
 SENT_END = ".!?。！？"
 CLAUSE_END = SENT_END + ",、，;"
 
 
 def pre_split(segs: list[dict], max_len: float = 7.0) -> list[dict]:
-    """A whisper segment longer than a subtitle should be is cut at word timestamps: after a
-    sentence end if there is one, else after a comma, else near the middle. Each part keeps
-    a full clause, so the translation of one part does not bleed into the next."""
+    """A whisper segment longer than a subtitle should be is cut at word timestamps: at the
+    longest pause if there is a real one, else after a sentence end, else after a comma, else
+    near the middle. Each part keeps a full clause, so the translation of one part does not
+    bleed into the next. Apart from a pause, no cut leaves a part under three words: a few
+    stretched words (sung lines) read better as one long cue than as fragments."""
     out = []
     for s in segs:
         words = s.get("words") or []
@@ -95,13 +215,19 @@ def pre_split(segs: list[dict], max_len: float = 7.0) -> list[dict]:
         def ends_with(k, chars):
             return words[k]["word"].strip()[-1:] in chars
         cut = None
-        for chars in (SENT_END, CLAUSE_END):
-            cands = [k + 1 for k in range(1, n - 1) if ends_with(k, chars)
+        gaps = [(words[k + 1]["start"] - words[k]["end"], k + 1) for k in range(1, n - 2)]
+        if gaps and max(gaps)[0] >= 0.8:
+            cut = max(gaps)[1]
+        for chars in (() if cut else (SENT_END, CLAUSE_END)):
+            cands = [k + 1 for k in range(2, n - 3) if ends_with(k, chars)
                      and words[k]["end"] - s["start"] >= 1.5 and s["end"] - words[k + 1]["start"] >= 1.5]
             if cands:
                 cut = min(cands, key=lambda k: abs(k - n / 2))
                 break
         if cut is None:
+            if n < 6:
+                out.append(s)
+                continue
             cut = n // 2
         parts = []
         for ws in (words[:cut], words[cut:]):
@@ -305,6 +431,7 @@ def main() -> int:
     ap.add_argument("--context", default="")
     ap.add_argument("--whisper", required=True, help="faster-whisper model dir")
     ap.add_argument("--sensevoice", default="", help="sherpa-onnx SenseVoice model dir")
+    ap.add_argument("--aligner", default="", help="MMS forced aligner model dir (transformers)")
     ap.add_argument("--ollama", default="http://localhost:11434")
     ap.add_argument("--llm", default="huihui_ai/Qwen3.6-abliterated:35b-a3b-q4_K")
     ap.add_argument("--vlm", default="huihui_ai/qwen3-vl-abliterated:8b-instruct")
@@ -333,6 +460,14 @@ def main() -> int:
             if speech < 1.0 or (prob < 0.4 and speech < 3.0):
                 log(f"little speech ({speech:.1f}s): falling back to on-screen text")
                 segs = []
+            if segs and a.aligner and os.path.isdir(a.aligner):
+                try:
+                    n = run_align(read_wav(wav), segs, a.aligner)
+                    engines["aligned"] = [{"start": round(s["start"], 2), "end": round(s["end"], 2)} for s in segs]
+                    timing["align"] = round(time.time() - t0, 1)
+                    log(f"aligned {n} words, {time.time() - t0:.1f}s")
+                except Exception as e:  # noqa: BLE001
+                    log(f"align failed, keeping whisper times: {e}")
         progress(40)
 
         source = "speech" if segs else "ocr"
