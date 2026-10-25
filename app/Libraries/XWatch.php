@@ -248,8 +248,18 @@ class XWatch
             $src = $hold ? 'probe' : ($v && $v['pending'] ? $v['pending'][0] : null);
             $c = self::check($w, $src);
             $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}" . ($hold ? ' (restricted mode)' : ($src ? ' (cross-check)' : '')));
-            // entering or leaving restricted mode changes the schedule right away
+            // the first restricted verdict of an episode is reported at once, the cross-check follows
             $now = self::restricted($uid);
+            if ($c['status'] === 'banned' && ! $hold && ! $now && Telegram::ready($uid)) {
+                $v = self::verification($uid);
+                $alerted = $w['alerted_at'] ? strtotime($w['alerted_at'] . ' UTC') : 0;
+                if ($v && $alerted < $v['start']) {
+                    self::update($uid, ['alerted_at' => gmdate('Y-m-d H:i:s')]);
+                    $err = Telegram::send($uid, self::suspectText($w, $c, $v));
+                    $log('xwatch telegram (suspected): ' . ($err ?? 'sent'));
+                }
+            }
+            // entering or leaving restricted mode changes the schedule right away
             if ($now !== $hold) {
                 self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot())]);
                 $log("xwatch @{$w['handle']}: " . ($now ? 'restriction confirmed by every checker, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
@@ -314,6 +324,28 @@ class XWatch
         $pending = array_values(array_diff(self::trustedSources(), $tried));
         return ['start' => $start, 'banned' => $bsrc, 'tried' => $tried, 'pending' => $pending,
                 'confirmed' => $pending === [] && count($bsrc) >= 2];
+    }
+
+    /** Telegram text for the first restricted verdict of an episode, while the cross-check is still running. */
+    public static function suspectText(array $w, array $c, array $v): string
+    {
+        helper('url');
+        $name = static fn ($k) => self::SOURCES[$k] ?? $k;
+        $src  = $name(json_decode((string) $c['result'], true)['source'] ?? 'probe');
+        $text = "[제한 의심] @{$w['handle']}\n{$c['summary']} ({$src})\n"
+              . '발견 일시: ' . self::kst($v['start'], 'Y-m-d H:i') . "\n";
+        // trial checkers that flagged the account around the same time, for context only
+        $trial = self::db()->table('x_checks')->select('result')->where('user_id', $w['user_id'])
+            ->where('checked_at >=', gmdate('Y-m-d H:i:s', $v['start'] - 3600))->where('status', 'error')
+            ->like('summary', '미확정', 'after')->get()->getResultArray();
+        $names = array_values(array_unique(array_filter(array_map(
+            static fn ($r) => json_decode((string) $r['result'], true)['source'] ?? null, $trial))));
+        if ($names) $text .= '시험 중 검사기도 제한 판정: ' . implode(', ', array_map($name, $names)) . "\n";
+        $text .= $v['pending']
+            ? '교차 검사 진행 중 (10분 간격): ' . implode(', ', array_map($name, $v['pending'])) . "\n"
+              . "모두 제한이면 1시간 간격 부계정 검사로 전환하고 다시 알립니다.\n"
+            : "교차 검사 진행 중입니다.\n";
+        return $text . site_url('xwatch/checks');
     }
 
     /** Telegram text for entering ($restricted) or leaving restricted mode. */
