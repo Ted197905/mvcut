@@ -604,6 +604,19 @@ class JobRunner
                 $files = glob($dir . '/original.*') ?: [];
             }
         }
+        // Facebook pages yt-dlp cannot parse (private-group posts, some reels): the headless browser,
+        // signed in with the registered cookies, reads the DASH video + audio tracks off the page
+        if (($r['code'] !== 0 || $files === []) && $platform === 'facebook' && MediaSupport::rendererReady()) {
+            $log('yt-dlp could not parse the Facebook page; reading it in the headless browser');
+            $rd = MediaSupport::render((string) $p['url'], 45);
+            if ($rd && $rd['videos']) {
+                foreach ($files as $f) @unlink($f);
+                $p['video_url'] = $rd['videos'][0];
+                if (! empty($rd['audio'][$p['video_url']])) $p['audio_url'] = $rd['audio'][$p['video_url']];
+                return $this->importVideo($job, $mediaId, $dir, $p, $log);
+            }
+            $log('headless browser found no video either');
+        }
         if ($r['code'] !== 0 || $files === []) {
             foreach ($files as $f) @unlink($f);
             $this->media->delete($mediaId); @rmdir($dir);
