@@ -20,6 +20,7 @@
   <?php if (session()->get('user_id')): ?>
     <?php if (session()->get('role') === 'admin'): ?>
       <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
+      <a href="<?= site_url('collect') ?>" class="<?= str_starts_with(uri_string(), 'collect') ? 'active' : '' ?>">수집</a>
     <?php endif ?>
     <a href="<?= site_url('keywords') ?>" class="<?= str_starts_with(uri_string(), 'keywords') ? 'active' : '' ?>">키워드</a>
     <a href="<?= site_url('xwatch') ?>" class="<?= str_starts_with(uri_string(), 'xwatch') ? 'active' : '' ?>">X 관리</a>

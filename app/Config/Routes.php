@@ -101,6 +101,13 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/import/duplicates', 'Import::duplicates');
     $routes->post('api/import', 'Import::submit');
 
+    $routes->group('collect', ['filter' => 'admin'], static function (RouteCollection $routes) {
+        $routes->get('', 'Collect::index');
+        $routes->get('(:num)', 'Collect::show/$1');
+        $routes->get('media/(:num)', 'Collect::file/$1');
+        $routes->post('(:num)/library', 'Collect::toLibrary/$1');
+    });
+
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Admin::index');
         $routes->post('users/(:num)', 'Admin::update/$1');
