@@ -16,7 +16,14 @@ class Edit extends BaseController
         if (! $item || $item['media_type'] !== 'video') {
             throw PageNotFoundException::forPageNotFound();
         }
+        // edit_params is what produced this result and is baked into its file (rotation, crop, cuts,
+        // speed, watermark, subtitles, music), so the editor starts fresh; only the output settings carry over
         $params = $item['edit_params'] ? json_decode($item['edit_params'], true) : null;
+        if ($params) {
+            $output = $params['output'] ?? [];
+            unset($output['bgm']);
+            $params = ['output' => $output];
+        }
         $prefs  = (new \App\Models\UserModel())->prefs((int) session()->get('user_id'));
         return view('edit/index', [
             'title'    => '편집',

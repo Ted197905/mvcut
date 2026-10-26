@@ -71,6 +71,7 @@
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
 
   // restore previous params (re-edit)
+  if (D.params && D.params.output && ! D.params.keep) state.output = Object.assign({ audio: 'auto', bgm: 0 }, D.params.output);
   if (D.params && D.params.keep) {
     const keep = D.params.keep;
     const segs = []; let cur = 0;
