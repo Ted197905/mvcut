@@ -69,13 +69,15 @@ class Library extends BaseController
                           . ' ORDER BY m2.post_order ASC, m2.id ASC LIMIT 1)', null, false)
                 ->groupEnd();
 
-        // items per page, remembered per account like the category; ?per= changes it
-        $per = $this->request->getGet('per');
+        // items per page, remembered per account like the category; ?per= changes it.
+        // A phone always gets 4 a page; the saved number is left alone for the desktop
+        $mobile = $this->request->getUserAgent()->isMobile();
+        $per = $mobile ? null : $this->request->getGet('per');
         if ($per !== null && $per !== '') {
             $perPage = max(1, min(500, (int) $per));
             $users->savePref($userId, 'library_per_page', $perPage === 16 ? null : $perPage);
         } else {
-            $perPage = max(1, min(500, (int) ($users->prefs($userId)['library_per_page'] ?? 16)));
+            $perPage = $mobile ? 4 : max(1, min(500, (int) ($users->prefs($userId)['library_per_page'] ?? 16)));
         }
         $matched = $builder->countAllResults(false);   // false: keep the conditions for findAll()
         $pages   = max(1, (int) ceil($matched / $perPage));
@@ -107,6 +109,7 @@ class Library extends BaseController
             'kind'    => $kind ?: 'all',
             'cat'     => $cat,
             'perPage' => $perPage,
+            'mobile'  => $mobile,
             'cats'    => $cats,
             'page'    => $page,
             'pages'   => $pages,
