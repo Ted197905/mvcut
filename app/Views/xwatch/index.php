@@ -83,7 +83,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   <section class="set-card">
     <div class="xw-head">
       <h2>게시 간격 (최근 48시간)</h2>
-      <span class="ck-badge <?= $tl['can_post'] ? 'ok' : 'warn' ?>"><?= $tl['can_post'] ? '지금 게시 가능' : esc(XWatch::kst($tl['next_ok'], 'H:i')) . ' 이후 권장' ?></span>
+      <span class="ck-badge <?= $tl['can_post'] ? 'ok' : 'warn' ?>"><?= $tl['can_post'] ? '지금 게시 가능' : esc(XWatch::kst($tl['next_ok'], 'h:i A')) . ' 이후 권장' ?></span>
     </div>
     <div class="stats">
       <div class="stat"><b><?= $tl['hour'] ?></b><span>최근 1시간 (기준 <?= (int) $w['hour_max'] ?> 미만)</span></div>
@@ -100,7 +100,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <div class="xw-posts">
         <?php foreach ($tl['posts'] as $p): ?>
           <div class="xw-post<?= ! empty($p['danger']) ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>">
-            <div class="xw-time"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><span><?= esc(XWatch::kst($p['ts'], 'm-d')) ?></span></div>
+            <div class="xw-time"><b><?= esc(XWatch::kst($p['ts'], 'h:i A')) ?></b><span><?= esc(XWatch::kst($p['ts'], 'm-d')) ?></span></div>
             <div class="xw-body">
               <div class="xw-meta">
                 <span class="xw-kind <?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></span>

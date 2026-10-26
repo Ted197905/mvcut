@@ -68,7 +68,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
 
   <div class="xw-box">
     <div class="xw-row"><span>다음 게시</span>
-      <span class="ck-badge <?= $tl['can_post'] ? 'ok' : 'warn' ?>"><?= $tl['can_post'] ? '지금 가능' : esc(XWatch::kst($tl['next_ok'], 'H:i')) . ' 이후 (' . (int) ceil(($tl['next_ok'] - time()) / 60) . '분)' ?></span>
+      <span class="ck-badge <?= $tl['can_post'] ? 'ok' : 'warn' ?>"><?= $tl['can_post'] ? '지금 가능' : esc(XWatch::kst($tl['next_ok'], 'h:i A')) . ' 이후 (' . (int) ceil(($tl['next_ok'] - time()) / 60) . '분)' ?></span>
     </div>
     <div class="xw-stats">
       <div><b><?= $tl['hour'] ?>/<?= (int) $xw['limits']['hour_max'] ?></b><span>1시간</span></div>
@@ -84,7 +84,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php endif ?>
     <?php foreach (array_slice($tl['posts'], 0, $compact ? 10 : 40) as $p): ?>
       <a class="xw-item<?= ! empty($p['danger']) ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
-        <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'H:i')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
+        <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'h:i A')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
         <span class="b">
           <span class="m"><em class="<?= esc($p['kind']) ?>"><?= $kinds[$p['kind']] ?? esc($p['kind']) ?></em><small title="인용 포함 간격 / 인용 제외 간격">간격 <?= esc($gapTxt($p['gap'])) ?><?= $p['counted'] ? ' · 인용제외 ' . esc($gapTxt($p['gap_noquote'] ?? null)) : '' ?></small></span>
           <span class="x"><?= $p['reply_to'] && ! str_starts_with($p['text'], '@' . $p['reply_to']) ? '@' . esc($p['reply_to']) . ' · ' : '' ?><?= $p['text'] !== '' ? esc($p['text']) : '(미디어)' ?></span>
