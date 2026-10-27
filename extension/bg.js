@@ -165,6 +165,98 @@ async function pollScheduled() {
   }
 }
 
+// ---- approved drafts (MV Cut /drafts) -> X scheduled posts, every 2 minutes ----
+// The same requests X's composer makes: media to upload.x.com (INIT/APPEND/FINALIZE), then the
+// CreateScheduledTweet GraphQL mutation. Only for the watched account, signed in to x.com here.
+const CREATE_SCHED_QID = 'LCVzRQGxOaGnOnYH01NQXg';
+const xHeaders = (ct0) => ({ authorization: X_WEB_AUTH, 'x-csrf-token': ct0, 'x-twitter-active-user': 'yes', 'x-twitter-auth-type': 'OAuth2Session' });
+const ct0Cookie = () => new Promise((r) => chrome.cookies.get({ url: 'https://x.com', name: 'ct0' }, (c) => r(c && c.value)));
+
+async function uploadMedia(file, ct0) {
+  const src = await fetch(file.url);
+  if (!src.ok) throw new Error('파일 HTTP ' + src.status);
+  const blob = await src.blob();
+  const type = file.mime || blob.type || 'application/octet-stream';
+  const video = file.kind === 'video' || /^video\//.test(type);
+  const base = 'https://upload.x.com/i/media/upload.json';
+  const h = xHeaders(ct0);
+  const init = await fetch(base + '?command=INIT&total_bytes=' + blob.size + '&media_type=' + encodeURIComponent(type)
+    + '&media_category=' + (video ? 'tweet_video' : 'tweet_image'), { method: 'POST', credentials: 'include', headers: h });
+  if (!init.ok) throw new Error('미디어 INIT HTTP ' + init.status);
+  const id = String((await init.json()).media_id_string || '');
+  if (!id) throw new Error('미디어 id 없음');
+  const CHUNK = 4 * 1024 * 1024;
+  for (let i = 0, seg = 0; i < blob.size; i += CHUNK, seg++) {
+    const fd = new FormData();
+    fd.append('media', blob.slice(i, i + CHUNK, type), file.filename || 'file');
+    const r = await fetch(base + '?command=APPEND&media_id=' + id + '&segment_index=' + seg, { method: 'POST', credentials: 'include', headers: h, body: fd });
+    if (!r.ok) throw new Error('미디어 APPEND HTTP ' + r.status);
+  }
+  let r = await fetch(base + '?command=FINALIZE&media_id=' + id, { method: 'POST', credentials: 'include', headers: h });
+  if (!r.ok) throw new Error('미디어 FINALIZE HTTP ' + r.status);
+  let j = await r.json();
+  for (let n = 0; j.processing_info && j.processing_info.state !== 'succeeded'; n++) {
+    if (j.processing_info.state === 'failed' || n > 60) throw new Error('미디어 처리 실패');
+    await new Promise((res) => setTimeout(res, 1000 * Math.min(10, j.processing_info.check_after_secs || 2)));
+    r = await fetch(base + '?command=STATUS&media_id=' + id, { credentials: 'include', headers: h });
+    j = await r.json();
+  }
+  return id;
+}
+
+async function scheduleOne(item, ct0) {
+  const media_ids = [];
+  for (const f of item.files || []) media_ids.push(await uploadMedia(f, ct0));
+  const variables = { post_tweet_request: { auto_populate_reply_metadata: false, status: item.text, exclude_reply_user_ids: [], media_ids }, execute_at: item.at };
+  const r = await fetch('https://x.com/i/api/graphql/' + CREATE_SCHED_QID + '/CreateScheduledTweet', {
+    method: 'POST', credentials: 'include', headers: Object.assign({ 'content-type': 'application/json' }, xHeaders(ct0)),
+    body: JSON.stringify({ variables, queryId: CREATE_SCHED_QID })
+  });
+  const j = await r.json().catch(() => ({}));
+  const id = j && j.data && j.data.tweet && j.data.tweet.rest_id;
+  if (!r.ok || !id) {
+    const err = (j.errors && j.errors[0] && j.errors[0].message) || (r.ok ? JSON.stringify(j).slice(0, 160) : 'HTTP ' + r.status);
+    throw new Error('예약 등록 실패: ' + err);
+  }
+  return String(id);
+}
+
+let queueBusy = false;
+async function processQueue() {
+  if (queueBusy) return;
+  queueBusy = true;
+  try {
+    const s = await get(['status', 'viewer', 'queued']);
+    const handle = (s.status && s.status.handle) || '';
+    if (!handle || !s.viewer || s.viewer.toLowerCase() !== handle.toLowerCase()) return;
+    const ct0 = await ct0Cookie();
+    if (!ct0) return;
+    const q = await api('/xapi/queue');
+    const items = q.items || [];
+    if (!items.length) return;
+    const done = s.queued || {};   // draft id -> X id, so a report that failed to reach MV Cut is retried, never the scheduling
+    for (const item of items) {
+      const body = {};
+      if (done[item.id]) body.x_id = done[item.id];
+      else {
+        try {
+          body.x_id = await scheduleOne(item, ct0);
+          done[item.id] = body.x_id;
+          await set({ queued: done });
+        } catch (e) { body.error = String(e.message || e).slice(0, 250); }
+      }
+      await api('/xapi/queue/' + item.id, { method: 'POST', body: JSON.stringify(body) });
+      if (body.x_id) { delete done[item.id]; await set({ queued: done }); }
+    }
+    await set({ lastError: '' });
+    pollScheduled();
+  } catch (e) {
+    await set({ lastError: String(e.message || e) });
+  } finally {
+    queueBusy = false;
+  }
+}
+
 async function addPosts(list) {
   const s = await get(['posts', 'status', 'viewer']);
   const posts = s.posts || {};
@@ -227,7 +319,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
       .catch((e) => reply({ ok: false, error: e.message }));
     return true;
   }
-  if (msg && msg.type === 'poll') { upload().then(poll).then(() => reply({ ok: true })); return true; }
+  if (msg && msg.type === 'poll') { upload().then(poll).then(processQueue).then(() => reply({ ok: true })); return true; }
   return false;
 });
 
@@ -257,14 +349,17 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create('poll', { periodInMinutes: 5 });
   chrome.alarms.create('badge', { periodInMinutes: 1 });
   chrome.alarms.create('sched', { periodInMinutes: 10 });
+  chrome.alarms.create('queue', { periodInMinutes: 2 });
   poll();
   pollScheduled();
+  processQueue();
 });
 chrome.runtime.onStartup.addListener(() => { poll(); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'poll') upload().then(poll);
   if (a.name === 'badge') refreshBadge();
   if (a.name === 'sched') pollScheduled();
+  if (a.name === 'queue') processQueue();
 });
 chrome.notifications.onClicked.addListener(async () => {
   const { server } = await settings();

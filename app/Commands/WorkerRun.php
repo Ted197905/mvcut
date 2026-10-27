@@ -32,6 +32,7 @@ class WorkerRun extends BaseCommand
         if ($db->affectedRows() > 0) $log('marked ' . $db->affectedRows() . ' interrupted job(s) as failed');
         $nextCleanup = time() + 300;
         $nextXWatch  = time() + 20;
+        $nextDrafts  = time() + 30;
         $lastImport  = ['platform' => '', 'at' => 0];
         while (true) {
             $job = $runner->claim();
@@ -72,6 +73,15 @@ class WorkerRun extends BaseCommand
                     XWatch::runDue($log);
                 } catch (\Throwable $e) {
                     $log('xwatch failed: ' . $e->getMessage());
+                }
+            }
+            // a draft batch the collector finished writing -> Telegram
+            if (time() >= $nextDrafts) {
+                $nextDrafts = time() + 60;
+                try {
+                    \App\Libraries\Drafts::notifyReady($log);
+                } catch (\Throwable $e) {
+                    $log('drafts notify failed: ' . $e->getMessage());
                 }
             }
             sleep($sleep);

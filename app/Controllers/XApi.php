@@ -46,6 +46,7 @@ class XApi extends BaseController
             $w = XWatch::forUser((int) $w['user_id']);
         }
         $new = XWatch::savePosts($w, $posts);
+        if ($new > 0) \App\Libraries\Drafts::matchPosted($posts);
         return $this->response->setJSON(['saved' => $new] + XWatch::status($w));
     }
 
@@ -105,6 +106,25 @@ class XApi extends BaseController
                                           'params' => json_encode($p, JSON_UNESCAPED_UNICODE), 'status' => 'queued']);
         }
         return $this->response->setJSON(['ok' => true, 'job' => $ids[0], 'jobs' => $ids]);
+    }
+
+    /** GET /xapi/queue - approved drafts for the extension to register as X scheduled posts. */
+    public function queue()
+    {
+        $w = $this->watch();
+        if (! $w) return $this->deny();
+        if ($w['handle'] === '') return $this->response->setJSON(['items' => []]);
+        return $this->response->setJSON(['items' => \App\Libraries\Drafts::queue(), 'handle' => $w['handle']]);
+    }
+
+    /** POST /xapi/queue/{id}  {"x_id": "..."} or {"error": "..."} */
+    public function queueDone(int $id)
+    {
+        $w = $this->watch();
+        if (! $w) return $this->deny();
+        $body = json_decode((string) $this->request->getBody(), true) ?: [];
+        $e = \App\Libraries\Drafts::report($id, $body);
+        return $this->response->setStatusCode($e ? 409 : 200)->setJSON($e ? ['error' => $e] : ['ok' => true]);
     }
 
     /** GET /xapi/jobs/{id} - progress of an import the extension queued. */

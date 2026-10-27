@@ -202,7 +202,7 @@ class Collect extends BaseController
     }
 
     /** Signature for a short-lived link the extension reads a collected file through from x.com. */
-    private static function shareSig(int $mediaId, int $exp): string
+    public static function shareSig(int $mediaId, int $exp): string
     {
         return hash_hmac('sha256', 'hw|' . $mediaId . '|' . $exp, (string) config('Encryption')->key);
     }

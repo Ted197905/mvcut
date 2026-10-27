@@ -34,6 +34,8 @@ $routes->post('xapi/posts', 'XApi::posts');
 $routes->post('xapi/import', 'XApi::import');
 $routes->post('xapi/scheduled', 'XApi::scheduled');
 $routes->get('xapi/jobs/(:num)', 'XApi::job/$1');
+$routes->get('xapi/queue', 'XApi::queue');
+$routes->post('xapi/queue/(:num)', 'XApi::queueDone/$1');
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
     $routes->get('account', 'Settings::index');
@@ -111,6 +113,16 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('cookies', 'Collect::cookies');
         $routes->post('(:num)/used', 'Collect::used/$1');
         $routes->post('(:num)/delete', 'Collect::delete/$1');
+    });
+
+    $routes->group('drafts', ['filter' => 'admin'], static function (RouteCollection $routes) {
+        $routes->get('', 'Drafts::index');
+        $routes->get('status', 'Drafts::status');
+        $routes->post('(:num)/save', 'Drafts::save/$1');
+        $routes->post('(:num)/approve', 'Drafts::approve/$1');
+        $routes->post('(:num)/unapprove', 'Drafts::unapprove/$1');
+        $routes->post('(:num)/reject', 'Drafts::reject/$1');
+        $routes->post('(:num)/regen', 'Drafts::regen/$1');
     });
 
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {
