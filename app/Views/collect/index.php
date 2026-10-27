@@ -95,7 +95,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <?php elseif ($it['thumb_url']): ?>
               <img src="<?= esc($it['thumb_url'], 'attr') ?>" alt="" loading="lazy" referrerpolicy="no-referrer">
             <?php else: ?>
-              <span class="ph"><?= esc(mb_substr($it['title'], 0, 60)) ?></span>
+              <span class="ph"><?= esc(mb_substr($it['title_ko'] ?: $it['title'], 0, 60)) ?></span>
             <?php endif ?>
             <span class="badge"><?= esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
             <?php if ((int) $it['breaking']): ?><span class="badge hot">속보 후보</span><?php endif ?>
@@ -105,7 +105,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <?php endif ?>
           </div>
           <div class="body">
-            <div class="title"><?= esc($it['title']) ?></div>
+            <div class="title"><?= esc($it['title_ko'] ?: $it['title']) ?></div>
             <div class="meta"><?= esc($names[$it['source_id']] ?? $it['source_id']) ?> · <?= esc(Collect::when($it['posted_at'] ?: $it['first_seen'])) ?><?= $stat ? ' · ' . esc(implode(' · ', array_keys($stat))) : '' ?></div>
             <?php if ($it['entities']): ?><div class="meta cl-ents"><?= esc($it['entities']) ?></div><?php endif ?>
           </div>

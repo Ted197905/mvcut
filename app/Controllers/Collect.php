@@ -49,12 +49,12 @@ class Collect extends BaseController
         if (! isset(self::SORTS[$f['sort']])) $f['sort'] = 'new';
 
         $b = $db->table($this->t('items') . ' i')
-            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why');
+            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why, i.title_ko');
         // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
         if (! $f['all']) $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
         if ($f['src'] !== '') $b->where('i.source_id', $f['src']);
         if (isset(self::COUNTRIES[$f['cc']])) $b->where('i.country', $f['cc']);
-        if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.entities', $f['q'])->groupEnd();
+        if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.title_ko', $f['q'])->orLike('i.entities', $f['q'])->groupEnd();
         if ($f['media']) {
             $b->where("EXISTS (SELECT 1 FROM {$this->t('media')} m WHERE m.item_id = i.id AND m.status IN ('done','embed'))", null, false);
         }
@@ -158,7 +158,7 @@ class Collect extends BaseController
                         'filename' => ($m['kind'] === 'video' ? 'video' : 'photo' . ($n + 1)) . '.' . $ext,
                         'mime'     => $m['mime'] ?: 'application/octet-stream'];
         }
-        $text = \App\Libraries\MediaSupport::shareText(['title' => $item['title'], 'description' => (string) ($item['body'] ?? '')]);
+        $text = \App\Libraries\MediaSupport::shareText(['title' => $item['title_ko'] ?: $item['title'], 'description' => (string) ($item['body_ko'] ?: ($item['body'] ?? ''))]);
         return $this->response->setJSON(['ok' => true, 'files' => $files, 'text' => $text]);
     }
 
@@ -183,11 +183,15 @@ class Collect extends BaseController
         $userId  = (int) session()->get('user_id');
         $postKey = bin2hex(random_bytes(8));
         $site    = substr(explode('_', $item['source_id'])[0], 0, 20);
-        $desc    = mb_substr(trim($item['title'] . "\n\n" . ($item['body'] ?? '')), 0, 20000);
+        // a translated post goes in as Korean, with the original text kept under it
+        $title   = $item['title_ko'] ?: $item['title'];
+        $desc    = trim($title . "\n\n" . ($item['body_ko'] ?: ($item['body'] ?? '')));
+        if ($item['title_ko']) $desc .= "\n\n[원문]\n" . trim($item['title'] . "\n\n" . ($item['body'] ?? ''));
+        $desc    = mb_substr($desc, 0, 20000);
         $stats   = array_filter(['view_count' => $item['views'], 'comment_count' => $item['comments'], 'like_count' => $item['likes']],
                                 static fn ($v) => $v !== null && $v >= 0);
         $fields  = ['source' => $site, 'source_url' => mb_substr($item['url'], 0, 1000), 'post_key' => $postKey,
-                    'title' => mb_substr($item['title'], 0, 255), 'description' => $desc,
+                    'title' => mb_substr($title, 0, 255), 'description' => $desc,
                     'uploader' => $item['author'] ? mb_substr($item['author'], 0, 190) : null,
                     'stats' => $stats ? json_encode(array_map('intval', $stats)) : null];
         $model = new MediaModel();

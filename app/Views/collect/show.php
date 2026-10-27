@@ -11,14 +11,16 @@ $stateLabel = ['pending' => '받는 중', 'failed' => '실패', 'robots' => 'rob
 $picks = array_filter($media, $sendable);
 $xable = static fn (array $m) => $m['status'] === 'done' && in_array($m['kind'], ['image', 'video'], true);
 $xPicks = array_filter($media, $xable);
-$body = trim((string) ($item['body'] ?: $item['excerpt']));
+$orig = trim((string) ($item['body'] ?: $item['excerpt']));
+$tr   = (string) $item['title_ko'] !== '';   // translated by the collector (foreign-language post)
+$body = $tr ? trim((string) $item['body_ko']) : $orig;
 ?>
 <main class="yt-page cl-page">
   <?= view('partials/alerts') ?>
   <p class="meta-line" style="margin-bottom:14px"><a href="<?= site_url('collect') ?>">&larr; 목록</a></p>
   <div class="cl-detail">
     <div class="cl-main">
-      <h1 class="cl-title"><?= esc($item['title']) ?></h1>
+      <h1 class="cl-title"><?= esc($tr ? $item['title_ko'] : $item['title']) ?></h1>
       <p class="meta-line">
         <span><?= esc($src['name']) ?></span><span class="dot">·</span>
         <span><?= esc(Collect::COUNTRIES[$item['country']] ?? $item['country']) ?></span><span class="dot">·</span>
@@ -27,8 +29,8 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
         <span class="dot">·</span><a href="<?= esc($item['url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">원문 보기</a>
       </p>
 
-      <?php if ($body !== ''): ?>
-        <div class="desc-body cl-body" id="descBody"><?= nl2br(esc(mb_substr($body, 0, 20000))) ?></div>
+      <?php if ($body !== '' || $tr): ?>
+        <div class="desc-body cl-body" id="descBody"><?= nl2br(esc(mb_substr($body, 0, 20000))) ?><?php if ($tr): ?><div class="cl-orig"><span class="muted small">원문<?= $item['tr_at'] ? ' · ' . esc(\App\Controllers\Collect::when($item['tr_at'])) . ' 번역' : '' ?></span><b><?= esc($item['title']) ?></b><?= $orig !== '' ? '<br>' . nl2br(esc(mb_substr($orig, 0, 20000))) : '' ?></div><?php endif ?></div>
         <button class="btn ghost sm" type="button" id="descMore" hidden>더보기</button>
       <?php elseif ($item['detail_status'] === 'pending'): ?>
         <p class="muted">본문과 미디어를 받는 중입니다.</p>
@@ -40,8 +42,8 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
         <form method="post" action="<?= site_url('collect/' . $item['id'] . '/library') ?>" id="libForm">
           <?= csrf_field() ?>
           <div class="cl-media">
-            <?php foreach ($media as $m): $ok = $sendable($m); ?>
-              <div class="post-item">
+            <?php foreach ($media as $m): $ok = $sendable($m); $embed = $m['kind'] === 'youtube' && $ytId($m['src_url']); ?>
+              <div class="post-item<?= $embed ? ' embed' : '' ?>">
                 <?php if ($m['status'] === 'done' && $m['kind'] === 'image'): ?>
                   <div class="viewer"><img src="<?= site_url('collect/media/' . $m['id']) ?>" alt="" loading="lazy"></div>
                 <?php elseif ($m['status'] === 'done' && $m['kind'] === 'video'): ?>
@@ -86,6 +88,7 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
         <?php if ($item['category'] || $item['board']): ?><div class="row"><dt>게시판</dt><dd><?= esc(trim($item['board'] . ' ' . $item['category'])) ?></dd></div><?php endif ?>
         <?php if ($item['tags']): ?><div class="row"><dt>태그</dt><dd><?= esc($item['tags']) ?></dd></div><?php endif ?>
         <?php if ((int) $item['relevant'] && $item['news'] !== null && ! (int) $item['news']): ?><div class="row"><dt>숨김</dt><dd><?= esc(['no media in a share board' => '공유 글인데 미디어 없음', 'chat prefix' => '잡담 글', 'content share without media' => '영상/사진 공유인데 미디어 없음', 'question' => '질문 글'][$item['news_why']] ?? (string) $item['news_why']) ?></dd></div><?php endif ?>
+        <?php if ($item['lang'] !== 'ko' && ! $tr): ?><div class="row"><dt>번역</dt><dd><?= $item['tr_error'] ? '실패: ' . esc(mb_substr($item['tr_error'], 0, 40)) : ((int) $item['relevant'] && ($item['news'] === null || (int) $item['news']) ? '대기 중' : '숨긴 글은 번역 안 함') ?></dd></div><?php endif ?>
         <div class="row"><dt>처음 수집</dt><dd><?= esc(Collect::when($item['first_seen'])) ?></dd></div>
         <div class="row"><dt>마지막 확인</dt><dd><?= esc(Collect::when($item['last_seen'])) ?></dd></div>
       </dl>
