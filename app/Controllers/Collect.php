@@ -83,15 +83,20 @@ class Collect extends BaseController
         $db  = db_connect();
         $get = fn (string $k) => trim((string) $this->request->getGet($k));
         $f = ['src' => $get('src'), 'cc' => $get('cc'), 'q' => $get('q'), 'sort' => $get('sort'),
-              'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1'];
+              'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1',
+              'scope' => in_array($get('scope'), ['issue', 'all'], true) ? $get('scope') : 'k'];   // k = K-entertainment, issue = popular boards whatever the topic
         if (! isset(self::SORTS[$f['sort']])) $f['sort'] = 'new';
 
         $b = $db->table($this->t('items') . ' i')
-            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why, i.title_ko, i.used_at')
+            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.issue, i.news, i.news_why, i.title_ko, i.used_at')
             ->where('i.deleted_at', null);
         if ($f['unused']) $b->where('i.used_at', null);
-        // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
-        if (! $f['all']) $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
+        if ($f['scope'] === 'issue') {
+            $b->where('i.issue', 1);   // the latest from the popular/issue boards, any topic
+        } elseif ($f['scope'] === 'k' && ! $f['all']) {
+            // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
+            $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
+        }
         if ($f['src'] !== '') $b->where('i.source_id', $f['src']);
         if (isset(self::COUNTRIES[$f['cc']])) $b->where('i.country', $f['cc']);
         if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.title_ko', $f['q'])->orLike('i.entities', $f['q'])->groupEnd();

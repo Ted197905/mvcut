@@ -12,6 +12,8 @@ $picks = array_filter($media, $sendable);
 $xable = static fn (array $m) => $m['status'] === 'done' && in_array($m['kind'], ['image', 'video'], true);
 $xPicks = array_filter($media, $xable);
 $orig = trim((string) ($item['body'] ?: $item['excerpt']));
+// links the media grid already covers: collected images/videos by their source URL, YouTube embeds
+$shown = array_map(static fn ($m) => (string) $m['src_url'], $media);
 $tr   = (string) $item['title_ko'] !== '';   // translated by the collector (foreign-language post)
 $body = $tr ? trim((string) $item['body_ko']) : $orig;
 ?>
@@ -30,7 +32,7 @@ $body = $tr ? trim((string) $item['body_ko']) : $orig;
       </p>
 
       <?php if ($body !== '' || $tr): ?>
-        <div class="desc-body cl-body" id="descBody"><?= nl2br(esc(mb_substr($body, 0, 20000))) ?><?php if ($tr): ?><div class="cl-orig"><span class="muted small">원문<?= $item['tr_at'] ? ' · ' . esc(\App\Controllers\Collect::when($item['tr_at'])) . ' 번역' : '' ?></span><b><?= esc($item['title']) ?></b><?= $orig !== '' ? '<br>' . nl2br(esc(mb_substr($orig, 0, 20000))) : '' ?></div><?php endif ?></div>
+        <div class="desc-body cl-body" id="descBody"><?= \App\Libraries\CollectBody::render(mb_substr($body, 0, 20000), $shown) ?><?php if ($tr): ?><div class="cl-orig"><span class="muted small">원문<?= $item['tr_at'] ? ' · ' . esc(\App\Controllers\Collect::when($item['tr_at'])) . ' 번역' : '' ?></span><b><?= esc($item['title']) ?></b><?= $orig !== '' ? '<br>' . \App\Libraries\CollectBody::render(mb_substr($orig, 0, 20000), $shown) : '' ?></div><?php endif ?></div>
         <button class="btn ghost sm" type="button" id="descMore" hidden>더보기</button>
       <?php elseif ($item['detail_status'] === 'pending'): ?>
         <p class="muted">본문과 미디어를 받는 중입니다.</p>
@@ -181,7 +183,7 @@ $body = $tr ? trim((string) $item['body_ko']) : $orig;
 /* long bodies (forum threads) are clamped behind 더보기 so the media stays in view */
 (function () {
   const body = document.getElementById('descBody'), more = document.getElementById('descMore');
-  if (!body || !more || body.scrollHeight <= 168 + 24) return;
+  if (!body || !more || body.querySelector('.cl-embed') || body.scrollHeight <= 168 + 24) return;   // embeds are the point of the post: never fold them
   body.classList.add('clamped'); more.hidden = false;
   more.addEventListener('click', () => { more.textContent = body.classList.toggle('clamped') ? '더보기' : '접기'; });
 })();

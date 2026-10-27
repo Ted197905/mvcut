@@ -681,6 +681,17 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-cookie form { display: inline-flex; align-items: center; gap: 6px; }
 .cl-cookie-add { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
 .cl-cookie-add .input { width: auto; }
+.seg { display: inline-flex; background: var(--fill3); border-radius: 11px; padding: 2px; gap: 2px; }
+.seg-item { display: block; padding: 7px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--label); text-decoration: none; white-space: nowrap; }
+.seg-item.on { background: var(--bg-elev); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.seg-item:hover { text-decoration: none; }
+.cl-embed { margin: 10px 0 14px; }
+.cl-embed .cl-embed-src { display: block; font-size: 12px; color: var(--label2); margin-bottom: 6px; overflow-wrap: anywhere; }
+.cl-embed iframe { border: 0; display: block; background: var(--bg-grouped); border-radius: 12px; }
+.cl-embed.x iframe { width: 550px; max-width: 100%; height: 620px; }
+.cl-embed.ig iframe { width: 400px; max-width: 100%; height: 720px; }
+.cl-embed.tt iframe { width: 325px; height: 760px; }
+.cl-embed.yt iframe { width: 100%; aspect-ratio: 16 / 9; }
 .cl-orig { margin-top: 18px; padding-top: 14px; border-top: 0.5px solid var(--separator); color: var(--label2); }
 .cl-orig > span { display: block; margin-bottom: 6px; }
 .cl-orig b { color: var(--label); font-weight: 600; }   /* an external video plays full width, not in a card */
