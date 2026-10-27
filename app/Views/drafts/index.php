@@ -136,6 +136,8 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       : '<img src="' + a.href + '" alt="">';
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
+    const v = body.querySelector('video');
+    if (v) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });   // browsers may refuse sound without a gesture
   });
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('.dr-modal-x')) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
