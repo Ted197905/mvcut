@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.type === 'send-to-x') {
     chrome.tabs.create({ url: 'https://x.com/compose/post' }, (tab) => {
       const files = Array.isArray(msg.files) ? msg.files : (msg.url ? [{ url: msg.url, filename: msg.filename, mime: msg.mime }] : []);
-      pending.set(tab.id, { files, text: String(msg.text || ''), note: String(msg.note || '') });
+      pending.set(tab.id, { files, text: String(msg.text || ''), note: String(msg.note || ''), at: Number(msg.at) || 0 });
       reply({ ok: true });
     });
     return true;

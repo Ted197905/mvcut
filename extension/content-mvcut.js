@@ -11,6 +11,7 @@ window.addEventListener('message', (e) => {
     type: 'send-to-x',
     url: String(d.url || ''),
     note: String(d.note || '').slice(0, 300),
+    at: Number(d.at) || 0,   // schedule time (unix): content-x.js sets it in the composer's schedule screen
     filename: String(d.filename || 'video.mp4'),
     mime: String(d.mime || 'application/octet-stream'),
     text: String(d.text || ''),

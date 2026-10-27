@@ -54,6 +54,36 @@
     if (!box.innerText.trim()) document.execCommand('insertText', false, text);
   };
 
+  // the composer's schedule screen: native selects (SELECTOR_1..6 = month, day, year, hour, minute, am/pm) driven by React
+  const setSchedule = async (at) => {
+    const d = new Date(at * 1000);   // shown in this browser's time zone, as X's own screen does
+    (await waitFor('div[role="dialog"] [data-testid="scheduleOption"]')).click();
+    await waitFor('[data-testid="scheduledConfirmationPrimaryAction"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+    const pick = async (labelText, v) => {
+      const sel = Array.from(document.querySelectorAll('select')).find((s) => {
+        const l = s.getAttribute('aria-labelledby');
+        return l && (document.getElementById(l) || {}).textContent === labelText;
+      });
+      if (!sel) throw new Error(labelText + ' 선택 칸이 없습니다');
+      setter.call(sel, String(v));
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 150));
+      if (sel.value !== String(v)) throw new Error(labelText + ' 값을 넣지 못했습니다');
+    };
+    const h = d.getHours();
+    await pick('년', d.getFullYear());
+    await pick('월', d.getMonth() + 1);
+    await pick('일', d.getDate());
+    await pick('시', h % 12 || 12);
+    await pick('분', d.getMinutes());
+    await pick('AM/PM', h < 12 ? 'am' : 'pm');
+    document.querySelector('[data-testid="scheduledConfirmationPrimaryAction"]').click();
+    await new Promise((r) => setTimeout(r, 800));
+    const btn = document.querySelector('div[role="dialog"] [data-testid="tweetButton"]');
+    if (!btn || !/예약|Schedule/i.test(btn.innerText)) throw new Error('예약 화면을 닫지 못했습니다');
+  };
+
   try {
     await fillText(job.text);
     const files = job.files || [{ url: job.url, filename: job.filename, mime: job.mime }];
@@ -65,6 +95,16 @@
       files.forEach((f, i) => dt.items.add(new File([blobs[i]], f.filename, { type: f.mime })));
       input.files = dt.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (job.at) {
+      // X's own schedule screen: the date/time selects, then "확인"; the post itself stays for the user ("예약하기")
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        await setSchedule(job.at);
+        job.note = '예약 시각을 ' + job.note.replace(/^예약 시각 /, '').replace(/로 지정하고 예약하세요.*$/, '') + '로 맞춰 두었습니다. 확인 후 "예약하기"를 누르세요.';
+      } catch (e) {
+        toast('예약 시각을 자동으로 넣지 못했습니다: ' + e.message, true);
+      }
     }
     if (job.note) {
       const el = document.createElement('div');   // stays until closed: the scheduled time to set

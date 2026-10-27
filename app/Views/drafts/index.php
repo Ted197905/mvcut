@@ -29,7 +29,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     </div>
     <span class="muted small"><?= $mode === 'auto'
         ? '승인한 초안을 확장이 승인 순서대로 10분에 1건씩 X 예약에 등록합니다. 실패하면 다시 줄을 서고 ' . D::MAX_TRIES . '번까지 재시도합니다 (크롬이 켜져 있어야 함).'
-        : '승인하면 X 작성창에 본문과 사진을 채워 엽니다. 예약 시각을 지정해 직접 예약하면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
+        : '승인하면 X 작성창에 본문, 사진, 예약 시각까지 넣어 엽니다. "예약하기"만 직접 누르면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
   </form>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
@@ -136,7 +136,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       const r = await fetch('<?= site_url('drafts') ?>/' + id + '/xfill', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' } });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
-      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: '', text: j.text, files: j.files, note: j.note }, location.origin);
+      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: '', text: j.text, files: j.files, note: j.note, at: j.ts }, location.origin);
     } catch (e) { alert('X 작성창 채우기 실패: ' + e.message); }
   };
   document.addEventListener('click', (e) => { const b = e.target.closest('.dr-fill'); if (b) fill(b.dataset.id); });
@@ -147,10 +147,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   // approved drafts reach X only through the extension (1.8.0+): say so when this browser does not have it
   setTimeout(() => {
     const v = document.documentElement.dataset.mvcutXVersion || '', box = document.querySelector('.dr-ext');
-    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10804;
+    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10805;
     if (!old) return;
     box.textContent = (v ? 'MV Cut 확장 ' + v + '는' : '이 브라우저에 MV Cut 확장이 없거나 오래된 버전이라') + ' 승인한 초안을 X 예약으로 등록하지 못합니다. '
-      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.4 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
+      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.5 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
     box.hidden = false;
   }, 800);
 })();

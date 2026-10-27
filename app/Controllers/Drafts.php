@@ -107,7 +107,7 @@ class Drafts extends BaseController
         if (D::mode($this->uid()) === 'auto') {
             return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. 확장이 승인 순서대로 10분 간격으로 X 예약에 등록합니다.');
         }
-        return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. X 작성창을 엽니다: 예약 시각을 ' . $at . '로 지정하고 예약하세요.')->with('fill', $id);
+        return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. X 작성창에 본문과 예약 시각을 넣어 엽니다: "예약하기"만 누르세요.')->with('fill', $id);
     }
 
     /** POST /drafts/mode  mode=auto|semi */
@@ -127,7 +127,7 @@ class Drafts extends BaseController
             return $this->response->setStatusCode(409)->setJSON(['ok' => false, 'error' => '승인된 초안이 아닙니다.']);
         }
         $at = \App\Libraries\XWatch::kst(strtotime($d['slot_at'] . ' UTC'), 'n/j H:i');
-        return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'files' => D::files($d), 'at' => $at,
+        return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'files' => D::files($d), 'at' => $at, 'ts' => strtotime($d['slot_at'] . ' UTC'),
             'note' => '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).']);
     }
 
