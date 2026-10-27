@@ -355,6 +355,8 @@ chrome.runtime.onInstalled.addListener(() => {
   processQueue();
 });
 chrome.runtime.onStartup.addListener(() => { poll(); });
+// alarms are made on install/update; make sure the draft queue one exists whenever the worker starts
+chrome.alarms.get('queue', (a) => { if (!a) chrome.alarms.create('queue', { periodInMinutes: 2 }); });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === 'poll') upload().then(poll);
   if (a.name === 'badge') refreshBadge();

@@ -32,6 +32,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <h1>초안</h1>
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
+  <div class="alert error dr-ext" hidden></div>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
       <?php foreach ($batches as $b): ?>
@@ -125,6 +126,17 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <div class="dr-modal-body"></div>
 </div>
 <script>
+(() => {
+  // approved drafts reach X only through the extension (1.8.0+): say so when this browser does not have it
+  setTimeout(() => {
+    const v = document.documentElement.dataset.mvcutXVersion || '', box = document.querySelector('.dr-ext');
+    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10800;
+    if (!old) return;
+    box.textContent = (v ? 'MV Cut 확장 ' + v + '는' : '이 브라우저에 MV Cut 확장이 없거나 오래된 버전이라') + ' 승인한 초안을 X 예약으로 등록하지 못합니다. '
+      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.1 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
+    box.hidden = false;
+  }, 800);
+})();
 (() => {
   // photo / video viewer: a layer over the page, closed by the backdrop, the X or Esc
   const modal = document.getElementById('drModal'), body = modal.querySelector('.dr-modal-body');

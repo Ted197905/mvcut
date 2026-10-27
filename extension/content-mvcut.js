@@ -1,6 +1,7 @@
 // Tells the page the extension is here, and forwards its "send to X" requests.
 document.documentElement.dataset.mvcutX = '1';
 document.documentElement.dataset.mvcutXMulti = '1';   // send-to-x takes files[] (up to 4 photos)
+document.documentElement.dataset.mvcutXVersion = chrome.runtime.getManifest().version;
 
 window.addEventListener('message', (e) => {
   if (e.source !== window || e.origin !== location.origin) return;
