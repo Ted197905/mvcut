@@ -45,7 +45,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       <?php endforeach ?>
     </div>
     <span class="spacer"></span>
-    <span class="muted small"><?= $writing ? $writing . '건 쓰는 중 · ' : '' ?>다음 빈 슬롯 <?= $next ? XWatch::kst($next, 'n/j H:i') : '없음' ?><?= $publishFrom ? ' (게시 시작 ' . XWatch::kst($publishFrom, 'n/j H:i') . ')' : '' ?></span>
+    <span class="muted small"><?php if ($usage): ?><?= esc($usage['label']) ?> 슬롯 <?= $usage['used'] ?>/<?= $usage['total'] ?> 사용<?= $usage['x'] ? ' (X에 직접 예약 ' . $usage['x'] . ')' : '' ?> · <?php endif ?><?= $writing ? $writing . '건 쓰는 중 · ' : '' ?>다음 빈 슬롯 <?= $next ? XWatch::kst($next, 'n/j H:i') : '없음' ?><?= $publishFrom ? ' (게시 시작 ' . XWatch::kst($publishFrom, 'n/j H:i') . ')' : '' ?></span>
   </form>
 
   <?php if ($rows === []): ?>
@@ -72,10 +72,13 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
         <?php if ($d['files']): ?>
           <div class="dr-media">
             <?php foreach ($d['files'] as $m): ?>
-              <label class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc($m['kind'] . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : ''), 'attr') ?>">
-                <input type="checkbox" name="media[]" value="<?= (int) $m['id'] ?>" form="f<?= (int) $d['id'] ?>"<?= $m['chosen'] ? ' checked' : '' ?><?= $editable ? '' : ' disabled' ?>>
-                <?php if ($m['kind'] === 'image'): ?><img src="<?= site_url('collect/media/' . (int) $m['id']) ?>" alt="" loading="lazy"><?php else: ?><span class="dr-vid">영상</span><?php endif ?>
-              </label>
+              <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 새 창', 'attr') ?>">
+                <input type="checkbox" name="media[]" value="<?= (int) $m['id'] ?>" form="f<?= (int) $d['id'] ?>" title="게시물에 넣기"<?= $m['chosen'] ? ' checked' : '' ?><?= $editable ? '' : ' disabled' ?>>
+                <a href="<?= site_url('collect/media/' . (int) $m['id']) ?>" target="_blank" rel="noopener">
+                  <?php if ($m['kind'] === 'image'): ?><img src="<?= site_url('collect/media/' . (int) $m['id']) ?>" alt="" loading="lazy">
+                  <?php else: ?><video src="<?= site_url('collect/media/' . (int) $m['id']) ?>#t=0.5" preload="metadata" muted playsinline></video><span class="dr-play">&#9654;</span><?php endif ?>
+                </a>
+              </div>
             <?php endforeach ?>
           </div>
         <?php endif ?>

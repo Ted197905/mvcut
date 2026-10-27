@@ -101,6 +101,28 @@ class Drafts
         return $out;
     }
 
+    /** Slot use on the day of `$t` (KST): grid slots, the ones taken (drafts + X scheduled), how many of those X-only. */
+    public static function dayUsage(int $userId, int $t): array
+    {
+        $tz  = new \DateTimeZone('Asia/Seoul');
+        $day = (new \DateTimeImmutable('@' . $t))->setTimezone($tz)->setTime(0, 0);
+        $grid = array_values(array_filter(self::grid(5), static fn ($g) => $g >= $day->getTimestamp() && $g < $day->getTimestamp() + 86400));
+        $drafts = array_map(static fn ($r) => strtotime($r['slot_at'] . ' UTC'), self::db()->table(self::t('drafts'))->select('slot_at')
+            ->whereIn('status', ['approved', 'sending', 'scheduled', 'posted'])->where('slot_at IS NOT NULL', null, false)->get()->getResultArray());
+        $x = [];
+        foreach (json_decode((string) (XWatch::forUser($userId)['scheduled'] ?? ''), true) ?: [] as $i) {
+            if (! empty($i['at']) && ! in_array((int) $i['at'], $drafts, true)) $x[] = (int) $i['at'];
+        }
+        $used = 0; $xOnly = 0;
+        foreach ($grid as $g) {
+            $hitDraft = (bool) array_filter($drafts, static fn ($v) => abs($v - $g) < self::SLOT_STEP * 60);
+            $hitX = (bool) array_filter($x, static fn ($v) => abs($v - $g) < self::SLOT_STEP * 60);
+            if ($hitDraft || $hitX) $used++;
+            if ($hitX && ! $hitDraft) $xOnly++;
+        }
+        return ['label' => $day->format('n/j'), 'total' => count($grid), 'used' => $used, 'x' => $xOnly];
+    }
+
     /** The first free grid slot (unix) at least LEAD_MIN ahead, keeping the account's minimum gap to everything taken. */
     public static function nextSlot(int $userId, ?int $notBefore = null): ?int
     {

@@ -717,11 +717,13 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-title { display: block; font-weight: 600; font-size: 15px; line-height: 1.4; color: var(--label); margin-bottom: 4px; overflow-wrap: anywhere; }
 .dr-err { color: var(--red); font-size: 13px; margin-top: 6px; }
 .dr-media { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.dr-m { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; background: var(--fill3); cursor: pointer; opacity: .45; }
-.dr-m.on, .dr-m:has(input:checked) { opacity: 1; box-shadow: 0 0 0 2.5px var(--blue); }
-.dr-m input { position: absolute; left: 4px; top: 4px; z-index: 2; margin: 0; }
-.dr-m img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.dr-m .dr-vid { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 12px; color: var(--label2); }
+.dr-m { position: relative; width: 168px; height: 168px; border-radius: 10px; overflow: hidden; background: var(--fill3); opacity: .5; }
+.dr-m.on, .dr-m:has(input:checked) { opacity: 1; box-shadow: 0 0 0 3px var(--blue); }
+.dr-m input { position: absolute; left: 6px; top: 6px; z-index: 2; margin: 0; width: 20px; height: 20px; cursor: pointer; }
+.dr-m a { display: block; width: 100%; height: 100%; }
+.dr-m img, .dr-m video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+.dr-m .dr-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 34px; text-shadow: 0 2px 8px rgba(0,0,0,.6); pointer-events: none; }
+@media (max-width: 760px) { .dr-m { width: calc(50% - 3px); height: auto; aspect-ratio: 1; } }
 .dr-edit { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .dr-text { font-size: 14px; line-height: 1.55; resize: vertical; min-height: 0; }
 .dr-wait { color: var(--label2); font-size: 14px; padding: 24px 0; text-align: center; }
