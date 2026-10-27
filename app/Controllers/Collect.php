@@ -146,7 +146,7 @@ class Collect extends BaseController
         $src  = $db->table($this->t('sources'))->where('id', $item['source_id'])->get()->getRowArray() ?: ['name' => $item['source_id']];
         $media = $db->table($this->t('media'))->where('item_id', $id)->orderBy('id')->get()->getResultArray();
         $inLib = (new MediaModel())->where('user_id', (int) session()->get('user_id'))->where('source_url', $item['url'])->countAllResults();
-        return view('collect/show', ['title' => $item['title'], 'item' => $item, 'src' => $src, 'media' => $media, 'inLib' => $inLib]);
+        return view('collect/show', ['title' => $item['title_ko'] ?: $item['title'], 'item' => $item, 'src' => $src, 'media' => $media, 'inLib' => $inLib]);
     }
 
     /** GET /collect/media/{id} - a stored file, streamed by nginx (location /internal-hw/ -> media dir). */
