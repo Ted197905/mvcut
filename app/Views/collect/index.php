@@ -28,7 +28,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     <summary>소스 상태 <span class="muted"><?= count($sources) ?>개<?= $bad ? ' · 확인 필요 ' . $bad . '개' : ' · 모두 정상' ?></span></summary>
     <div class="xw-table-wrap" style="margin-top:14px">
       <table class="xw-table">
-        <thead><tr><th>소스</th><th>국가</th><th>상태</th><th>마지막 수집</th><th>다음</th><th class="c">전체</th><th class="c">관련</th><th class="c" title="관련 글 중 보여 줄 미디어도 소식도 없어 숨긴 글">숨김</th><th class="c">24시간</th><th class="c">미디어 대기</th><th class="c">저장</th><th>오류</th></tr></thead>
+        <thead><tr><th>소스</th><th>국가</th><th>상태</th><th>마지막 수집</th><th>다음</th><th class="c">전체</th><th class="c">관련</th><th class="c" title="관련 글 중 보여 줄 미디어도 소식도 없어 숨긴 글">숨김</th><th class="c">24시간</th><th class="c">미디어 대기</th><th class="c">저장</th><th>쿠키</th><th>오류</th></tr></thead>
         <tbody>
         <?php foreach ($sources as $s): [$label, $cls] = $state($s); $c = $counts[$s['id']] ?? []; ?>
           <tr>
@@ -43,12 +43,22 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <td class="c"><?= $num($c['d1'] ?? 0) ?></td>
             <td class="c"><?= $num($c['pending'] ?? 0) ?></td>
             <td class="c"><?= esc(\App\Libraries\MediaSupport::size((int) ($c['bytes'] ?? 0))) ?></td>
+            <td class="cl-cookie"><?php if (isset($cookies[$s['id']])): ?><form method="post" action="<?= site_url('collect/cookies') ?>" onsubmit="return confirm('<?= esc($s['name'], 'attr') ?> 쿠키를 지울까요?')"><?= csrf_field() ?><input type="hidden" name="source" value="<?= esc($s['id'], 'attr') ?>"><input type="hidden" name="action" value="delete"><span class="ck-badge ok" title="<?= esc(Collect::when(gmdate('Y-m-d H:i:s', $cookies[$s['id']])), 'attr') ?> 등록">등록됨</span> <button class="btn sm ghost" type="submit">지움</button></form><?php else: ?><span class="muted">-</span><?php endif ?></td>
             <td class="cl-err" title="<?= esc((string) $s['last_error'], 'attr') ?>"><?= esc(mb_substr((string) $s['last_error'], 0, 60)) ?></td>
           </tr>
         <?php endforeach ?>
         </tbody>
       </table>
     </div>
+    <form class="cl-cookie-add" method="post" action="<?= site_url('collect/cookies') ?>" enctype="multipart/form-data"><?= csrf_field() ?>
+      <span class="small muted">로그인이 필요한 게시판은 그 사이트에 로그인한 브라우저에서 내보낸 cookies.txt(Netscape 형식)를 소스에 등록하면 수집기가 그 쿠키로 요청합니다.</span>
+      <select class="input" name="source" required>
+        <option value="">소스 선택</option>
+        <?php foreach ($sources as $s): ?><option value="<?= esc($s['id'], 'attr') ?>"><?= esc($s['name']) ?><?= isset($cookies[$s['id']]) ? ' (등록됨)' : '' ?></option><?php endforeach ?>
+      </select>
+      <input class="input" type="file" name="file" accept=".txt,text/plain" required>
+      <button class="btn sm" type="submit">쿠키 등록</button>
+    </form>
   </details>
 
   <form class="lib-toolbar" method="get" action="<?= site_url('collect') ?>">

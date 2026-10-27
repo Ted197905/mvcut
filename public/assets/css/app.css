@@ -667,6 +667,9 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-media .viewer img, .cl-media .viewer video { width: 100%; height: auto; max-height: 70vh; object-fit: contain; display: block; }
 .cl-media .viewer iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; display: block; }
 .cl-media .post-item.embed { grid-column: 1 / -1; }
+.cl-cookie form { display: inline-flex; align-items: center; gap: 6px; }
+.cl-cookie-add { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.cl-cookie-add .input { width: auto; }
 .cl-orig { margin-top: 18px; padding-top: 14px; border-top: 0.5px solid var(--separator); color: var(--label2); }
 .cl-orig > span { display: block; margin-bottom: 6px; }
 .cl-orig b { color: var(--label); font-weight: 600; }   /* an external video plays full width, not in a card */

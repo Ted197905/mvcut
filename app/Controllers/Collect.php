@@ -27,6 +27,44 @@ class Collect extends BaseController
         return rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/');
     }
 
+    /** Netscape cookie files the collector sends with a source's requests (boards that need a login). */
+    private function cookieDir(): string
+    {
+        return rtrim((string) env('hallyuwire.cookies', '/srv/hallyuwire/cookies'), '/');
+    }
+
+    /** source id => unix mtime of its cookie file */
+    private function cookieFiles(): array
+    {
+        $out = [];
+        foreach (glob($this->cookieDir() . '/*.txt') ?: [] as $p) $out[basename($p, '.txt')] = filemtime($p);
+        return $out;
+    }
+
+    /** POST /collect/cookies  source + file (cookies.txt) to register, or source + action=delete */
+    public function cookies()
+    {
+        $sid = (string) $this->request->getPost('source');
+        if (! preg_match('/^[a-z0-9_]{1,64}$/', $sid)
+            || ! db_connect()->table($this->t('sources'))->where('id', $sid)->countAllResults()) {
+            return redirect()->to(site_url('collect'))->with('error', '없는 소스입니다.');
+        }
+        $path = $this->cookieDir() . '/' . $sid . '.txt';
+        if ($this->request->getPost('action') === 'delete') {
+            if (is_file($path)) @unlink($path);
+            return redirect()->to(site_url('collect'))->with('flash', $sid . ' 쿠키를 지웠습니다.');
+        }
+        $f = $this->request->getFile('file');
+        if (! $f || ! $f->isValid()) return redirect()->to(site_url('collect'))->with('error', 'cookies.txt 파일을 고르세요.');
+        $rows = \App\Libraries\Cookies::parse((string) file_get_contents($f->getTempName()));
+        if ($rows === []) return redirect()->to(site_url('collect'))->with('error', 'Netscape 형식 cookies.txt가 아닙니다. 확장에서 "Export"한 파일을 그대로 올려 주세요.');
+        if (! is_dir($this->cookieDir()) && ! @mkdir($this->cookieDir(), 02775, true)) return redirect()->to(site_url('collect'))->with('error', '쿠키 폴더를 만들 수 없습니다.');
+        if (is_file($path)) @unlink($path);
+        if (@file_put_contents($path, \App\Libraries\Cookies::render($rows)) === false) return redirect()->to(site_url('collect'))->with('error', '쿠키 파일을 저장할 수 없습니다. 폴더 권한을 확인하세요.');
+        @chmod($path, 0660);
+        return redirect()->to(site_url('collect'))->with('flash', $sid . ' 쿠키 ' . count($rows) . '개를 등록했습니다. 다음 수집부터 씁니다.');
+    }
+
     /** UTC "Y-m-d H:i:s" from the collector -> short KST label ("5분 전", "10/26 23:41"). */
     public static function when(?string $utc): string
     {
@@ -90,6 +128,7 @@ class Collect extends BaseController
         return view('collect/index', [
             'title' => '수집', 'items' => $items, 'media' => $media, 'f' => $f, 'page' => $page, 'pages' => $pages,
             'matched' => $matched, 'sources' => $sources, 'counts' => $counts, 'names' => array_column($sources, 'name', 'id'),
+            'cookies' => $this->cookieFiles(),
         ]);
     }
 

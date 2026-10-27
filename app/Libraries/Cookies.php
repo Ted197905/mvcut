@@ -140,7 +140,7 @@ class Cookies
     }
 
     /** @return array<int,array{domain:string,flag:string,path:string,secure:string,expires:int,name:string,value:string}> */
-    private static function parse(string $raw): array
+    public static function parse(string $raw): array
     {
         $rows = [];
         foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
@@ -158,7 +158,7 @@ class Cookies
     }
 
     /** @param array<int,array<string,mixed>> $rows */
-    private static function render(array $rows): string
+    public static function render(array $rows): string
     {
         $out = "# Netscape HTTP Cookie File\n# uploaded via MV Cut settings\n\n";
         foreach ($rows as $r) {
