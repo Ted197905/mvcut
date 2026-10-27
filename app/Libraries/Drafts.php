@@ -219,7 +219,7 @@ class Drafts
     }
 
     public const AUTO_GAP  = 600;   // auto mode: seconds between two drafts handed to the extension
-    public const MAX_TRIES = 6;     // auto mode: failed registrations before a draft stops and waits for the user
+    public const MAX_TRIES = 3;     // auto mode: tries in all (the first + 2 retries); then the draft stops and waits for the user
 
     /** 'auto' (the extension schedules approved drafts on X) or 'semi' (X's composer is filled, the user schedules). */
     public static function mode(int $userId): string
