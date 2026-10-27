@@ -63,7 +63,8 @@ class Drafts extends BaseController
         return view('drafts/index', ['title' => '초안', 'rows' => $rows, 'batches' => $batches, 'batch' => $batch, 'filter' => $filter,
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
-                                     'usage' => $next ? D::dayUsage($this->uid(), $next, $batch !== '' ? D::publishFrom($batch) : null) : null]);
+                                     'usage' => D::usageText($this->uid(), $batch !== '' ? $batch : null),
+                                     'xwatch' => Library::xwatchPanel($this->uid())]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */
@@ -134,14 +135,18 @@ class Drafts extends BaseController
         return $this->back($id)->with('flash', D::STYLES[$style] . ' 스타일로 다시 씁니다 (1분 안팎).');
     }
 
-    /** GET /drafts/status?ids=1,2 - for the page's refresh while drafts are being written */
+    /** GET /drafts/status?ids=1,2&batch=... - the cards' states and the slot line, polled by the page */
     public function status()
     {
         $ids = array_filter(array_map('intval', explode(',', (string) $this->request->getGet('ids'))));
         $out = [];
         if ($ids) {
-            foreach (db_connect()->table(D::t('drafts'))->select('id, status')->whereIn('id', $ids)->get()->getResultArray() as $r) $out[(int) $r['id']] = $r['status'];
+            foreach (db_connect()->table(D::t('drafts'))->select('id, status, slot_at, error')->whereIn('id', $ids)->get()->getResultArray() as $r) {
+                [$label, $cls] = D::badge($r);
+                $out[(int) $r['id']] = ['status' => $r['status'], 'label' => $label, 'cls' => $cls, 'error' => (string) $r['error']];
+            }
         }
-        return $this->response->setJSON($out);
+        $batch = (string) $this->request->getGet('batch');
+        return $this->response->setJSON(['items' => $out, 'usage' => D::usageText($this->uid(), preg_match('/^\d{8}(am|pm|h\d{2})$/', $batch) ? $batch : null)]);
     }
 }

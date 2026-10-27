@@ -9,25 +9,12 @@ $back = http_build_query(array_filter(['batch' => $batch, 'f' => $filter === 'ne
 $qs = static fn (array $over) => site_url('drafts?' . http_build_query(array_filter(array_merge(['batch' => $batch, 'f' => $filter === 'new' ? '' : $filter], $over))));
 $num = static fn ($v) => $v === null ? null : number_format((int) $v);
 $kst = static fn (?string $utc, string $fmt = 'n/j H:i') => $utc ? XWatch::kst(strtotime($utc . ' UTC'), $fmt) : '';
-$badge = static function (array $d) use ($kst): array {
-    return match ($d['status']) {
-        'gen', 'regen' => ['쓰는 중', 'warn'],
-        'new'       => ['검토 대기', ''],
-        'approved'  => [$kst($d['slot_at']) . ' 예정', 'ok'],
-        'sending'   => [$kst($d['slot_at']) . ' 등록 중', 'ok'],
-        'scheduled' => [$kst($d['slot_at']) . ' X 예약됨', 'ok'],
-        'posted'    => [$kst($d['slot_at']) . ' 게시됨', 'ok'],
-        'rejected'  => ['제외', 'bad'],
-        'skipped'   => ['모델이 제외', 'bad'],
-        'error'     => ['등록 실패', 'bad'],
-        'failed'    => ['작성 실패', 'bad'],
-        default     => [$d['status'], ''],
-    };
-};
+$badge = [D::class, 'badge'];
 $pending = (int) ($counts['new'] ?? 0) + (int) ($counts['error'] ?? 0) + (int) ($counts['failed'] ?? 0);
 $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 ?>
-<main class="yt-page dr-page">
+<main class="lib-layout dr-page">
+<div class="lib-col">
   <?= view('partials/alerts') ?>
   <h1>초안</h1>
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
@@ -47,7 +34,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     </div>
     <span class="spacer"></span>
     <span class="muted small dr-usage" title="슬롯: 09:05~21:50, 15분 간격 52개. 이미 예약된 글 앞뒤 15분 안의 슬롯은 쓰지 않습니다.">
-      <?php if ($usage): ?><?= esc($usage['label']) ?> 게시: X 예약 <?= $usage['x'] ?> · 승인 <?= $usage['drafts'] ?> · 빈 슬롯 <?= $usage['free'] ?>/<?= $usage['total'] ?> · 다음 <?= XWatch::kst($next, 'H:i') ?><?php else: ?>빈 슬롯 없음<?php endif ?><?= $writing ? ' · ' . $writing . '건 쓰는 중' : '' ?>
+      <?= esc($usage) ?>
     </span>
   </form>
 
@@ -120,6 +107,8 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     <?php endforeach ?>
   </div>
   <?php endif ?>
+</div>
+<?= view('xwatch/side', ['xw' => $xwatch]) ?>
 </main>
 <div class="dr-modal" id="drModal" hidden>
   <button class="dr-modal-x" type="button" aria-label="닫기">&times;</button>
@@ -178,18 +167,54 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     };
     tas.forEach((t) => t.addEventListener('input', upd)); upd();
   });
-  // drafts still being written: poll until they change, then reload
-  const waiting = Array.from(document.querySelectorAll('.dr-card[data-status="gen"], .dr-card[data-status="regen"]')).map((c) => c.dataset.id);
-  if (!waiting.length) return;
+  // every 5 s: the cards' states (approved -> X 예약됨 -> 게시됨) and the slot line, updated in place.
+  // A draft that finished being written reloads the page, unless a text box was edited and not saved.
+  const cards = Array.from(document.querySelectorAll('.dr-card'));
+  const usage = document.querySelector('.dr-usage');
+  const dirty = () => Array.from(document.querySelectorAll('.dr-card textarea')).some((t) => t.value !== t.defaultValue);
   const tick = async () => {
+    if (document.hidden) return;
     try {
-      const r = await fetch('<?= site_url('drafts/status') ?>?ids=' + waiting.join(','), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const r = await fetch('<?= site_url('drafts/status') ?>?batch=<?= urlencode($batch) ?>&ids=' + cards.map((c) => c.dataset.id).join(','), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const j = await r.json();
-      if (waiting.some((id) => j[id] && j[id] !== 'gen' && j[id] !== 'regen')) { location.reload(); return; }
-    } catch (e) { /* retry */ }
-    setTimeout(tick, 8000);
+      if (usage && j.usage) usage.textContent = j.usage;
+      let reload = false;
+      for (const c of cards) {
+        const it = j.items[c.dataset.id];
+        if (!it || it.status === c.dataset.status) continue;
+        if (c.dataset.status === 'gen' || c.dataset.status === 'regen') reload = true;
+        c.dataset.status = it.status;
+        const b = c.querySelector('.dr-src-head .ck-badge');
+        b.textContent = it.label; b.className = 'ck-badge ' + it.cls;
+        const err = c.querySelector('.dr-err');
+        if (err) err.textContent = it.error;
+      }
+      if (reload && !dirty()) location.reload();
+    } catch (e) { /* next tick */ }
   };
-  setTimeout(tick, 8000);
+  setInterval(tick, 5000);
+})();
+// X watch sidebar, as on the library page: swapped only when its content changed
+(function () {
+  let busy = false, last = '';
+  setInterval(() => {
+    const side = document.getElementById('xwSide');
+    if (!side || document.hidden || busy) return;
+    busy = true;
+    fetch('<?= site_url('xwatch/panel') ?>', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then((r) => r.ok ? r.text() : null)
+      .then((h) => {
+        if (!h || !h.trim() || h === last) return;
+        last = h;
+        const cur = document.getElementById('xwSide');
+        const top = cur.querySelector('.xw-box.xw-list')?.scrollTop || 0;
+        cur.outerHTML = h;
+        const list = document.querySelector('#xwSide .xw-box.xw-list');
+        if (list) list.scrollTop = top;
+      })
+      .catch(() => {})
+      .finally(() => { busy = false; });
+  }, 3000);
 })();
 </script>
 <?= $this->endSection() ?>

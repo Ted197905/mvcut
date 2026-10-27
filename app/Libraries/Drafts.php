@@ -54,6 +54,37 @@ class Drafts
         return ! empty($b['publish_from']) ? strtotime($b['publish_from'] . ' UTC') : null;
     }
 
+    /** [label, css class] of a draft's state, for its card. */
+    public static function badge(array $d): array
+    {
+        $at = static fn () => $d['slot_at'] ? XWatch::kst(strtotime($d['slot_at'] . ' UTC'), 'n/j H:i') : '';
+        return match ($d['status']) {
+            'gen', 'regen' => ['쓰는 중', 'warn'],
+            'new'       => ['검토 대기', ''],
+            'approved'  => [$at() . ' 예정', 'ok'],
+            'sending'   => [$at() . ' 등록 중', 'ok'],
+            'scheduled' => [$at() . ' X 예약됨', 'ok'],
+            'posted'    => [$at() . ' 게시됨', 'ok'],
+            'rejected'  => ['제외', 'bad'],
+            'skipped'   => ['모델이 제외', 'bad'],
+            'error'     => ['등록 실패', 'bad'],
+            'failed'    => ['작성 실패', 'bad'],
+            default     => [$d['status'], ''],
+        };
+    }
+
+    /** The slot line over the list: "10/28 게시: X 예약 5 · 승인 3 · 빈 슬롯 40/52 · 다음 10:35". */
+    public static function usageText(int $userId, ?string $batch): string
+    {
+        $from = $batch ? self::publishFrom($batch) : null;
+        $next = self::nextSlot($userId, $from);
+        if (! $next) return '빈 슬롯 없음';
+        $u = self::dayUsage($userId, $next, $from);
+        $writing = (int) self::db()->table(self::t('drafts'))->whereIn('status', ['gen', 'regen'])->countAllResults();
+        return $u['label'] . ' 게시: X 예약 ' . $u['x'] . ' · 승인 ' . $u['drafts'] . ' · 빈 슬롯 ' . $u['free'] . '/' . $u['total']
+             . ' · 다음 ' . XWatch::kst($next, 'H:i') . ($writing ? ' · ' . $writing . '건 쓰는 중' : '');
+    }
+
     /** The post text as it goes to X: a story's headline, blank line, body. */
     public static function fullText(array $d): string
     {
