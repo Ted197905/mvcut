@@ -83,11 +83,13 @@ class Collect extends BaseController
         $db  = db_connect();
         $get = fn (string $k) => trim((string) $this->request->getGet($k));
         $f = ['src' => $get('src'), 'cc' => $get('cc'), 'q' => $get('q'), 'sort' => $get('sort'),
-              'all' => $get('all') === '1', 'media' => $get('media') === '1'];
+              'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1'];
         if (! isset(self::SORTS[$f['sort']])) $f['sort'] = 'new';
 
         $b = $db->table($this->t('items') . ' i')
-            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why, i.title_ko');
+            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why, i.title_ko, i.used_at')
+            ->where('i.deleted_at', null);
+        if ($f['unused']) $b->where('i.used_at', null);
         // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
         if (! $f['all']) $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
         if ($f['src'] !== '') $b->where('i.source_id', $f['src']);
@@ -134,9 +136,40 @@ class Collect extends BaseController
 
     private function item(int $id): array
     {
-        $item = db_connect()->table($this->t('items'))->where('id', $id)->get()->getRowArray();
+        $item = db_connect()->table($this->t('items'))->where('id', $id)->where('deleted_at', null)->get()->getRowArray();
         if (! $item) throw PageNotFoundException::forPageNotFound();
         return $item;
+    }
+
+    /** used_at / deleted_at on a collected post (the app DB user may update only these two columns). */
+    private function mark(int $id, string $col, bool $on): void
+    {
+        db_connect()->table($this->t('items'))->where('id', $id)->update([$col => $on ? gmdate('Y-m-d H:i:s') : null]);
+    }
+
+    private function wantsJson(): bool
+    {
+        return $this->request->isAJAX() || str_contains((string) $this->request->getHeaderLine('Accept'), 'application/json');
+    }
+
+    /** POST /collect/{id}/used  {on: 0|1} - "used" check: the post was sent on / posted already */
+    public function used(int $id)
+    {
+        $item = $this->item($id);
+        $on = (string) ($this->request->getPost('on') ?? (($this->request->getJSON(true) ?: [])['on'] ?? ''));
+        $on = $on === '' ? $item['used_at'] === null : $on === '1';
+        $this->mark($id, 'used_at', $on);
+        if ($this->wantsJson()) return $this->response->setJSON(['ok' => true, 'used' => $on]);
+        return redirect()->back()->with('flash', $on ? '사용한 글로 표시했습니다.' : '사용 표시를 지웠습니다.');
+    }
+
+    /** POST /collect/{id}/delete - hides the post (the row stays so the collector does not add it again) */
+    public function delete(int $id)
+    {
+        $this->item($id);
+        $this->mark($id, 'deleted_at', true);
+        if ($this->wantsJson()) return $this->response->setJSON(['ok' => true]);
+        return redirect()->to(site_url('collect'))->with('flash', '수집 글을 지웠습니다.');
     }
 
     public function show(int $id)
@@ -198,6 +231,7 @@ class Collect extends BaseController
                         'mime'     => $m['mime'] ?: 'application/octet-stream'];
         }
         $text = \App\Libraries\MediaSupport::shareText(['title' => $item['title_ko'] ?: $item['title'], 'description' => (string) ($item['body_ko'] ?: ($item['body'] ?? ''))]);
+        $this->mark($id, 'used_at', true);
         return $this->response->setJSON(['ok' => true, 'files' => $files, 'text' => $text]);
     }
 
@@ -258,6 +292,7 @@ class Collect extends BaseController
                 $failed++;
             }
         }
+        if ($copied + $queued > 0) $this->mark($id, 'used_at', true);
         $msg = '라이브러리에 ' . $copied . '개 추가' . ($queued ? ', YouTube ' . $queued . '개 가져오는 중' : '') . ($failed ? ', ' . $failed . '개 실패' : '');
         return redirect()->to(site_url('collect/' . $id))->with($copied + $queued > 0 ? 'flash' : 'error', $msg);
     }

@@ -109,6 +109,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/library', 'Collect::toLibrary/$1');
         $routes->post('(:num)/xlinks', 'Collect::xLinks/$1');
         $routes->post('cookies', 'Collect::cookies');
+        $routes->post('(:num)/used', 'Collect::used/$1');
+        $routes->post('(:num)/delete', 'Collect::delete/$1');
     });
 
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {

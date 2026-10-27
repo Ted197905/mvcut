@@ -651,6 +651,17 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-grid .card .badge.hot { left: auto; right: 8px; background: var(--red); text-transform: none; }
 .cl-grid .card .badge.off { left: auto; right: 8px; background: rgba(0,0,0,.62); text-transform: none; }
 .cl-grid .card .badge.hot ~ .badge.off { top: 32px; }
+.cl-grid .card .badge.used { left: auto; right: 8px; top: auto; bottom: 8px; background: var(--green, #34c759); text-transform: none; }
+.cl-grid .card.used .thumb img, .cl-grid .card.used .thumb .ph { opacity: .45; }
+.cl-grid .card.used .title { color: var(--label2); }
+.cl-acts { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; z-index: 2; opacity: 0; transition: opacity .15s; }
+.cl-grid .card:hover .cl-acts, .cl-grid .card:focus-within .cl-acts, .cl-grid .card.used .cl-acts { opacity: 1; }
+.cl-act { width: 30px; height: 30px; border: 0; border-radius: 8px; background: rgba(0,0,0,.6); color: #fff; font-size: 15px; line-height: 30px; cursor: pointer; backdrop-filter: blur(6px); padding: 0; }
+.cl-act:hover { background: rgba(0,0,0,.85); }
+.cl-grid .card.used .cl-act.use { background: var(--green, #34c759); }
+.cl-act.del:hover { background: var(--red); }
+.cl-side-acts { display: flex; gap: 8px; margin-top: 14px; }
+@media (hover: none) { .cl-acts { opacity: 1; } }
 .cl-ents { color: var(--blue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--label2); cursor: pointer; white-space: nowrap; }
 .cl-check.cl-x { color: var(--label); font-weight: 600; }

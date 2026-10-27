@@ -5,7 +5,7 @@ use App\Controllers\Collect;
 
 $qs = static fn (array $over) => site_url('collect?' . http_build_query(array_filter(array_merge(
     ['src' => $f['src'], 'cc' => $f['cc'], 'q' => $f['q'], 'sort' => $f['sort'] === 'new' ? '' : $f['sort'],
-     'all' => $f['all'] ? '1' : '', 'media' => $f['media'] ? '1' : ''], $over), static fn ($v) => $v !== '' && $v !== null)));
+     'all' => $f['all'] ? '1' : '', 'media' => $f['media'] ? '1' : '', 'unused' => $f['unused'] ? '1' : ''], $over), static fn ($v) => $v !== '' && $v !== null)));
 $num = static fn ($v) => $v === null ? '-' : number_format((int) $v);
 $state = static function (array $s): array {
     if (! (int) $s['enabled']) return ['꺼짐', 'bad'];
@@ -82,8 +82,9 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     </select>
     <label class="cl-check"><input type="checkbox" name="media" value="1"<?= $f['media'] ? ' checked' : '' ?> onchange="this.form.submit()"> 미디어 있는 글만</label>
     <label class="cl-check"><input type="checkbox" name="all" value="1"<?= $f['all'] ? ' checked' : '' ?> onchange="this.form.submit()"> 숨긴 글 포함</label>
+    <label class="cl-check"><input type="checkbox" name="unused" value="1"<?= $f['unused'] ? ' checked' : '' ?> onchange="this.form.submit()"> 사용한 글 제외</label>
     <button class="btn secondary sm" type="submit">검색</button>
-    <?php if ($f['q'] !== '' || $f['src'] !== '' || $f['cc'] !== '' || $f['all'] || $f['media'] || $f['sort'] !== 'new'): ?><a class="btn ghost sm" href="<?= site_url('collect') ?>">초기화</a><?php endif ?>
+    <?php if ($f['q'] !== '' || $f['src'] !== '' || $f['cc'] !== '' || $f['all'] || $f['media'] || $f['unused'] || $f['sort'] !== 'new'): ?><a class="btn ghost sm" href="<?= site_url('collect') ?>">초기화</a><?php endif ?>
     <span class="spacer"></span>
     <span class="muted small"><?= number_format($matched) ?>개</span>
   </form>
@@ -98,8 +99,12 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
         $stat = array_filter(['조회 ' . $num($it['views']) => $it['views'] !== null, '댓글 ' . $num($it['comments']) => $it['comments'] !== null,
                               '추천 ' . $num($it['likes']) => $it['likes'] !== null, $num($it['rank_pos']) . '위' => $it['rank_pos'] !== null]);
       ?>
-        <a class="card" href="<?= site_url('collect/' . $it['id']) ?>">
+        <a class="card<?= $it['used_at'] ? ' used' : '' ?>" href="<?= site_url('collect/' . $it['id']) ?>" data-id="<?= (int) $it['id'] ?>">
           <div class="thumb">
+            <span class="cl-acts">
+              <button class="cl-act use" type="button" title="사용한 글 표시/해제" aria-label="사용한 글 표시/해제">&#10003;</button>
+              <button class="cl-act del" type="button" title="이 글 지우기" aria-label="이 글 지우기">&#10005;</button>
+            </span>
             <?php if ($m && $m['first_img']): ?>
               <img src="<?= site_url('collect/media/' . $m['first_img']) ?>" alt="" loading="lazy">
             <?php elseif ($it['thumb_url']): ?>
@@ -109,6 +114,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <?php endif ?>
             <span class="badge"><?= esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
             <?php if ((int) $it['breaking']): ?><span class="badge hot">속보 후보</span><?php endif ?>
+            <?php if ($it['used_at']): ?><span class="badge used" title="<?= esc(Collect::when($it['used_at']), 'attr') ?>">사용함</span><?php endif ?>
             <?php if (! (int) $it['relevant']): ?><span class="badge off">관련 없음</span><?php elseif ($it['news'] !== null && ! (int) $it['news']): ?><span class="badge off" title="<?= esc((string) $it['news_why'], 'attr') ?>">뉴스 아님</span><?php endif ?>
             <?php if ($files || ($m['embeds'] ?? 0)): ?>
               <span class="dur"><?= $m['vids'] ? '영상 ' . (int) $m['vids'] . ' ' : '' ?><?= $m['imgs'] ? '사진 ' . (int) $m['imgs'] . ' ' : '' ?><?= $m['embeds'] ? 'YT ' . (int) $m['embeds'] : '' ?></span>
@@ -133,4 +139,30 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     <?php endif ?>
   <?php endif ?>
 </main>
+<?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
+<script>
+/* card buttons: "used" check and delete, without leaving the list */
+(function () {
+  const base = <?= json_encode(rtrim(site_url(), '/') . '/') ?>;
+  const post = (url, body) => { const c = MV.csrf(); return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' }, body: JSON.stringify(body || {}) }).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error || MV.httpError(r.status)); return j; }); };
+  document.querySelectorAll('.cl-grid .card').forEach(card => {
+    const id = card.dataset.id;
+    card.querySelector('.cl-act.use')?.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try {
+        const j = await post(base + 'collect/' + id + '/used', { on: card.classList.contains('used') ? '0' : '1' });
+        card.classList.toggle('used', j.used);
+        let b = card.querySelector('.badge.used');
+        if (j.used && !b) { b = document.createElement('span'); b.className = 'badge used'; b.textContent = '사용함'; card.querySelector('.thumb').appendChild(b); }
+        if (!j.used && b) b.remove();
+      } catch (err) { alert(err.message); }
+    });
+    card.querySelector('.cl-act.del')?.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try { await post(base + 'collect/' + id + '/delete'); card.remove(); } catch (err) { alert(err.message); }
+    });
+  });
+})();
+</script>
 <?= $this->endSection() ?>

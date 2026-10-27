@@ -77,6 +77,15 @@ $body = $tr ? trim((string) $item['body_ko']) : $orig;
         <button class="btn block" type="submit" form="libForm">선택 항목 라이브러리로 보내기</button>
         <p class="muted small" style="margin:8px 0 0">사진·영상은 바로 복사하고, YouTube는 가져오기 작업으로 넣습니다.<?= $inLib ? ' 이미 라이브러리에 이 글의 파일이 ' . $inLib . '개 있습니다.' : '' ?></p>
       <?php endif ?>
+      <div class="cl-side-acts">
+        <form method="post" action="<?= site_url('collect/' . $item['id'] . '/used') ?>"><?= csrf_field() ?>
+          <input type="hidden" name="on" value="<?= $item['used_at'] ? '0' : '1' ?>">
+          <button class="btn sm<?= $item['used_at'] ? '' : ' secondary' ?>" type="submit"><?= $item['used_at'] ? '&#10003; 사용함 (' . esc(Collect::when($item['used_at'])) . ')' : '사용한 글로 표시' ?></button>
+        </form>
+        <form method="post" action="<?= site_url('collect/' . $item['id'] . '/delete') ?>" onsubmit="return confirm('이 글을 수집 목록에서 지웁니다. 계속할까요?')"><?= csrf_field() ?>
+          <button class="btn sm ghost" type="submit">지우기</button>
+        </form>
+      </div>
       <?php if ($xPicks !== []): ?>
         <button class="btn block secondary" type="button" id="btnSendX" style="margin-top:14px" disabled>Send to X <span id="xCount">(0/4)</span></button>
         <p class="muted small" style="margin:8px 0 0">사진 아래 "X"로 고르세요. 사진은 4장까지, 영상은 1개만(사진과 함께 불가).</p>
