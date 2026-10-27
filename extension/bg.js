@@ -183,10 +183,12 @@ async function scheduleInPage(item, qid, auth) {
   try {
     const media_ids = [];
     for (const file of item.files || []) {
-      const src = await f(file.url);
-      if (!src.ok) throw new Error('파일 HTTP ' + src.status);
-      const blob = await src.blob();
-      const type = file.mime || blob.type || 'application/octet-stream';
+      // bytes come from the worker: x.com's CSP does not let the page fetch from MV Cut
+      const bin = atob(file.b64);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      const type = file.mime || 'application/octet-stream';
+      const blob = new Blob([buf], { type });
       const video = file.kind === 'video' || /^video\//.test(type);
       let r = await f(base + '?command=INIT&total_bytes=' + blob.size + '&media_type=' + encodeURIComponent(type)
         + '&media_category=' + (video ? 'tweet_video' : 'tweet_image'), { method: 'POST', credentials: 'include', headers: h });
@@ -237,8 +239,20 @@ async function xTab() {
   return { id: t.id, opened: true };
 }
 
+async function fileB64(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('파일 HTTP ' + r.status);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 async function scheduleOne(item, tabId) {
-  const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scheduleInPage, args: [item, CREATE_SCHED_QID, X_WEB_AUTH] });
+  const files = [];
+  for (const f of item.files || []) files.push({ b64: await fileB64(f.url), mime: f.mime, kind: f.kind, filename: f.filename });
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scheduleInPage,
+    args: [Object.assign({}, item, { files }), CREATE_SCHED_QID, X_WEB_AUTH] });
   const out = res && res.result;
   if (!out) throw new Error('x.com 탭에서 실행하지 못했습니다');
   if (out.error) throw new Error(out.error);
