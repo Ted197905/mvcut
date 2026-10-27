@@ -19,6 +19,10 @@ class Cookies
         'tiktok'    => ['label' => 'TikTok',    'domains' => ['tiktok.com'], 'site' => 'https://www.tiktok.com/', 'session' => ['sessionid'], 'drop' => ['_waftokenid']],
         // a second X account used only by the X watch restriction checks (never the watched account)
         'xprobe'    => ['label' => 'X 검사용 부계정', 'domains' => ['x.com', 'twitter.com'], 'site' => 'https://x.com/', 'session' => ['auth_token', 'ct0']],
+        // the hallyuwire collector sends these with its fmkorea requests (the site answers HTTP 430 to a browser without a session);
+        // stored where the collector reads per-source cookies (<source id>.txt), not in secrets/
+        'fmkorea'   => ['label' => '에펨코리아 (수집기)', 'domains' => ['fmkorea.com'], 'site' => 'https://www.fmkorea.com/', 'session' => [],
+                        'path' => '/srv/hallyuwire/cookies/fmkorea_best.txt'],
     ];
 
     /** Cookies that carry the session; used for the expiry readout. */
@@ -31,7 +35,8 @@ class Cookies
 
     public static function path(string $platform): ?string
     {
-        return self::known($platform) ? ROOTPATH . 'secrets/cookies_' . $platform . '.txt' : null;
+        if (! self::known($platform)) return null;
+        return self::PLATFORMS[$platform]['path'] ?? ROOTPATH . 'secrets/cookies_' . $platform . '.txt';
     }
 
     /** Parsed view of one platform's cookie file. */
@@ -94,12 +99,12 @@ class Cookies
         }
         $drop = self::PLATFORMS[$platform]['drop'] ?? [];
         if ($drop) $rows = array_values(array_filter($rows, static fn ($r) => ! in_array($r['name'], $drop, true)));
-        $dir = ROOTPATH . 'secrets';
-        if (! is_dir($dir) && ! @mkdir($dir, 0770, true)) return '서버에 secrets 디렉터리를 만들 수 없습니다.';
         $p = self::path($platform);
+        $dir = dirname($p);
+        if (! is_dir($dir) && ! @mkdir($dir, 0770, true)) return '서버에 ' . basename($dir) . ' 디렉터리를 만들 수 없습니다.';
         // the previous file may belong to the deploy user, so replace it rather than write into it
         if (is_file($p)) @unlink($p);
-        if (@file_put_contents($p, self::render($rows)) === false) return '파일을 저장할 수 없습니다. secrets 디렉터리 권한을 확인해 주세요.';
+        if (@file_put_contents($p, self::render($rows)) === false) return '파일을 저장할 수 없습니다. ' . basename($dir) . ' 디렉터리 권한을 확인해 주세요.';
         @chmod($p, 0660);
         self::clearFailure($platform);
         return null;
