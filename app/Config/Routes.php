@@ -107,6 +107,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->group('collect', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Collect::index');
         $routes->get('(:num)', 'Collect::show/$1');
+        $routes->get('log', 'Collect::log');
         $routes->get('media/(:num)', 'Collect::file/$1');
         $routes->post('(:num)/library', 'Collect::toLibrary/$1');
         $routes->post('(:num)/xlinks', 'Collect::xLinks/$1');

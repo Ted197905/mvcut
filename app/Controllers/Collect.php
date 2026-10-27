@@ -139,6 +139,34 @@ class Collect extends BaseController
         ]);
     }
 
+    /**
+     * GET /collect/log?after=ID&src=&err=1 - the collector's event log (hallyuwire.events), newest first:
+     * 200 rows, or only the ones after `after` (the panel polls with it).
+     */
+    public function log()
+    {
+        $db = db_connect();
+        $b = $db->table($this->t('events') . ' e')
+            ->select('e.id, e.ts, e.level, e.source_id, e.item_id, e.msg, e.detail, i.source_id AS item_src')
+            ->join($this->t('items') . ' i', 'i.id = e.item_id', 'left');
+        $after = (int) $this->request->getGet('after');
+        if ($after > 0) $b->where('e.id >', $after);
+        $src = (string) $this->request->getGet('src');
+        if ($src !== '' && preg_match('/^[a-z0-9_]{1,64}$/', $src)) $b->groupStart()->where('e.source_id', $src)->orWhere('i.source_id', $src)->groupEnd();
+        if ($this->request->getGet('err') === '1') $b->whereIn('e.level', ['WARNING', 'ERROR', 'CRITICAL']);
+        $rows = $b->orderBy('e.id', 'DESC')->get($after > 0 ? 500 : 200)->getResultArray();
+        $names = array_column($db->table($this->t('sources'))->select('id, name')->get()->getResultArray(), 'name', 'id');
+        $out = [];
+        foreach ($rows as $r) {
+            $sid = $r['source_id'] ?: $r['item_src'];
+            $out[] = ['id' => (int) $r['id'], 't' => \App\Libraries\XWatch::kst(strtotime($r['ts'] . ' UTC'), 'n/j H:i:s'),
+                      'lv' => $r['level'], 'src' => $sid ? ($names[$sid] ?? $sid) : '', 'item' => $r['item_id'] ? (int) $r['item_id'] : null,
+                      'msg' => $r['msg'], 'detail' => $r['detail']];
+        }
+        $last = $db->table($this->t('events'))->selectMax('ts')->get()->getRowArray()['ts'] ?? null;
+        return $this->response->setJSON(['items' => $out, 'idle' => $last ? time() - strtotime($last . ' UTC') : null]);
+    }
+
     private function item(int $id): array
     {
         $item = db_connect()->table($this->t('items'))->where('id', $id)->where('deleted_at', null)->get()->getRowArray();

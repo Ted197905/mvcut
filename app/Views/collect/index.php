@@ -62,6 +62,53 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     </form>
   </details>
 
+  <details class="import-panel cl-log" id="clLog">
+    <summary><span class="cl-log-dot" title="최근 2분 안에 기록이 있으면 초록"></span>진행 사항 <span class="muted cl-log-last">불러오는 중...</span></summary>
+    <div class="cl-log-bar">
+      <select class="input sm" id="clLogSrc"><option value="">모든 소스</option><?php foreach ($sources as $s): ?><option value="<?= esc($s['id'], 'attr') ?>"><?= esc($s['name']) ?></option><?php endforeach ?></select>
+      <label class="cl-check"><input type="checkbox" id="clLogErr"> 경고/오류만</label>
+      <span class="muted small">최근 200줄, 5초마다 갱신. 오류 줄을 누르면 상세. HTTP 요청별 기록은 서버 fetch_log 테이블.</span>
+    </div>
+    <div class="cl-log-box" id="clLogBox"></div>
+  </details>
+<script>
+(() => {
+  const url = <?= json_encode(site_url('collect/log')) ?>, itemUrl = <?= json_encode(rtrim(site_url('collect'), '/') . '/') ?>;
+  const panel = document.getElementById('clLog'), box = document.getElementById('clLogBox'), last = panel.querySelector('.cl-log-last'),
+        dot = panel.querySelector('.cl-log-dot'), srcSel = document.getElementById('clLogSrc'), errBox = document.getElementById('clLogErr');
+  let top = 0;   // newest id shown
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const line = (r) => '<div class="cl-log-row lv-' + esc(r.lv.toLowerCase()) + '"' + (r.detail ? ' data-detail="' + esc(r.detail) + '"' : '') + '>'
+    + '<span class="t">' + esc(r.t) + '</span><span class="lv">' + esc(r.lv[0]) + '</span><span class="s">' + esc(r.src) + '</span>'
+    + '<span class="m">' + esc(r.msg) + (r.item ? ' <a href="' + itemUrl + r.item + '" target="_blank" rel="noopener">#' + r.item + '</a>' : '') + '</span></div>';
+  const load = async (reset) => {
+    if (reset) { top = 0; box.innerHTML = ''; }
+    const q = new URLSearchParams({ after: top, src: srcSel.value, err: errBox.checked ? '1' : '' });
+    try {
+      const j = await (await fetch(url + '?' + q, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+      dot.classList.toggle('on', j.idle !== null && j.idle < 120);
+      if (j.items.length) {
+        if (top === 0 || !srcSel.value && !errBox.checked) last.textContent = j.items[0].t + '  ' + (j.items[0].src ? j.items[0].src + ': ' : '') + j.items[0].msg;
+        top = j.items[0].id;
+        box.insertAdjacentHTML('afterbegin', j.items.map(line).join(''));
+        while (box.children.length > 500) box.lastElementChild.remove();
+      } else if (!box.children.length) { last.textContent = '기록 없음'; box.innerHTML = '<div class="muted small">기록이 없습니다.</div>'; }
+    } catch (e) { /* next tick */ }
+  };
+  box.addEventListener('click', (e) => {
+    const row = e.target.closest('.cl-log-row[data-detail]');
+    if (!row || e.target.tagName === 'A') return;
+    const pre = row.nextElementSibling;
+    if (pre && pre.tagName === 'PRE') { pre.remove(); return; }
+    row.insertAdjacentHTML('afterend', '<pre class="cl-log-detail">' + esc(row.dataset.detail) + '</pre>');
+  });
+  srcSel.addEventListener('change', () => load(true));
+  errBox.addEventListener('change', () => load(true));
+  load(true);
+  setInterval(() => { if (!document.hidden) load(false); }, 5000);
+})();
+</script>
+
   <form class="lib-toolbar" method="get" action="<?= site_url('collect') ?>">
     <div class="seg" role="tablist">
       <a class="seg-item<?= $f['scope'] === 'k' ? ' on' : '' ?>" href="<?= $qs(['scope' => '', 'page' => null]) ?>">한류</a>
