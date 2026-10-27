@@ -115,7 +115,7 @@ class XApi extends BaseController
         $w = $this->watch();
         if (! $w) return $this->deny();
         if ($w['handle'] === '') return $this->response->setJSON(['items' => []]);
-        return $this->response->setJSON(['items' => \App\Libraries\Drafts::queue(), 'handle' => $w['handle']]);
+        return $this->response->setJSON(['items' => \App\Libraries\Drafts::queue((int) $w['user_id']), 'handle' => $w['handle']]);
     }
 
     /** POST /xapi/queue/{id}  {"x_id": "..."} or {"error": "..."} */

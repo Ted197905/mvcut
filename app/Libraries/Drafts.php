@@ -192,7 +192,7 @@ class Drafts
         if (trim((string) $d['text']) === '') return '본문이 비어 있습니다.';
         $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
         if ($slot === null) return '빈 슬롯이 없습니다 (4일 치가 찼습니다).';
-        self::update((int) $d['id'], ['status' => 'approved', 'slot_at' => gmdate('Y-m-d H:i:s', $slot), 'error' => null]);
+        self::update((int) $d['id'], ['status' => 'approved', 'slot_at' => gmdate('Y-m-d H:i:s', $slot), 'error' => null, 'tries' => 0]);
         self::db()->table(self::t('items'))->where('id', (int) $d['item_id'])->update(['used_at' => gmdate('Y-m-d H:i:s')]);
         return $slot;
     }
@@ -218,31 +218,52 @@ class Drafts
         return null;
     }
 
-    /**
-     * Drafts for the extension to schedule on X: approved, slot still ahead. They move to 'sending';
-     * ones the extension never reported on go back to 'approved' after SENDING_MAX seconds.
-     */
-    /** Kill switch: drafts.autoschedule = 0 in .env stops the extension's X scheduling (X flagged it as automated, 10-27). */
-    public static function autoSchedule(): bool
+    public const AUTO_GAP  = 600;   // auto mode: seconds between two drafts handed to the extension
+    public const MAX_TRIES = 6;     // auto mode: failed registrations before a draft stops and waits for the user
+
+    /** 'auto' (the extension schedules approved drafts on X) or 'semi' (X's composer is filled, the user schedules). */
+    public static function mode(int $userId): string
     {
-        return (string) env('drafts.autoschedule', '1') !== '0';
+        return (XWatch::forUser($userId)['draft_mode'] ?? 'semi') === 'auto' ? 'auto' : 'semi';
     }
 
-    public static function queue(): array
+    /**
+     * Auto mode: the next approved draft for the extension to schedule on X, at most one every AUTO_GAP
+     * seconds (sent or failed). A draft whose slot is too close by now gets the next free slot first.
+     * One the extension never reported on within SENDING_MAX seconds counts as a failed try.
+     */
+    public static function queue(int $userId): array
     {
-        if (! self::autoSchedule()) return [];
-        $db  = self::db();
-        $now = gmdate('Y-m-d H:i:s');
-        $db->table(self::t('drafts'))->where('status', 'sending')->where('updated_at <', gmdate('Y-m-d H:i:s', time() - self::SENDING_MAX))
-            ->update(['status' => 'approved', 'updated_at' => $now]);
-        $rows = $db->table(self::t('drafts'))->where('status', 'approved')->where('slot_at >', gmdate('Y-m-d H:i:s', time() + 120))
-            ->orderBy('slot_at')->get(20)->getResultArray();
-        $out = [];
-        foreach ($rows as $d) {
-            self::update((int) $d['id'], ['status' => 'sending']);
-            $out[] = ['id' => (int) $d['id'], 'at' => strtotime($d['slot_at'] . ' UTC'), 'text' => self::fullText($d), 'files' => self::files($d)];
+        $w = XWatch::forUser($userId);
+        if (($w['draft_mode'] ?? 'semi') !== 'auto') return [];
+        $db = self::db();
+        foreach ($db->table(self::t('drafts'))->where('status', 'sending')->where('updated_at <', gmdate('Y-m-d H:i:s', time() - self::SENDING_MAX))
+                     ->get()->getResultArray() as $d) {
+            self::failed($d, '확장이 결과를 보내지 않음 (시간 초과)');
         }
-        return $out;
+        if (! empty($w['draft_queue_at']) && strtotime($w['draft_queue_at'] . ' UTC') > time() - self::AUTO_GAP) return [];
+        $d = $db->table(self::t('drafts'))->where('status', 'approved')->where('tries <', self::MAX_TRIES)
+            ->orderBy('slot_at')->orderBy('id')->get(1)->getRowArray();
+        if (! $d) return [];
+        if (strtotime($d['slot_at'] . ' UTC') < time() + 5 * 60) {   // X refuses a time in the past; keep a margin
+            self::update((int) $d['id'], ['slot_at' => null]);
+            $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
+            if ($slot === null) return [];
+            self::update((int) $d['id'], ['slot_at' => gmdate('Y-m-d H:i:s', $slot)]);
+            $d = self::find((int) $d['id']);
+        }
+        self::update((int) $d['id'], ['status' => 'sending']);
+        XWatch::update($userId, ['draft_queue_at' => gmdate('Y-m-d H:i:s')]);
+        return [['id' => (int) $d['id'], 'at' => strtotime($d['slot_at'] . ' UTC'), 'text' => self::fullText($d), 'files' => self::files($d)]];
+    }
+
+    /** A failed registration: back in the queue (approved) until MAX_TRIES, then 'error' for the user to look at. */
+    private static function failed(array $d, string $why): void
+    {
+        $tries = (int) ($d['tries'] ?? 0) + 1;
+        $stop  = $tries >= self::MAX_TRIES;
+        self::update((int) $d['id'], ['status' => $stop ? 'error' : 'approved', 'tries' => $tries,
+            'error' => mb_substr(($stop ? '재시도 중단 (' : '재시도 대기 (') . $tries . '/' . self::MAX_TRIES . '): ' . $why, 0, 255)]);
     }
 
     /** Signed links (1 h) to the draft's chosen photos / video, readable from x.com. */
@@ -295,7 +316,7 @@ class Drafts
             self::update($id, ['status' => 'scheduled', 'x_id' => $xid, 'error' => null]);
             return null;
         }
-        self::update($id, ['status' => 'error', 'error' => mb_substr((string) ($body['error'] ?? 'unknown'), 0, 255)]);
+        self::failed($d, (string) ($body['error'] ?? 'unknown'));
         return null;
     }
 

@@ -20,7 +20,17 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
   <div class="alert error dr-ext" hidden></div>
-  <?php if (! D::autoSchedule()): ?><p class="muted small" style="margin:-8px 0 14px">반자동 모드: 승인하면 X 작성창에 본문과 사진을 채워 엽니다. 예약 시각을 지정하고 직접 예약하면 확장이 X 예약 목록을 읽어 카드가 "X 예약됨"으로 바뀝니다. (자동 등록은 X가 자동화로 차단해 꺼 둠)</p><?php endif ?>
+  <form class="dr-mode" method="post" action="<?= site_url('drafts/mode') ?>"><?= csrf_field() ?>
+    <input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
+    <span class="small">등록 방식</span>
+    <div class="seg">
+      <button class="seg-item<?= $mode === 'semi' ? ' on' : '' ?>" name="mode" value="semi" type="submit">반자동</button>
+      <button class="seg-item<?= $mode === 'auto' ? ' on' : '' ?>" name="mode" value="auto" type="submit">자동</button>
+    </div>
+    <span class="muted small"><?= $mode === 'auto'
+        ? '승인한 초안을 확장이 승인 순서대로 10분에 1건씩 X 예약에 등록합니다. 실패하면 다시 줄을 서고 ' . D::MAX_TRIES . '번까지 재시도합니다 (크롬이 켜져 있어야 함).'
+        : '승인하면 X 작성창에 본문과 사진을 채워 엽니다. 예약 시각을 지정해 직접 예약하면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
+  </form>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
       <?php foreach ($batches as $b): ?>
@@ -96,7 +106,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             </select>
             <?php if ($d['status'] !== 'rejected'): ?><button class="btn sm ghost danger-text" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/reject') ?>" formnovalidate>제외</button><?php endif ?>
           <?php elseif (in_array($d['status'], ['approved', 'error'], true)): ?>
-            <button class="btn sm dr-fill" type="button" data-id="<?= (int) $d['id'] ?>">X 작성창 채우기</button>
+            <?php if ($mode === 'semi'): ?><button class="btn sm dr-fill" type="button" data-id="<?= (int) $d['id'] ?>">X 작성창 채우기</button><?php endif ?>
             <button class="btn sm secondary" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/unapprove') ?>" formnovalidate>승인 취소</button>
           <?php elseif ($d['status'] === 'scheduled'): ?>
             <span class="muted small">X 예약 목록에서 고치거나 지울 수 있습니다.</span>

@@ -64,7 +64,7 @@ class Drafts extends BaseController
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
                                      'usage' => D::usageText($this->uid(), $batch !== '' ? $batch : null),
-                                     'xwatch' => Library::xwatchPanel($this->uid())]);
+                                     'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid())]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */
@@ -103,8 +103,20 @@ class Drafts extends BaseController
         if (in_array($d['status'], ['skipped', 'failed'], true)) D::update($id, ['status' => 'new']);
         $r = D::approve($this->uid(), $this->draft($id));
         if (is_string($r)) return $this->back($id)->with('error', $r);
-        return $this->back($id)->with('flash', \App\Libraries\XWatch::kst($r, 'n/j H:i') . ' 슬롯에 넣었습니다. X 작성창을 엽니다: 예약 시각을 ' . \App\Libraries\XWatch::kst($r, 'n/j H:i') . '로 지정하고 예약하세요.')
-            ->with('fill', $id);
+        $at = \App\Libraries\XWatch::kst($r, 'n/j H:i');
+        if (D::mode($this->uid()) === 'auto') {
+            return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. 확장이 승인 순서대로 10분 간격으로 X 예약에 등록합니다.');
+        }
+        return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. X 작성창을 엽니다: 예약 시각을 ' . $at . '로 지정하고 예약하세요.')->with('fill', $id);
+    }
+
+    /** POST /drafts/mode  mode=auto|semi */
+    public function mode()
+    {
+        $m = $this->request->getPost('mode') === 'auto' ? 'auto' : 'semi';
+        \App\Libraries\XWatch::update($this->uid(), ['draft_mode' => $m]);
+        return $this->back(0)->with('flash', $m === 'auto' ? '자동 등록: 확장이 승인한 초안을 10분 간격으로 X 예약에 등록합니다 (실패하면 ' . D::MAX_TRIES . '번까지 다시 시도).'
+                                                          : '반자동: 승인하면 X 작성창을 채워 엽니다. 예약은 직접 합니다.');
     }
 
     /** POST /drafts/{id}/xfill - text, signed file links and the slot, for the extension to fill X's composer */
@@ -124,7 +136,7 @@ class Drafts extends BaseController
     {
         $d = $this->draft($id);
         if (! in_array($d['status'], ['approved', 'error'], true)) return $this->back($id)->with('error', '이미 X에 예약되어 여기서는 뺄 수 없습니다. X의 예약 목록에서 지우세요.');
-        D::update($id, ['status' => 'new', 'slot_at' => null, 'error' => null]);
+        D::update($id, ['status' => 'new', 'slot_at' => null, 'error' => null, 'tries' => 0]);
         return $this->back($id)->with('flash', '승인을 취소했습니다.');
     }
 
