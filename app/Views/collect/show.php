@@ -9,6 +9,8 @@ $sendable = static fn (array $m) => ($m['status'] === 'done' && in_array($m['kin
 $ytId = static fn (string $u) => preg_match('/[?&]v=([\w-]{11})/', $u, $mm) ? $mm[1] : null;
 $stateLabel = ['pending' => '받는 중', 'failed' => '실패', 'robots' => 'robots 불허', 'too_big' => '용량 초과'];
 $picks = array_filter($media, $sendable);
+$xable = static fn (array $m) => $m['status'] === 'done' && in_array($m['kind'], ['image', 'video'], true);
+$xPicks = array_filter($media, $xable);
 $body = trim((string) ($item['body'] ?: $item['excerpt']));
 ?>
 <main class="yt-page cl-page">
@@ -51,6 +53,7 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
                 <?php endif ?>
                 <div class="post-item-bar">
                   <?php if ($ok): ?><label class="cl-check"><input type="checkbox" name="media[]" value="<?= (int) $m['id'] ?>" checked> 선택</label><?php endif ?>
+                  <?php if ($xable($m)): ?><label class="cl-check cl-x"><input type="checkbox" class="xpick" value="<?= (int) $m['id'] ?>" data-kind="<?= esc($m['kind'], 'attr') ?>" data-mime="<?= esc((string) $m['mime'], 'attr') ?>"> X</label><?php endif ?>
                   <span class="muted small"><?= $m['kind'] === 'youtube' ? 'YouTube' : ($m['kind'] === 'video' ? '영상' : '사진') ?><?= $m['bytes'] ? ' · ' . esc(\App\Libraries\MediaSupport::size((int) $m['bytes'])) : '' ?><?= $m['width'] ? ' · ' . (int) $m['width'] . '×' . (int) $m['height'] : '' ?></span>
                   <span class="spacer"></span>
                   <a class="small" href="<?= esc($m['src_url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">원본</a>
@@ -72,6 +75,10 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
         <button class="btn block" type="submit" form="libForm">선택 항목 라이브러리로 보내기</button>
         <p class="muted small" style="margin:8px 0 0">사진·영상은 바로 복사하고, YouTube는 가져오기 작업으로 넣습니다.<?= $inLib ? ' 이미 라이브러리에 이 글의 파일이 ' . $inLib . '개 있습니다.' : '' ?></p>
       <?php endif ?>
+      <?php if ($xPicks !== []): ?>
+        <button class="btn block secondary" type="button" id="btnSendX" style="margin-top:14px" disabled>Send to X <span id="xCount">(0/4)</span></button>
+        <p class="muted small" style="margin:8px 0 0">사진 아래 "X"로 고르세요. 사진은 4장까지, 영상은 1개만(사진과 함께 불가).</p>
+      <?php endif ?>
       <dl class="list cl-facts">
         <div class="row"><dt>분야</dt><dd><?= esc($item['domain'] ?? '-') ?></dd></div>
         <div class="row"><dt>이벤트</dt><dd><?= esc($item['event'] ?? '-') ?><?= (int) $item['breaking'] ? ' (속보 후보)' : '' ?></dd></div>
@@ -87,6 +94,77 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
 <script>
+/* Send to X: up to 4 photos or one video into X's compose window (extension), or the phone share sheet */
+(function () {
+  const btn = document.getElementById('btnSendX'); if (!btn) return;
+  const picks = [...document.querySelectorAll('.xpick')];
+  const count = document.getElementById('xCount');
+  const chosen = () => picks.filter(p => p.checked);
+  const paint = () => {
+    const c = chosen(), vid = c.some(p => p.dataset.kind === 'video');
+    count.textContent = vid ? '(영상 1)' : '(' + c.length + '/4)';
+    btn.disabled = !c.length;
+    // a full set (4 photos or 1 video) locks the rest
+    picks.forEach(p => { p.disabled = !p.checked && (vid || c.length >= 4); p.closest('label').classList.toggle('off', p.disabled); });
+  };
+  picks.forEach(p => p.addEventListener('change', () => {
+    if (p.checked && p.dataset.kind === 'video') picks.forEach(o => { if (o !== p) o.checked = false; });
+    paint();
+  }));
+  paint();
+
+  const base = <?= json_encode(rtrim(site_url(), '/') . '/') ?>, itemId = <?= (int) $item['id'] ?>;
+  const csrf = MV.csrf();
+  const probe = () => { try { return new File([''], 'a.jpg', { type: 'image/jpeg' }); } catch (e) { return null; } };
+  const canShareFiles = !!(navigator.share && navigator.canShare && probe() && navigator.canShare({ files: [probe()] }));
+  let shareFiles = null, shareText = '';
+  const label = () => { btn.firstChild.textContent = 'Send to X '; };
+
+  btn.addEventListener('click', async () => {
+    const ids = chosen().map(p => +p.value); if (!ids.length) return;
+    const ext = document.documentElement.dataset.mvcutX === '1';
+    btn.disabled = true;
+    try {
+      if (!ext && canShareFiles) {
+        if (!shareFiles) {
+          btn.firstChild.textContent = '파일 준비 중... ';
+          const res = await fetch(base + 'collect/' + itemId + '/xlinks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify({ media: ids }) });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+          shareText = j.text;
+          if (navigator.clipboard) navigator.clipboard.writeText(shareText).catch(() => {});
+          shareFiles = await Promise.all(ids.map(async (mid, i) => {
+            const r = await fetch(base + 'collect/media/' + mid, { credentials: 'same-origin' });
+            if (!r.ok) throw new Error(MV.httpError(r.status));
+            const b = await r.blob();
+            return new File([b], j.files[i].filename, { type: b.type || j.files[i].mime });
+          }));
+        }
+        await navigator.share({ files: shareFiles, text: shareText });
+        shareFiles = null; label();
+        return;
+      }
+      if (!ext) { alert('MV Cut 확장이 있는 PC 크롬이나 휴대폰에서 보낼 수 있습니다.'); return; }
+      if (ids.length > 1 && document.documentElement.dataset.mvcutXMulti !== '1') {
+        alert('여러 장 보내기는 확장 1.7.7 이상이 필요합니다. chrome://extensions에서 MV Cut 확장을 새로고침하세요.'); return;
+      }
+      const res = await fetch(base + 'collect/' + itemId + '/xlinks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' }, body: JSON.stringify({ media: ids }) });
+      const j = await res.json().catch(() => ({}));
+      if (MV.expired(res.status, j)) return;
+      if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: j.files[0].url, filename: j.files[0].filename, mime: j.files[0].mime,
+                           files: j.files, text: j.text }, location.origin);
+    } catch (e) {
+      if (e && e.name === 'AbortError') { shareFiles = null; label(); return; }
+      if (shareFiles && e && e.name === 'NotAllowedError') { btn.firstChild.textContent = 'X로 공유 (한 번 더 누르세요) '; return; }
+      shareFiles = null; label();
+      alert(e.message || e);
+    } finally {
+      setTimeout(paint, 1500);
+    }
+  });
+})();
+
 /* long bodies (forum threads) are clamped behind 더보기 so the media stays in view */
 (function () {
   const body = document.getElementById('descBody'), more = document.getElementById('descMore');

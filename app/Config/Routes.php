@@ -14,6 +14,7 @@ $routes->post('register', 'Auth::attemptRegister');
 $routes->post('logout', 'Auth::logout');
 $routes->get('session/expired', 'Auth::expired');
 $routes->get('share/(:num)/(:num)/([a-f0-9]{64})', 'Media::share/$1/$2/$3');
+$routes->get('share-hw/(:num)/(:num)/([a-f0-9]{64})', 'Collect::share/$1/$2/$3');
 
 // YouTube downloads + subtitles + summary: public, no login
 $routes->get('youtube', 'Youtube::index');
@@ -106,6 +107,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)', 'Collect::show/$1');
         $routes->get('media/(:num)', 'Collect::file/$1');
         $routes->post('(:num)/library', 'Collect::toLibrary/$1');
+        $routes->post('(:num)/xlinks', 'Collect::xLinks/$1');
     });
 
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {

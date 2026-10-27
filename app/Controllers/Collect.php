@@ -123,6 +123,54 @@ class Collect extends BaseController
             ->setHeader('Cache-Control', 'private, max-age=86400');
     }
 
+    /** Signature for a short-lived link the extension reads a collected file through from x.com. */
+    private static function shareSig(int $mediaId, int $exp): string
+    {
+        return hash_hmac('sha256', 'hw|' . $mediaId . '|' . $exp, (string) config('Encryption')->key);
+    }
+
+    /**
+     * POST /collect/{id}/xlinks {media:[id...]} - signed links for Send to X: up to 4 photos,
+     * or one video (X does not mix them), plus the post text.
+     */
+    public function xLinks(int $id)
+    {
+        $item = $this->item($id);
+        $pick = array_values(array_filter(array_map('intval', (array) (($this->request->getJSON(true) ?: [])['media'] ?? []))));
+        $rows = $pick === [] ? [] : db_connect()->table($this->t('media'))->where('item_id', $id)->whereIn('id', $pick)
+            ->where('status', 'done')->whereIn('kind', ['image', 'video'])->orderBy('id')->get()->getResultArray();
+        $kinds = array_count_values(array_column($rows, 'kind'));
+        if ($rows === [] || count($rows) !== count($pick)) {
+            return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => '보낼 사진이나 영상을 고르세요.']);
+        }
+        if (($kinds['video'] ?? 0) > 0 && count($rows) > 1) {
+            return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'X는 영상과 사진을 함께 올릴 수 없습니다 (영상은 1개).']);
+        }
+        if (count($rows) > 4) {
+            return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'X 사진은 4장까지입니다.']);
+        }
+        $exp   = time() + 1800;
+        $files = [];
+        foreach ($rows as $n => $m) {
+            $ext = strtolower(pathinfo((string) $m['path'], PATHINFO_EXTENSION)) ?: ($m['kind'] === 'video' ? 'mp4' : 'jpg');
+            $files[] = ['url'      => site_url('share-hw/' . $m['id'] . '/' . $exp . '/' . self::shareSig((int) $m['id'], $exp)),
+                        'filename' => ($m['kind'] === 'video' ? 'video' : 'photo' . ($n + 1)) . '.' . $ext,
+                        'mime'     => $m['mime'] ?: 'application/octet-stream'];
+        }
+        $text = \App\Libraries\MediaSupport::shareText(['title' => $item['title'], 'description' => (string) ($item['body'] ?? '')]);
+        return $this->response->setJSON(['ok' => true, 'files' => $files, 'text' => $text]);
+    }
+
+    /** GET /share-hw/{id}/{exp}/{sig} - a collected file, readable from x.com by the extension. */
+    public function share(int $id, int $exp, string $sig)
+    {
+        if ($exp < time() || ! hash_equals(self::shareSig($id, $exp), $sig)) throw PageNotFoundException::forPageNotFound();
+        $origin = (string) $this->request->getHeaderLine('Origin');
+        return $this->file($id)
+            ->setHeader('Access-Control-Allow-Origin', in_array($origin, ['https://x.com', 'https://twitter.com'], true) ? $origin : 'https://x.com')
+            ->setHeader('Vary', 'Origin');
+    }
+
     /** POST /collect/{id}/library - copies the chosen files into the library as one post; YouTube embeds become import jobs. */
     public function toLibrary(int $id)
     {

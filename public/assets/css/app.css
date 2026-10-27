@@ -651,6 +651,8 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-grid .card .badge.hot { left: auto; right: 8px; background: var(--red); text-transform: none; }
 .cl-ents { color: var(--blue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--label2); cursor: pointer; white-space: nowrap; }
+.cl-check.cl-x { color: var(--label); font-weight: 600; }
+.cl-check.off { opacity: .4; cursor: default; }
 .cl-sources .xw-table a { color: var(--label); }
 .cl-err { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--red); }
 .cl-detail { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 36px; align-items: start; }

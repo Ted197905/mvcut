@@ -1,4 +1,4 @@
-// Fills the compose modal with the post text and attaches the file. Posting stays manual.
+// Fills the compose modal with the post text and attaches the files (one video or up to 4 photos). Posting stays manual.
 
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
@@ -25,18 +25,18 @@
     setTimeout(() => el.remove(), bad ? 8000 : 3500);
   };
 
-  const load = async () => {
+  const load = async (f) => {
     try {
-      const r = await fetch(job.url);
+      const r = await fetch(f.url);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.blob();
     } catch (e) {
-      const r = await chrome.runtime.sendMessage({ type: 'fetch-file', url: job.url });
+      const r = await chrome.runtime.sendMessage({ type: 'fetch-file', url: f.url });
       if (!r || !r.ok) throw new Error('파일을 불러오지 못했습니다: ' + ((r && r.error) || e.message));
       const bin = atob(r.b64);
       const buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      return new Blob([buf], { type: job.mime });
+      return new Blob([buf], { type: f.mime });
     }
   };
 
@@ -58,12 +58,13 @@
     await fillText(job.text);
     // the compose modal, not the inline composer behind it
     const input = await waitFor('div[role="dialog"] input[data-testid="fileInput"]');
-    const file = new File([await load()], job.filename, { type: job.mime });
+    const files = job.files || [{ url: job.url, filename: job.filename, mime: job.mime }];
+    const blobs = await Promise.all(files.map(load));
     const dt = new DataTransfer();
-    dt.items.add(file);
+    files.forEach((f, i) => dt.items.add(new File([blobs[i]], f.filename, { type: f.mime })));
     input.files = dt.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    toast('본문과 파일을 올렸습니다. 확인 후 직접 게시하세요.');
+    toast('본문과 파일 ' + files.length + '개를 올렸습니다. 확인 후 직접 게시하세요.');
   } catch (e) {
     toast('MV Cut: ' + e.message, true);
   }
