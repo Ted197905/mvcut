@@ -36,7 +36,7 @@ class Drafts extends BaseController
         $db = db_connect();
         $batches = $db->table(D::t('draft_batches'))->orderBy('batch', 'DESC')->get(14)->getResultArray();
         $batch = (string) $this->request->getGet('batch');
-        if (! preg_match('/^\d{8}(am|pm)$/', $batch)) $batch = $batches[0]['batch'] ?? '';
+        if (! preg_match('/^\d{8}(am|pm|h\d{2})$/', $batch)) $batch = $batches[0]['batch'] ?? '';
         $filter = (string) $this->request->getGet('f');
         if (! isset(self::FILTERS[$filter])) $filter = 'new';
 

@@ -39,11 +39,12 @@ class Drafts
         self::db()->table(self::t('drafts'))->where('id', $id)->update($data);
     }
 
-    /** "20261027pm" -> "10/27 저녁" */
+    /** "20261028h06" -> "10/28 06시" (older "20261027pm" -> "10/27 저녁") */
     public static function batchLabel(string $b): string
     {
-        if (! preg_match('/^(\d{4})(\d{2})(\d{2})(am|pm)$/', $b, $m)) return $b;
-        return (int) $m[2] . '/' . (int) $m[3] . ($m[4] === 'am' ? ' 오전' : ' 저녁');
+        if (! preg_match('/^(\d{4})(\d{2})(\d{2})(am|pm|h\d{2})$/', $b, $m)) return $b;
+        $when = match ($m[4]) { 'am' => ' 오전', 'pm' => ' 저녁', default => ' ' . substr($m[4], 1) . '시' };
+        return (int) $m[2] . '/' . (int) $m[3] . $when;
     }
 
     /** Unix time the batch's approved drafts may be posted from (the collector sets it: next day 09:05 for an evening batch). */
