@@ -39,11 +39,18 @@ class Drafts
         self::db()->table(self::t('drafts'))->where('id', $id)->update($data);
     }
 
-    /** "20261028am" -> "10/28 오전" */
+    /** "20261027pm" -> "10/27 저녁" */
     public static function batchLabel(string $b): string
     {
         if (! preg_match('/^(\d{4})(\d{2})(\d{2})(am|pm)$/', $b, $m)) return $b;
-        return (int) $m[2] . '/' . (int) $m[3] . ($m[4] === 'am' ? ' 오전' : ' 오후');
+        return (int) $m[2] . '/' . (int) $m[3] . ($m[4] === 'am' ? ' 오전' : ' 저녁');
+    }
+
+    /** Unix time the batch's approved drafts may be posted from (the collector sets it: next day 09:05 for an evening batch). */
+    public static function publishFrom(string $batch): ?int
+    {
+        $b = self::db()->table(self::t('draft_batches'))->select('publish_from')->where('batch', $batch)->get()->getRowArray();
+        return ! empty($b['publish_from']) ? strtotime($b['publish_from'] . ' UTC') : null;
     }
 
     /** The post text as it goes to X: a story's headline, blank line, body. */
@@ -101,7 +108,7 @@ class Drafts
         $dayMax = max(1, (int) $watch['day_max']);
         $taken = self::taken($userId);
         $from  = max(time() + self::LEAD_MIN * 60, $notBefore ?? 0);
-        foreach (self::grid(4) as $t) {
+        foreach (self::grid(5) as $t) {
             if ($t < $from) continue;
             $ok = true;
             foreach ($taken as $x) {
@@ -121,7 +128,7 @@ class Drafts
     {
         if (! in_array($d['status'], ['new', 'error', 'rejected'], true)) return '지금 상태에서는 승인할 수 없습니다.';
         if (trim((string) $d['text']) === '') return '본문이 비어 있습니다.';
-        $slot = self::nextSlot($userId);
+        $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
         if ($slot === null) return '빈 슬롯이 없습니다 (4일 치가 찼습니다).';
         self::update((int) $d['id'], ['status' => 'approved', 'slot_at' => gmdate('Y-m-d H:i:s', $slot), 'error' => null]);
         self::db()->table(self::t('items'))->where('id', (int) $d['item_id'])->update(['used_at' => gmdate('Y-m-d H:i:s')]);

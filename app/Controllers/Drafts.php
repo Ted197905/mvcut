@@ -59,9 +59,10 @@ class Drafts extends BaseController
             $counts[$r['status']] = (int) $r['n'];
         }
         $names = array_column($db->table(D::t('sources'))->select('id, name')->get()->getResultArray(), 'name', 'id');
-        $next  = D::nextSlot($this->uid());
+        $next  = D::nextSlot($this->uid(), $batch !== '' ? D::publishFrom($batch) : null);
         return view('drafts/index', ['title' => '초안', 'rows' => $rows, 'batches' => $batches, 'batch' => $batch, 'filter' => $filter,
-                                     'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next]);
+                                     'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
+                                     'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */

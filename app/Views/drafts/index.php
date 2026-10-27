@@ -30,12 +30,12 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 <main class="yt-page dr-page">
   <?= view('partials/alerts') ?>
   <h1>초안</h1>
-  <p class="muted" style="margin:0 0 18px">수집한 글로 매일 10시, 18시에 쓴 X 게시글 초안입니다. 고쳐서 승인하면 09:05~22:00 사이 15분 간격의 빈 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
+  <p class="muted" style="margin:0 0 18px">매일 22시에 수집 글 100건으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
       <?php foreach ($batches as $b): ?>
-        <option value="<?= esc($b['batch'], 'attr') ?>"<?= $b['batch'] === $batch ? ' selected' : '' ?>><?= esc(D::batchLabel($b['batch'])) ?> (<?= (int) $b['made'] ?: '쓰는 중' ?>)</option>
+        <option value="<?= esc($b['batch'], 'attr') ?>"<?= $b['batch'] === $batch ? ' selected' : '' ?>><?= esc(D::batchLabel($b['batch'])) ?><?= ! empty($b['publish_from']) ? ' -> ' . XWatch::kst(strtotime($b['publish_from'] . ' UTC'), 'n/j') . ' 게시' : '' ?> (<?= (int) $b['made'] ?: '쓰는 중' ?>)</option>
       <?php endforeach ?>
       <?php if ($batches === []): ?><option value="">배치 없음</option><?php endif ?>
     </select>
@@ -45,7 +45,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       <?php endforeach ?>
     </div>
     <span class="spacer"></span>
-    <span class="muted small"><?= $writing ? $writing . '건 쓰는 중 · ' : '' ?>다음 빈 슬롯 <?= $next ? XWatch::kst($next, 'n/j H:i') : '없음' ?></span>
+    <span class="muted small"><?= $writing ? $writing . '건 쓰는 중 · ' : '' ?>다음 빈 슬롯 <?= $next ? XWatch::kst($next, 'n/j H:i') : '없음' ?><?= $publishFrom ? ' (게시 시작 ' . XWatch::kst($publishFrom, 'n/j H:i') . ')' : '' ?></span>
   </form>
 
   <?php if ($rows === []): ?>
