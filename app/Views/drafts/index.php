@@ -90,7 +90,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
           <?php if ($d['style'] === 'story'): ?>
             <textarea class="input dr-text" name="body" rows="6" placeholder="본문 (헤드라인 아래 빈 줄 뒤에 붙습니다)"<?= $editable ? '' : ' readonly' ?>><?= esc((string) ($thread[0] ?? '')) ?></textarea>
           <?php endif ?>
-          <div class="dr-count muted small"><span class="n"></span>자</div>
+          <div class="dr-count muted small"><span class="n"></span> / 280 <span class="fold"></span></div>
         <?php endif ?>
         <div class="dr-acts">
           <?php if ($editable): ?>
@@ -117,11 +117,25 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 </main>
 <script>
 (() => {
-  // character count (X counts a CJK character as 2 of the 280 limit; a Premium account can go long)
+  // X's weighted length (twitter-text v3): Latin/digits/punctuation 1, Hangul/CJK/emoji 2, a URL 23.
+  // Over 280 the timeline folds the post behind "더 보기"; a Premium account can post up to 25,000.
+  const xWeight = (s) => {
+    let n = 0;
+    for (const ch of s.replace(/https?:\/\/\S+/g, 'x'.repeat(23))) {
+      const c = ch.codePointAt(0);
+      n += (c <= 0x10FF || (c >= 0x2000 && c <= 0x200D) || (c >= 0x2010 && c <= 0x201F) || (c >= 0x2032 && c <= 0x2037)) ? 1 : 2;
+    }
+    return n;
+  };
   document.querySelectorAll('.dr-card').forEach((card) => {
-    const tas = card.querySelectorAll('textarea'), out = card.querySelector('.dr-count .n');
+    const tas = card.querySelectorAll('textarea'), out = card.querySelector('.dr-count .n'), fold = card.querySelector('.dr-count .fold');
     if (!tas.length || !out) return;
-    const upd = () => { out.textContent = Array.from(tas).map((t) => t.value.trim()).filter(Boolean).join('\n\n').length; };
+    const upd = () => {
+      const w = xWeight(Array.from(tas).map((t) => t.value.trim()).filter(Boolean).join('\n\n'));
+      out.textContent = w;
+      fold.textContent = w > 25000 ? '(25,000 초과: 게시 불가)' : w > 280 ? '(280 넘는 부분은 "더 보기"로 접힘)' : '';
+      card.querySelector('.dr-count').classList.toggle('over', w > 280);
+    };
     tas.forEach((t) => t.addEventListener('input', upd)); upd();
   });
   // drafts still being written: poll until they change, then reload

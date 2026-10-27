@@ -726,6 +726,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-text { font-size: 14px; line-height: 1.55; resize: vertical; min-height: 0; }
 .dr-wait { color: var(--label2); font-size: 14px; padding: 24px 0; text-align: center; }
 .dr-count { text-align: right; margin-top: -4px; }
+.dr-count.over { color: #b26a00; }
 .dr-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .dr-acts .danger-text { color: var(--red); }
 @media (max-width: 760px) { .dr-card { grid-template-columns: 1fr; } }
