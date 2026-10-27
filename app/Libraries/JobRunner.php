@@ -432,8 +432,25 @@ class JobRunner
     }
 
     /** Runs a bin/*.py helper, reporting its "progress N" lines. */
+    /**
+     * Asks Ollama to drop whatever it has on the GPU. The collector keeps small models resident
+     * (translation, judging, 3-4 GB each); the editor's own GPU helpers need that memory.
+     */
+    public static function ollamaFree(): void
+    {
+        $url = rtrim(getenv('OLLAMA_URL') ?: 'http://localhost:11434', '/');
+        $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+        $ps  = json_decode((string) @file_get_contents($url . '/api/ps', false, $ctx), true);
+        foreach ($ps['models'] ?? [] as $m) {
+            @file_get_contents($url . '/api/generate', false, stream_context_create(['http' => [
+                'method' => 'POST', 'header' => 'Content-Type: application/json', 'timeout' => 20,
+                'content' => json_encode(['model' => $m['name'], 'keep_alive' => 0])]]));
+        }
+    }
+
     private function runPython(array $args, callable $onProgress): array
     {
+        self::ollamaFree();
         $env = [
             'PATH'            => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
             'PYTHONPATH'      => rtrim(ROOTPATH, '/') . '/pylibs',

@@ -296,6 +296,16 @@ def ollama(url: str, model: str, messages: list[dict], schema: dict | None = Non
     return (j.get("message") or {}).get("content") or ""
 
 
+def ollama_unload_all(url: str) -> None:
+    """Frees the GPU before whisper/aligner load: the collector's small models (translation, judging) may be resident."""
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/api/ps", timeout=10) as r:
+            for m in json.loads(r.read()).get("models", []):
+                ollama_unload(url, m["name"])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def ollama_unload(url: str, model: str) -> None:
     try:
         req = urllib.request.Request(url.rstrip("/") + "/api/generate",
@@ -448,6 +458,7 @@ def main() -> int:
         segs: list[dict] = []
         language = lang or ""
         if has_audio:
+            ollama_unload_all(a.ollama)
             segs, language, prob = run_whisper(wav, a.whisper, lang)
             engines["whisper"] = {"language": language, "probability": round(prob, 3),
                                   "segments": [{"start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"]} for s in segs]}
