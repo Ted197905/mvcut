@@ -45,7 +45,9 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       <?php endforeach ?>
     </div>
     <span class="spacer"></span>
-    <span class="muted small"><?php if ($usage): ?><?= esc($usage['label']) ?> 슬롯 <?= $usage['used'] ?>/<?= $usage['total'] ?> 사용<?= $usage['x'] ? ' (X에 직접 예약 ' . $usage['x'] . ')' : '' ?> · <?php endif ?><?= $writing ? $writing . '건 쓰는 중 · ' : '' ?>다음 빈 슬롯 <?= $next ? XWatch::kst($next, 'n/j H:i') : '없음' ?><?= $publishFrom ? ' (게시 시작 ' . XWatch::kst($publishFrom, 'n/j H:i') . ')' : '' ?></span>
+    <span class="muted small dr-usage" title="슬롯: 09:05~21:50, 15분 간격 52개. 이미 예약된 글 앞뒤 15분 안의 슬롯은 쓰지 않습니다.">
+      <?php if ($usage): ?><?= esc($usage['label']) ?> 게시: X 예약 <?= $usage['x'] ?> · 승인 <?= $usage['drafts'] ?> · 빈 슬롯 <?= $usage['free'] ?>/<?= $usage['total'] ?> · 다음 <?= XWatch::kst($next, 'H:i') ?><?php else: ?>빈 슬롯 없음<?php endif ?><?= $writing ? ' · ' . $writing . '건 쓰는 중' : '' ?>
+    </span>
   </form>
 
   <?php if ($rows === []): ?>

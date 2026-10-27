@@ -101,26 +101,34 @@ class Drafts
         return $out;
     }
 
-    /** Slot use on the day of `$t` (KST): grid slots, the ones taken (drafts + X scheduled), how many of those X-only. */
-    public static function dayUsage(int $userId, int $t): array
+    /**
+     * The posting day of `$t` (KST) in plain numbers: posts X already has scheduled that day (made by hand),
+     * drafts approved for it, and how many of the 52 grid slots (09:05..21:50 every 15 min) are still free:
+     * ahead of `$from`, and 15+ min (gap_min) away from anything taken. One hand-made post at 10:00 blocks
+     * the 09:50 and 10:05 slots, so free + taken posts need not add up to 52.
+     */
+    public static function dayUsage(int $userId, int $t, ?int $from = null): array
     {
-        $tz  = new \DateTimeZone('Asia/Seoul');
-        $day = (new \DateTimeImmutable('@' . $t))->setTimezone($tz)->setTime(0, 0);
-        $grid = array_values(array_filter(self::grid(5), static fn ($g) => $g >= $day->getTimestamp() && $g < $day->getTimestamp() + 86400));
+        $tz    = new \DateTimeZone('Asia/Seoul');
+        $start = (new \DateTimeImmutable('@' . $t))->setTimezone($tz)->setTime(0, 0)->getTimestamp();
+        $in    = static fn (int $v) => $v >= $start && $v < $start + 86400;
+        $grid  = array_values(array_filter(self::grid(5), $in));
         $drafts = array_map(static fn ($r) => strtotime($r['slot_at'] . ' UTC'), self::db()->table(self::t('drafts'))->select('slot_at')
             ->whereIn('status', ['approved', 'sending', 'scheduled', 'posted'])->where('slot_at IS NOT NULL', null, false)->get()->getResultArray());
-        $x = [];
+        $xs = [];
         foreach (json_decode((string) (XWatch::forUser($userId)['scheduled'] ?? ''), true) ?: [] as $i) {
-            if (! empty($i['at']) && ! in_array((int) $i['at'], $drafts, true)) $x[] = (int) $i['at'];
+            if (! empty($i['at']) && ! in_array((int) $i['at'], $drafts, true)) $xs[] = (int) $i['at'];   // a scheduled draft shows up in both lists
         }
-        $used = 0; $xOnly = 0;
-        foreach ($grid as $g) {
-            $hitDraft = (bool) array_filter($drafts, static fn ($v) => abs($v - $g) < self::SLOT_STEP * 60);
-            $hitX = (bool) array_filter($x, static fn ($v) => abs($v - $g) < self::SLOT_STEP * 60);
-            if ($hitDraft || $hitX) $used++;
-            if ($hitX && ! $hitDraft) $xOnly++;
-        }
-        return ['label' => $day->format('n/j'), 'total' => count($grid), 'used' => $used, 'x' => $xOnly];
+        $gap   = max(self::SLOT_STEP, (int) XWatch::forUser($userId)['gap_min']) * 60;
+        $taken = self::taken($userId);
+        $from  = max(time() + self::LEAD_MIN * 60, $from ?? 0);
+        $free  = count(array_filter($grid, static function ($g) use ($taken, $gap, $from) {
+            if ($g < $from) return false;
+            foreach ($taken as $x) if (abs($g - $x) < $gap) return false;
+            return true;
+        }));
+        return ['label' => (new \DateTimeImmutable('@' . $start))->setTimezone($tz)->format('n/j'), 'total' => count($grid),
+                'x' => count(array_filter($xs, $in)), 'drafts' => count(array_filter($drafts, $in)), 'free' => $free];
     }
 
     /** The first free grid slot (unix) at least LEAD_MIN ahead, keeping the account's minimum gap to everything taken. */

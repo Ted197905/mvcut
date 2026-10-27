@@ -63,7 +63,7 @@ class Drafts extends BaseController
         return view('drafts/index', ['title' => '초안', 'rows' => $rows, 'batches' => $batches, 'batch' => $batch, 'filter' => $filter,
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
-                                     'usage' => $next ? D::dayUsage($this->uid(), $next) : null]);
+                                     'usage' => $next ? D::dayUsage($this->uid(), $next, $batch !== '' ? D::publishFrom($batch) : null) : null]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */
