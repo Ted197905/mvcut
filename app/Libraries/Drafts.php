@@ -222,8 +222,15 @@ class Drafts
      * Drafts for the extension to schedule on X: approved, slot still ahead. They move to 'sending';
      * ones the extension never reported on go back to 'approved' after SENDING_MAX seconds.
      */
+    /** Kill switch: drafts.autoschedule = 0 in .env stops the extension's X scheduling (X flagged it as automated, 10-27). */
+    public static function autoSchedule(): bool
+    {
+        return (string) env('drafts.autoschedule', '1') !== '0';
+    }
+
     public static function queue(): array
     {
+        if (! self::autoSchedule()) return [];
         $db  = self::db();
         $now = gmdate('Y-m-d H:i:s');
         $db->table(self::t('drafts'))->where('status', 'sending')->where('updated_at <', gmdate('Y-m-d H:i:s', time() - self::SENDING_MAX))

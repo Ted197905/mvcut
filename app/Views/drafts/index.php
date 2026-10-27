@@ -20,6 +20,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
   <div class="alert error dr-ext" hidden></div>
+  <?php if (! D::autoSchedule()): ?><div class="alert error">X 자동 예약 등록이 꺼져 있습니다. X가 확장의 예약 요청을 자동화로 판단해 막았습니다 ("looks like it might be automated" 226, 이어서 "daily limit" 344). 승인한 초안은 "예정"에 머물고 X에 등록되지 않습니다.</div><?php endif ?>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
       <?php foreach ($batches as $b): ?>
