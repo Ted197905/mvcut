@@ -649,6 +649,8 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-grid .card .thumb img { object-fit: cover; }
 .cl-grid .card .thumb .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; color: var(--label2); font-size: 13px; line-height: 1.45; }
 .cl-grid .card .badge.hot { left: auto; right: 8px; background: var(--red); text-transform: none; }
+.cl-grid .card .badge.off { left: auto; right: 8px; background: rgba(0,0,0,.62); text-transform: none; }
+.cl-grid .card .badge.hot ~ .badge.off { top: 32px; }
 .cl-ents { color: var(--blue); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--label2); cursor: pointer; white-space: nowrap; }
 .cl-check.cl-x { color: var(--label); font-weight: 600; }

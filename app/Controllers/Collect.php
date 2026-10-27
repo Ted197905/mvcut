@@ -49,8 +49,9 @@ class Collect extends BaseController
         if (! isset(self::SORTS[$f['sort']])) $f['sort'] = 'new';
 
         $b = $db->table($this->t('items') . ' i')
-            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking');
-        if (! $f['all']) $b->where('i.relevant', 1);
+            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.news, i.news_why');
+        // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
+        if (! $f['all']) $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
         if ($f['src'] !== '') $b->where('i.source_id', $f['src']);
         if (isset(self::COUNTRIES[$f['cc']])) $b->where('i.country', $f['cc']);
         if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.entities', $f['q'])->groupEnd();
@@ -78,7 +79,7 @@ class Collect extends BaseController
         $sources = $db->query("SELECT * FROM {$this->t('sources')} ORDER BY FIELD(country, 'KR','JP','GLOBAL','TH','TW','CN'), id")->getResultArray();
         $counts = [];
         foreach ($db->query("SELECT source_id, COUNT(*) AS n, SUM(relevant) AS rel,
-                SUM(first_seen > UTC_TIMESTAMP() - INTERVAL 1 DAY) AS d1 FROM {$this->t('items')} GROUP BY source_id")->getResultArray() as $r) {
+                SUM(first_seen > UTC_TIMESTAMP() - INTERVAL 1 DAY) AS d1, SUM(relevant = 1 AND news = 0) AS noise FROM {$this->t('items')} GROUP BY source_id")->getResultArray() as $r) {
             $counts[$r['source_id']] = $r;
         }
         foreach ($db->query("SELECT i.source_id, SUM(m.status = 'pending') AS pending, SUM(IF(m.status = 'done', m.bytes, 0)) AS bytes

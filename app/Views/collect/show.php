@@ -85,6 +85,7 @@ $body = trim((string) ($item['body'] ?: $item['excerpt']));
         <?php if ($item['entities']): ?><div class="row"><dt>그룹/인물</dt><dd><?= esc($item['entities']) ?></dd></div><?php endif ?>
         <?php if ($item['category'] || $item['board']): ?><div class="row"><dt>게시판</dt><dd><?= esc(trim($item['board'] . ' ' . $item['category'])) ?></dd></div><?php endif ?>
         <?php if ($item['tags']): ?><div class="row"><dt>태그</dt><dd><?= esc($item['tags']) ?></dd></div><?php endif ?>
+        <?php if ((int) $item['relevant'] && $item['news'] !== null && ! (int) $item['news']): ?><div class="row"><dt>숨김</dt><dd><?= esc(['no media in a share board' => '공유 글인데 미디어 없음', 'chat prefix' => '잡담 글', 'content share without media' => '영상/사진 공유인데 미디어 없음', 'question' => '질문 글'][$item['news_why']] ?? (string) $item['news_why']) ?></dd></div><?php endif ?>
         <div class="row"><dt>처음 수집</dt><dd><?= esc(Collect::when($item['first_seen'])) ?></dd></div>
         <div class="row"><dt>마지막 확인</dt><dd><?= esc(Collect::when($item['last_seen'])) ?></dd></div>
       </dl>

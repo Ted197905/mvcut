@@ -22,13 +22,13 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
 <main class="yt-page cl-page">
   <?= view('partials/alerts') ?>
   <h1>수집</h1>
-  <p class="muted" style="margin:0 0 22px">hallyuwire가 국내외 커뮤니티에서 모은 글입니다. 기본은 K-연예 관련 글만 보여 줍니다.</p>
+  <p class="muted" style="margin:0 0 22px">hallyuwire가 국내외 커뮤니티에서 모은 글입니다. 기본은 K-연예 관련 글 중 미디어가 있거나 소식을 전하는 글만 보여 줍니다.</p>
 
   <details class="import-panel cl-sources">
     <summary>소스 상태 <span class="muted"><?= count($sources) ?>개<?= $bad ? ' · 확인 필요 ' . $bad . '개' : ' · 모두 정상' ?></span></summary>
     <div class="xw-table-wrap" style="margin-top:14px">
       <table class="xw-table">
-        <thead><tr><th>소스</th><th>국가</th><th>상태</th><th>마지막 수집</th><th>다음</th><th class="c">전체</th><th class="c">관련</th><th class="c">24시간</th><th class="c">미디어 대기</th><th class="c">저장</th><th>오류</th></tr></thead>
+        <thead><tr><th>소스</th><th>국가</th><th>상태</th><th>마지막 수집</th><th>다음</th><th class="c">전체</th><th class="c">관련</th><th class="c" title="관련 글 중 보여 줄 미디어도 소식도 없어 숨긴 글">숨김</th><th class="c">24시간</th><th class="c">미디어 대기</th><th class="c">저장</th><th>오류</th></tr></thead>
         <tbody>
         <?php foreach ($sources as $s): [$label, $cls] = $state($s); $c = $counts[$s['id']] ?? []; ?>
           <tr>
@@ -39,6 +39,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <td class="muted"><?= $s['next_run_at'] && strtotime($s['next_run_at'] . ' UTC') > time() ? round((strtotime($s['next_run_at'] . ' UTC') - time()) / 60) . '분 뒤' : '-' ?></td>
             <td class="c"><?= $num($c['n'] ?? 0) ?></td>
             <td class="c"><?= $num($c['rel'] ?? 0) ?></td>
+            <td class="c"><?= $num($c['noise'] ?? 0) ?></td>
             <td class="c"><?= $num($c['d1'] ?? 0) ?></td>
             <td class="c"><?= $num($c['pending'] ?? 0) ?></td>
             <td class="c"><?= esc(\App\Libraries\MediaSupport::size((int) ($c['bytes'] ?? 0))) ?></td>
@@ -70,7 +71,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
       <?php endforeach ?>
     </select>
     <label class="cl-check"><input type="checkbox" name="media" value="1"<?= $f['media'] ? ' checked' : '' ?> onchange="this.form.submit()"> 미디어 있는 글만</label>
-    <label class="cl-check"><input type="checkbox" name="all" value="1"<?= $f['all'] ? ' checked' : '' ?> onchange="this.form.submit()"> 관련 없는 글 포함</label>
+    <label class="cl-check"><input type="checkbox" name="all" value="1"<?= $f['all'] ? ' checked' : '' ?> onchange="this.form.submit()"> 숨긴 글 포함</label>
     <button class="btn secondary sm" type="submit">검색</button>
     <?php if ($f['q'] !== '' || $f['src'] !== '' || $f['cc'] !== '' || $f['all'] || $f['media'] || $f['sort'] !== 'new'): ?><a class="btn ghost sm" href="<?= site_url('collect') ?>">초기화</a><?php endif ?>
     <span class="spacer"></span>
@@ -98,6 +99,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <?php endif ?>
             <span class="badge"><?= esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
             <?php if ((int) $it['breaking']): ?><span class="badge hot">속보 후보</span><?php endif ?>
+            <?php if (! (int) $it['relevant']): ?><span class="badge off">관련 없음</span><?php elseif ($it['news'] !== null && ! (int) $it['news']): ?><span class="badge off" title="<?= esc((string) $it['news_why'], 'attr') ?>">뉴스 아님</span><?php endif ?>
             <?php if ($files || ($m['embeds'] ?? 0)): ?>
               <span class="dur"><?= $m['vids'] ? '영상 ' . (int) $m['vids'] . ' ' : '' ?><?= $m['imgs'] ? '사진 ' . (int) $m['imgs'] . ' ' : '' ?><?= $m['embeds'] ? 'YT ' . (int) $m['embeds'] : '' ?></span>
             <?php endif ?>
