@@ -20,7 +20,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
   <div class="alert error dr-ext" hidden></div>
-  <?php if (! D::autoSchedule()): ?><div class="alert error">X 자동 예약 등록이 꺼져 있습니다. X가 확장의 예약 요청을 자동화로 판단해 막았습니다 ("looks like it might be automated" 226, 이어서 "daily limit" 344). 승인한 초안은 "예정"에 머물고 X에 등록되지 않습니다.</div><?php endif ?>
+  <?php if (! D::autoSchedule()): ?><p class="muted small" style="margin:-8px 0 14px">반자동 모드: 승인하면 X 작성창에 본문과 사진을 채워 엽니다. 예약 시각을 지정하고 직접 예약하면 확장이 X 예약 목록을 읽어 카드가 "X 예약됨"으로 바뀝니다. (자동 등록은 X가 자동화로 차단해 꺼 둠)</p><?php endif ?>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
       <?php foreach ($batches as $b): ?>
@@ -96,6 +96,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             </select>
             <?php if ($d['status'] !== 'rejected'): ?><button class="btn sm ghost danger-text" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/reject') ?>" formnovalidate>제외</button><?php endif ?>
           <?php elseif (in_array($d['status'], ['approved', 'error'], true)): ?>
+            <button class="btn sm dr-fill" type="button" data-id="<?= (int) $d['id'] ?>">X 작성창 채우기</button>
             <button class="btn sm secondary" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/unapprove') ?>" formnovalidate>승인 취소</button>
           <?php elseif ($d['status'] === 'scheduled'): ?>
             <span class="muted small">X 예약 목록에서 고치거나 지울 수 있습니다.</span>
@@ -117,13 +118,29 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 </div>
 <script>
 (() => {
+  // semi-automatic scheduling: X's composer filled with the draft (Send to X); the time is set by hand
+  const fill = async (id) => {
+    if (document.documentElement.dataset.mvcutX !== '1') { alert('MV Cut 확장이 필요합니다.'); return; }
+    const c = MV.csrf();
+    try {
+      const r = await fetch('<?= site_url('drafts') ?>/' + id + '/xfill', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' } });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
+      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: '', text: j.text, files: j.files, note: j.note }, location.origin);
+    } catch (e) { alert('X 작성창 채우기 실패: ' + e.message); }
+  };
+  document.addEventListener('click', (e) => { const b = e.target.closest('.dr-fill'); if (b) fill(b.dataset.id); });
+  const auto = <?= json_encode((int) (session()->getFlashdata('fill') ?? 0)) ?>;
+  if (auto) setTimeout(() => fill(auto), 600);
+})();
+(() => {
   // approved drafts reach X only through the extension (1.8.0+): say so when this browser does not have it
   setTimeout(() => {
     const v = document.documentElement.dataset.mvcutXVersion || '', box = document.querySelector('.dr-ext');
-    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10803;
+    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10804;
     if (!old) return;
     box.textContent = (v ? 'MV Cut 확장 ' + v + '는' : '이 브라우저에 MV Cut 확장이 없거나 오래된 버전이라') + ' 승인한 초안을 X 예약으로 등록하지 못합니다. '
-      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.3 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
+      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.4 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
     box.hidden = false;
   }, 800);
 })();

@@ -56,15 +56,25 @@
 
   try {
     await fillText(job.text);
-    // the compose modal, not the inline composer behind it
-    const input = await waitFor('div[role="dialog"] input[data-testid="fileInput"]');
     const files = job.files || [{ url: job.url, filename: job.filename, mime: job.mime }];
-    const blobs = await Promise.all(files.map(load));
-    const dt = new DataTransfer();
-    files.forEach((f, i) => dt.items.add(new File([blobs[i]], f.filename, { type: f.mime })));
-    input.files = dt.files;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    toast('본문과 파일 ' + files.length + '개를 올렸습니다. 확인 후 직접 게시하세요.');
+    if (files.length) {
+      // the compose modal, not the inline composer behind it
+      const input = await waitFor('div[role="dialog"] input[data-testid="fileInput"]');
+      const blobs = await Promise.all(files.map(load));
+      const dt = new DataTransfer();
+      files.forEach((f, i) => dt.items.add(new File([blobs[i]], f.filename, { type: f.mime })));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (job.note) {
+      const el = document.createElement('div');   // stays until closed: the scheduled time to set
+      el.textContent = job.note + '  (클릭하면 닫힘)';
+      el.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2147483647;padding:10px 16px;border-radius:10px;'
+        + 'font:600 15px system-ui;color:#fff;background:#c77700;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer';
+      el.onclick = () => el.remove();
+      document.body.appendChild(el);
+    }
+    toast('본문' + (files.length ? '과 파일 ' + files.length + '개를' : '을') + ' 올렸습니다. ' + (job.note ? '예약 시각을 지정해 예약하세요.' : '확인 후 직접 게시하세요.'));
   } catch (e) {
     toast('MV Cut: ' + e.message, true);
   }

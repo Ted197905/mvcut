@@ -61,7 +61,7 @@ class Drafts
         return match ($d['status']) {
             'gen', 'regen' => ['쓰는 중', 'warn'],
             'new'       => ['검토 대기', ''],
-            'approved'  => [$at() . ' 예정', 'ok'],
+            'approved'  => [$at() . ' 예약 대기', 'warn'],
             'sending'   => [$at() . ' 등록 중', 'ok'],
             'scheduled' => [$at() . ' X 예약됨', 'ok'],
             'posted'    => [$at() . ' 게시됨', 'ok'],
@@ -239,19 +239,49 @@ class Drafts
             ->orderBy('slot_at')->get(20)->getResultArray();
         $out = [];
         foreach ($rows as $d) {
-            $files = [];
-            $exp = time() + 3600;
-            foreach (self::media($d) as $n => $m) {
-                if (! $m['chosen']) continue;
-                $ext = strtolower(pathinfo((string) $m['path'], PATHINFO_EXTENSION)) ?: ($m['kind'] === 'video' ? 'mp4' : 'jpg');
-                $files[] = ['url' => site_url('share-hw/' . $m['id'] . '/' . $exp . '/' . \App\Controllers\Collect::shareSig((int) $m['id'], $exp)),
-                            'filename' => ($m['kind'] === 'video' ? 'video' : 'photo' . ($n + 1)) . '.' . $ext,
-                            'mime' => $m['mime'] ?: 'application/octet-stream', 'kind' => $m['kind']];
-            }
             self::update((int) $d['id'], ['status' => 'sending']);
-            $out[] = ['id' => (int) $d['id'], 'at' => strtotime($d['slot_at'] . ' UTC'), 'text' => self::fullText($d), 'files' => $files];
+            $out[] = ['id' => (int) $d['id'], 'at' => strtotime($d['slot_at'] . ' UTC'), 'text' => self::fullText($d), 'files' => self::files($d)];
         }
         return $out;
+    }
+
+    /** Signed links (1 h) to the draft's chosen photos / video, readable from x.com. */
+    public static function files(array $d): array
+    {
+        $files = [];
+        $exp = time() + 3600;
+        foreach (self::media($d) as $n => $m) {
+            if (! $m['chosen']) continue;
+            $ext = strtolower(pathinfo((string) $m['path'], PATHINFO_EXTENSION)) ?: ($m['kind'] === 'video' ? 'mp4' : 'jpg');
+            $files[] = ['url' => site_url('share-hw/' . $m['id'] . '/' . $exp . '/' . \App\Controllers\Collect::shareSig((int) $m['id'], $exp)),
+                        'filename' => ($m['kind'] === 'video' ? 'video' : 'photo' . ($n + 1)) . '.' . $ext,
+                        'mime' => $m['mime'] ?: 'application/octet-stream', 'kind' => $m['kind']];
+        }
+        return $files;
+    }
+
+    /**
+     * Approved drafts the user scheduled by hand in X's composer (semi-automatic mode): found in the
+     * scheduled list the extension synced by the first 25 characters of the text. The draft takes the
+     * time actually chosen there. Returns how many matched.
+     */
+    public static function matchScheduled(array $items): int
+    {
+        $wait = self::db()->table(self::t('drafts'))->whereIn('status', ['approved', 'error'])->get()->getResultArray();
+        if ($wait === []) return 0;
+        $head = static fn (string $s) => mb_substr(preg_replace('/\s+/u', ' ', trim($s)), 0, 25);
+        $n = 0;
+        foreach ($items as $i) {
+            if (! is_array($i) || empty($i['id']) || empty($i['at']) || ($i['kind'] ?? 'post') !== 'post') continue;
+            foreach ($wait as $k => $d) {
+                if ($head((string) ($i['text'] ?? '')) !== $head(self::fullText($d))) continue;
+                self::update((int) $d['id'], ['status' => 'scheduled', 'x_id' => (string) $i['id'], 'slot_at' => gmdate('Y-m-d H:i:s', (int) $i['at']), 'error' => null]);
+                unset($wait[$k]);
+                $n++;
+                break;
+            }
+        }
+        return $n;
     }
 
     /** The extension's report on one queued draft. */

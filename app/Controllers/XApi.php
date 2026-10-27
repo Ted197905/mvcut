@@ -60,6 +60,7 @@ class XApi extends BaseController
             return $this->response->setStatusCode(409)->setJSON(['error' => '감시 중인 계정의 목록이 아닙니다.']);
         }
         $n = XWatch::saveScheduled($w, is_array($body['items'] ?? null) ? $body['items'] : []);
+        \App\Libraries\Drafts::matchScheduled(is_array($body['items'] ?? null) ? $body['items'] : []);
         return $this->response->setJSON(['ok' => true, 'saved' => $n]);
     }
 

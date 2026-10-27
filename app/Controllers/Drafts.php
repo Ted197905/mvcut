@@ -103,7 +103,20 @@ class Drafts extends BaseController
         if (in_array($d['status'], ['skipped', 'failed'], true)) D::update($id, ['status' => 'new']);
         $r = D::approve($this->uid(), $this->draft($id));
         if (is_string($r)) return $this->back($id)->with('error', $r);
-        return $this->back($id)->with('flash', \App\Libraries\XWatch::kst($r, 'n/j H:i') . ' 슬롯에 넣었습니다. 확장이 2분 안에 X 예약으로 등록합니다.');
+        return $this->back($id)->with('flash', \App\Libraries\XWatch::kst($r, 'n/j H:i') . ' 슬롯에 넣었습니다. X 작성창을 엽니다: 예약 시각을 ' . \App\Libraries\XWatch::kst($r, 'n/j H:i') . '로 지정하고 예약하세요.')
+            ->with('fill', $id);
+    }
+
+    /** POST /drafts/{id}/xfill - text, signed file links and the slot, for the extension to fill X's composer */
+    public function xfill(int $id)
+    {
+        $d = $this->draft($id);
+        if (! in_array($d['status'], ['approved', 'error'], true) || ! $d['slot_at']) {
+            return $this->response->setStatusCode(409)->setJSON(['ok' => false, 'error' => '승인된 초안이 아닙니다.']);
+        }
+        $at = \App\Libraries\XWatch::kst(strtotime($d['slot_at'] . ' UTC'), 'n/j H:i');
+        return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'files' => D::files($d), 'at' => $at,
+            'note' => '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).']);
     }
 
     /** POST /drafts/{id}/unapprove - back to review while the extension has not scheduled it yet */

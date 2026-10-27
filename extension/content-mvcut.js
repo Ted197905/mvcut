@@ -6,10 +6,11 @@ document.documentElement.dataset.mvcutXVersion = chrome.runtime.getManifest().ve
 window.addEventListener('message', (e) => {
   if (e.source !== window || e.origin !== location.origin) return;
   const d = e.data;
-  if (!d || d.source !== 'mvcut' || d.type !== 'send-to-x' || typeof d.url !== 'string') return;
+  if (!d || d.source !== 'mvcut' || d.type !== 'send-to-x' || (typeof d.url !== 'string' && !Array.isArray(d.files))) return;
   chrome.runtime.sendMessage({
     type: 'send-to-x',
-    url: d.url,
+    url: String(d.url || ''),
+    note: String(d.note || '').slice(0, 300),
     filename: String(d.filename || 'video.mp4'),
     mime: String(d.mime || 'application/octet-stream'),
     text: String(d.text || ''),
