@@ -72,9 +72,9 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
         <?php if ($d['files']): ?>
           <div class="dr-media">
             <?php foreach ($d['files'] as $m): ?>
-              <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 새 창', 'attr') ?>">
+              <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 크게 보기', 'attr') ?>">
                 <input type="checkbox" name="media[]" value="<?= (int) $m['id'] ?>" form="f<?= (int) $d['id'] ?>" title="게시물에 넣기"<?= $m['chosen'] ? ' checked' : '' ?><?= $editable ? '' : ' disabled' ?>>
-                <a href="<?= site_url('collect/media/' . (int) $m['id']) ?>" target="_blank" rel="noopener">
+                <a class="dr-view" href="<?= site_url('collect/media/' . (int) $m['id']) ?>" data-kind="<?= esc($m['kind'], 'attr') ?>">
                   <?php if ($m['kind'] === 'image'): ?><img src="<?= site_url('collect/media/' . (int) $m['id']) ?>" alt="" loading="lazy">
                   <?php else: ?><video src="<?= site_url('collect/media/' . (int) $m['id']) ?>#t=0.5" preload="metadata" muted playsinline></video><span class="dr-play">&#9654;</span><?php endif ?>
                 </a>
@@ -118,7 +118,28 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   </div>
   <?php endif ?>
 </main>
+<div class="dr-modal" id="drModal" hidden>
+  <button class="dr-modal-x" type="button" aria-label="닫기">&times;</button>
+  <div class="dr-modal-body"></div>
+</div>
 <script>
+(() => {
+  // photo / video viewer: a layer over the page, closed by the backdrop, the X or Esc
+  const modal = document.getElementById('drModal'), body = modal.querySelector('.dr-modal-body');
+  const close = () => { modal.hidden = true; body.innerHTML = ''; document.body.style.overflow = ''; };
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a.dr-view');
+    if (!a) return;
+    e.preventDefault();
+    body.innerHTML = a.dataset.kind === 'video'
+      ? '<video src="' + a.href + '" controls autoplay playsinline></video>'
+      : '<img src="' + a.href + '" alt="">';
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  });
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('.dr-modal-x')) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
+})();
 (() => {
   // X's weighted length (twitter-text v3): Latin/digits/punctuation 1, Hangul/CJK/emoji 2, a URL 23.
   // Over 280 the timeline folds the post behind "더 보기"; a Premium account can post up to 25,000.
