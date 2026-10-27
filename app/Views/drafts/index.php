@@ -130,10 +130,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   // approved drafts reach X only through the extension (1.8.0+): say so when this browser does not have it
   setTimeout(() => {
     const v = document.documentElement.dataset.mvcutXVersion || '', box = document.querySelector('.dr-ext');
-    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10800;
+    const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10802;
     if (!old) return;
     box.textContent = (v ? 'MV Cut 확장 ' + v + '는' : '이 브라우저에 MV Cut 확장이 없거나 오래된 버전이라') + ' 승인한 초안을 X 예약으로 등록하지 못합니다. '
-      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.1 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
+      + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.2 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
     box.hidden = false;
   }, 800);
 })();

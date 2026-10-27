@@ -167,58 +167,82 @@ async function pollScheduled() {
 
 // ---- approved drafts (MV Cut /drafts) -> X scheduled posts, every 2 minutes ----
 // The same requests X's composer makes: media to upload.x.com (INIT/APPEND/FINALIZE), then the
-// CreateScheduledTweet GraphQL mutation. Only for the watched account, signed in to x.com here.
+// CreateScheduledTweet GraphQL mutation. They have to come from an x.com page: X answers 403 to the
+// same POSTs from this worker (chrome-extension:// origin), so they run inside an x.com tab (one is
+// opened in the background and closed again when none is open). Only for the watched account.
 const CREATE_SCHED_QID = 'LCVzRQGxOaGnOnYH01NQXg';
-const xHeaders = (ct0) => ({ authorization: X_WEB_AUTH, 'x-csrf-token': ct0, 'x-twitter-active-user': 'yes', 'x-twitter-auth-type': 'OAuth2Session' });
 const ct0Cookie = () => new Promise((r) => chrome.cookies.get({ url: 'https://x.com', name: 'ct0' }, (c) => r(c && c.value)));
 
-async function uploadMedia(file, ct0) {
-  const src = await fetch(file.url);
-  if (!src.ok) throw new Error('파일 HTTP ' + src.status);
-  const blob = await src.blob();
-  const type = file.mime || blob.type || 'application/octet-stream';
-  const video = file.kind === 'video' || /^video\//.test(type);
+// runs in the x.com page (MAIN world); everything it needs comes in as arguments
+async function scheduleInPage(item, qid, auth) {
+  const f = window.__mvxOrigFetch || window.fetch;
+  const ct0 = (document.cookie.match(/(?:^|; )ct0=([^;]+)/) || [])[1];
+  if (!ct0) return { error: 'x.com 로그아웃 상태' };
+  const h = { authorization: auth, 'x-csrf-token': ct0, 'x-twitter-active-user': 'yes', 'x-twitter-auth-type': 'OAuth2Session' };
   const base = 'https://upload.x.com/i/media/upload.json';
-  const h = xHeaders(ct0);
-  const init = await fetch(base + '?command=INIT&total_bytes=' + blob.size + '&media_type=' + encodeURIComponent(type)
-    + '&media_category=' + (video ? 'tweet_video' : 'tweet_image'), { method: 'POST', credentials: 'include', headers: h });
-  if (!init.ok) throw new Error('미디어 INIT HTTP ' + init.status);
-  const id = String((await init.json()).media_id_string || '');
-  if (!id) throw new Error('미디어 id 없음');
-  const CHUNK = 4 * 1024 * 1024;
-  for (let i = 0, seg = 0; i < blob.size; i += CHUNK, seg++) {
-    const fd = new FormData();
-    fd.append('media', blob.slice(i, i + CHUNK, type), file.filename || 'file');
-    const r = await fetch(base + '?command=APPEND&media_id=' + id + '&segment_index=' + seg, { method: 'POST', credentials: 'include', headers: h, body: fd });
-    if (!r.ok) throw new Error('미디어 APPEND HTTP ' + r.status);
+  try {
+    const media_ids = [];
+    for (const file of item.files || []) {
+      const src = await f(file.url);
+      if (!src.ok) throw new Error('파일 HTTP ' + src.status);
+      const blob = await src.blob();
+      const type = file.mime || blob.type || 'application/octet-stream';
+      const video = file.kind === 'video' || /^video\//.test(type);
+      let r = await f(base + '?command=INIT&total_bytes=' + blob.size + '&media_type=' + encodeURIComponent(type)
+        + '&media_category=' + (video ? 'tweet_video' : 'tweet_image'), { method: 'POST', credentials: 'include', headers: h });
+      if (!r.ok) throw new Error('미디어 INIT HTTP ' + r.status);
+      const id = String((await r.json()).media_id_string || '');
+      const CHUNK = 4 * 1024 * 1024;
+      for (let i = 0, seg = 0; i < blob.size; i += CHUNK, seg++) {
+        const fd = new FormData();
+        fd.append('media', blob.slice(i, i + CHUNK, type), file.filename || 'file');
+        r = await f(base + '?command=APPEND&media_id=' + id + '&segment_index=' + seg, { method: 'POST', credentials: 'include', headers: h, body: fd });
+        if (!r.ok) throw new Error('미디어 APPEND HTTP ' + r.status);
+      }
+      r = await f(base + '?command=FINALIZE&media_id=' + id, { method: 'POST', credentials: 'include', headers: h });
+      if (!r.ok) throw new Error('미디어 FINALIZE HTTP ' + r.status);
+      let j = await r.json();
+      for (let n = 0; j.processing_info && j.processing_info.state !== 'succeeded'; n++) {
+        if (j.processing_info.state === 'failed' || n > 60) throw new Error('미디어 처리 실패');
+        await new Promise((res) => setTimeout(res, 1000 * Math.min(10, j.processing_info.check_after_secs || 2)));
+        j = await (await f(base + '?command=STATUS&media_id=' + id, { credentials: 'include', headers: h })).json();
+      }
+      media_ids.push(id);
+    }
+    const variables = { post_tweet_request: { auto_populate_reply_metadata: false, status: item.text, exclude_reply_user_ids: [], media_ids }, execute_at: item.at };
+    const r = await f('https://x.com/i/api/graphql/' + qid + '/CreateScheduledTweet', {
+      method: 'POST', credentials: 'include', headers: Object.assign({ 'content-type': 'application/json' }, h),
+      body: JSON.stringify({ variables, queryId: qid })
+    });
+    const j = await r.json().catch(() => ({}));
+    const xid = j && j.data && j.data.tweet && j.data.tweet.rest_id;
+    if (!r.ok || !xid) return { error: '예약 등록 실패: ' + ((j.errors && j.errors[0] && j.errors[0].message) || (r.ok ? JSON.stringify(j).slice(0, 160) : 'HTTP ' + r.status)) };
+    return { x_id: String(xid) };
+  } catch (e) {
+    return { error: String(e.message || e).slice(0, 240) };
   }
-  let r = await fetch(base + '?command=FINALIZE&media_id=' + id, { method: 'POST', credentials: 'include', headers: h });
-  if (!r.ok) throw new Error('미디어 FINALIZE HTTP ' + r.status);
-  let j = await r.json();
-  for (let n = 0; j.processing_info && j.processing_info.state !== 'succeeded'; n++) {
-    if (j.processing_info.state === 'failed' || n > 60) throw new Error('미디어 처리 실패');
-    await new Promise((res) => setTimeout(res, 1000 * Math.min(10, j.processing_info.check_after_secs || 2)));
-    r = await fetch(base + '?command=STATUS&media_id=' + id, { credentials: 'include', headers: h });
-    j = await r.json();
-  }
-  return id;
 }
 
-async function scheduleOne(item, ct0) {
-  const media_ids = [];
-  for (const f of item.files || []) media_ids.push(await uploadMedia(f, ct0));
-  const variables = { post_tweet_request: { auto_populate_reply_metadata: false, status: item.text, exclude_reply_user_ids: [], media_ids }, execute_at: item.at };
-  const r = await fetch('https://x.com/i/api/graphql/' + CREATE_SCHED_QID + '/CreateScheduledTweet', {
-    method: 'POST', credentials: 'include', headers: Object.assign({ 'content-type': 'application/json' }, xHeaders(ct0)),
-    body: JSON.stringify({ variables, queryId: CREATE_SCHED_QID })
+// an x.com tab to run in: an open one, or a background one this call opens (closed by the caller)
+async function xTab() {
+  const tabs = await chrome.tabs.query({ url: ['https://x.com/*'], status: 'complete' });
+  if (tabs.length) return { id: tabs[0].id, opened: false };
+  const t = await chrome.tabs.create({ url: 'https://x.com/home', active: false });
+  await new Promise((res) => {
+    const done = (id, info) => { if (id === t.id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(done); res(); } };
+    chrome.tabs.onUpdated.addListener(done);
+    setTimeout(() => { chrome.tabs.onUpdated.removeListener(done); res(); }, 30000);
   });
-  const j = await r.json().catch(() => ({}));
-  const id = j && j.data && j.data.tweet && j.data.tweet.rest_id;
-  if (!r.ok || !id) {
-    const err = (j.errors && j.errors[0] && j.errors[0].message) || (r.ok ? JSON.stringify(j).slice(0, 160) : 'HTTP ' + r.status);
-    throw new Error('예약 등록 실패: ' + err);
-  }
-  return String(id);
+  await new Promise((res) => setTimeout(res, 2000));
+  return { id: t.id, opened: true };
+}
+
+async function scheduleOne(item, tabId) {
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: scheduleInPage, args: [item, CREATE_SCHED_QID, X_WEB_AUTH] });
+  const out = res && res.result;
+  if (!out) throw new Error('x.com 탭에서 실행하지 못했습니다');
+  if (out.error) throw new Error(out.error);
+  return out.x_id;
 }
 
 let queueBusy = false;
@@ -235,12 +259,14 @@ async function processQueue() {
     const items = q.items || [];
     if (!items.length) return;
     const done = s.queued || {};   // draft id -> X id, so a report that failed to reach MV Cut is retried, never the scheduling
+    let tab = null;
     for (const item of items) {
       const body = {};
       if (done[item.id]) body.x_id = done[item.id];
       else {
         try {
-          body.x_id = await scheduleOne(item, ct0);
+          if (!tab) tab = await xTab();
+          body.x_id = await scheduleOne(item, tab.id);
           done[item.id] = body.x_id;
           await set({ queued: done });
         } catch (e) { body.error = String(e.message || e).slice(0, 250); }
@@ -248,6 +274,7 @@ async function processQueue() {
       await api('/xapi/queue/' + item.id, { method: 'POST', body: JSON.stringify(body) });
       if (body.x_id) { delete done[item.id]; await set({ queued: done }); }
     }
+    if (tab && tab.opened) chrome.tabs.remove(tab.id).catch(() => {});
     await set({ lastError: '' });
     pollScheduled();
   } catch (e) {
