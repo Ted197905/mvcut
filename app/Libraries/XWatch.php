@@ -15,6 +15,7 @@ class XWatch
     /** Checkers on trial: their "restricted" verdicts are stored in x_check_diffs, not acted on. */
     public const TRIAL    = ['xautodm', 'taishin'];
     private const ROTATION = ['probe', 'yuzurisa', 'banchecker', 'xautodm', 'taishin'];
+    private const RELEASE_GAP = 60;           // release check: the other checkers, one a minute
     private const YUZURISA   = 'https://shadowban-api.yuzurisa.com:444/';
     private const BANCHECKER = 'https://banchecker.org/api/check-twitter?username=';
     private const XAUTODM    = 'https://xautodm.com/api/shadowban-check';
@@ -240,6 +241,10 @@ class XWatch
             ->get()->getResultArray();
         foreach ($due as $w) {
             $uid  = (int) $w['user_id'];
+            if (! empty($w['release_at'])) {
+                self::releaseStep($w, $log);
+                continue;
+            }
             // restricted mode lasts from the confirmed alert until a check says clear (stored, so it survives
             // worker restarts and episodes longer than the look-back)
             $was  = ! empty($w['restricted_at']);
@@ -262,6 +267,12 @@ class XWatch
                     $log('xwatch telegram (suspected): ' . ($err ?? 'sent'));
                 }
             }
+            // the probe says clear in restricted mode: every other checker runs, one a minute, before the release
+            if ($was && ! $now) {
+                self::update($uid, ['release_at' => $c['checked_at'], 'next_check_at' => gmdate('Y-m-d H:i:s', time() + self::RELEASE_GAP)]);
+                $log("xwatch @{$w['handle']}: probe says clear, release check with the other checkers (1 a minute)");
+                continue;
+            }
             // entering or leaving restricted mode, against the stored state (x_watch.restricted_at)
             if ($now !== $was || $now !== $hold) {
                 self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot()),
@@ -275,6 +286,66 @@ class XWatch
                 }
             }
         }
+    }
+
+    /** Checks since $from (the release check), oldest first: [['src', 'status', 'summary', 'ts'], ...] */
+    private static function checksSince(int $userId, string $from): array
+    {
+        $rows = self::db()->table('x_checks')->select('status, summary, result, checked_at')->where('user_id', $userId)
+            ->where('checked_at >=', $from)->orderBy('checked_at')->orderBy('id')->get()->getResultArray();
+        return array_map(static fn ($r) => ['src' => json_decode((string) $r['result'], true)['source'] ?? 'probe', 'status' => $r['status'],
+                                            'summary' => $r['summary'], 'ts' => strtotime($r['checked_at'] . ' UTC')], $rows);
+    }
+
+    /**
+     * One step of the release check: the next checker that has not run since the probe said clear.
+     * After the last one: no established checker says restricted -> released ("[제한 풀림]" with the
+     * probe's first "clear" as the release time, back to the 10-minute rotation); otherwise restricted
+     * mode goes on (hourly probe).
+     */
+    private static function releaseStep(array $w, callable $log): void
+    {
+        $uid = (int) $w['user_id'];
+        self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', time() + self::RELEASE_GAP)]);
+        $done    = self::checksSince($uid, $w['release_at']);
+        $pending = array_values(array_diff(array_slice(self::ROTATION, 1), array_column($done, 'src')));
+        if ($pending) {
+            $c = self::check($w, $pending[0]);
+            $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']} (release check {$pending[0]})");
+            if (count($pending) > 1) return;
+            $done = self::checksSince($uid, $w['release_at']);
+        }
+        $bad = array_filter($done, fn ($r) => $r['status'] === 'banned' && ! in_array($r['src'], self::TRIAL, true));
+        if ($bad) {
+            self::update($uid, ['release_at' => null, 'next_check_at' => gmdate('Y-m-d H:i:s', self::nextHour())]);
+            $log("xwatch @{$w['handle']}: release not confirmed (" . implode(', ', array_column($bad, 'src')) . ' still restricted), hourly probe checks go on');
+            return;
+        }
+        self::update($uid, ['release_at' => null, 'restricted_at' => null, 'next_check_at' => gmdate('Y-m-d H:i:s', self::nextSlot())]);
+        $log("xwatch @{$w['handle']}: restriction cleared, back to the 10-minute rotation");
+        if (Telegram::ready($uid)) {
+            $err = Telegram::send($uid, self::releaseText($w, $done));
+            $log('xwatch telegram: ' . ($err ?? 'sent'));
+        }
+    }
+
+    /** "[제한 풀림]": release time = the probe's first "clear", with every checker's result of the release check. */
+    public static function releaseText(array $w, array $done): string
+    {
+        helper('url');
+        $fmt   = 'Y-m-d H:i';
+        $end   = strtotime($w['release_at'] . ' UTC');
+        $since = strtotime($w['restricted_at'] . ' UTC');
+        $start = self::restrictionStart((int) $w['user_id'], $since) ?? $since;
+        $text  = "[제한 풀림] @{$w['handle']}\n"
+               . '시작 일시: ' . self::kst($start, $fmt) . "\n"
+               . '해제 일시: ' . self::kst($end, $fmt) . " (부계정 첫 정상)\n"
+               . '제한 기간: ' . self::span($end - $start) . "\n확인 검사:\n";
+        foreach ($done as $r) {
+            $text .= '- ' . (self::SOURCES[$r['src']] ?? $r['src']) . (in_array($r['src'], self::TRIAL, true) ? '(시험)' : '')
+                   . ' ' . self::kst($r['ts'], 'H:i') . ': ' . $r['summary'] . "\n";
+        }
+        return $text . "10분 주기 검사로 돌아갑니다.\n" . site_url('xwatch/checks');
     }
 
     /**
