@@ -12,9 +12,13 @@ namespace App\Libraries;
 class Drafts
 {
     public const STYLES = ['info' => '음슴체 정보', 'story' => '썰 헤드라인', 'quote' => '요약 + 한 줄 평', 'insight' => '장문 인사이트'];
-    public const SLOT_FROM = '09:05';
-    public const SLOT_TO   = '22:00';
-    public const SLOT_STEP = 15;      // minutes
+    /** Posting grids (KST): first slot, last possible slot, minutes between slots [min, max] (max > min: random per slot). */
+    public const SLOT_TYPES = [
+        'q15'  => ['label' => '09:05~22:00 15분', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 15]],
+        'q20'  => ['label' => '10:00~22:00 20분', 'from' => '10:00', 'to' => '22:00', 'step' => [20, 20]],
+        'rand' => ['label' => '09:05~22:00 15~25분 랜덤', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 25]],
+    ];
+    public const SLOT_STEP = 15;      // minutes: the least gap kept to anything taken
     public const LEAD_MIN  = 12;      // a slot must be at least this far ahead (the extension polls every 2 minutes)
     private const SENDING_MAX = 600;  // seconds before a draft the extension did not report on goes back to approved
 
@@ -96,18 +100,31 @@ class Drafts
         return $text;
     }
 
-    /** Unix timestamps of the posting grid (KST 09:05 .. 22:00 every 15 min) for `days` days from today. */
-    public static function grid(int $days = 3): array
+    /** The account's posting grid type (a key of SLOT_TYPES). */
+    public static function slotType(int $userId): string
     {
+        $t = (string) (XWatch::forUser($userId)['slot_type'] ?? '');
+        return isset(self::SLOT_TYPES[$t]) ? $t : 'q15';
+    }
+
+    /**
+     * Unix timestamps of the posting grid (SLOT_TYPES[$type]) for `days` days from today. Random steps
+     * come from a hash of the date and slot number, so a day's grid stays the same on every call.
+     */
+    public static function grid(int $days = 3, string $type = 'q15'): array
+    {
+        $g   = self::SLOT_TYPES[$type] ?? self::SLOT_TYPES['q15'];
+        [$lo, $hi] = $g['step'];
         $tz  = new \DateTimeZone('Asia/Seoul');
         $out = [];
         $day = new \DateTimeImmutable('today', $tz);
         for ($i = 0; $i < $days; $i++) {
-            $t    = $day->modify(self::SLOT_FROM);
-            $last = $day->modify(self::SLOT_TO);
-            while ($t <= $last) {
+            $t    = $day->modify($g['from']);
+            $last = $day->modify($g['to']);
+            for ($n = 0; $t <= $last; $n++) {
                 $out[] = $t->getTimestamp();
-                $t = $t->modify('+' . self::SLOT_STEP . ' minutes');
+                $step = $lo + ($hi > $lo ? crc32($day->format('Y-m-d') . '#' . $n) % ($hi - $lo + 1) : 0);
+                $t = $t->modify('+' . $step . ' minutes');
             }
             $day = $day->modify('+1 day');
         }
@@ -134,7 +151,7 @@ class Drafts
 
     /**
      * The posting day of `$t` (KST) in plain numbers: posts X already has scheduled that day (made by hand),
-     * drafts approved for it, and how many of the 52 grid slots (09:05..21:50 every 15 min) are still free:
+     * drafts approved for it, and how many of the day's grid slots (SLOT_TYPES) are still free:
      * ahead of `$from`, and 15+ min (gap_min) away from anything taken. One hand-made post at 10:00 blocks
      * the 09:50 and 10:05 slots, so free + taken posts need not add up to 52.
      */
@@ -143,7 +160,7 @@ class Drafts
         $tz    = new \DateTimeZone('Asia/Seoul');
         $start = (new \DateTimeImmutable('@' . $t))->setTimezone($tz)->setTime(0, 0)->getTimestamp();
         $in    = static fn (int $v) => $v >= $start && $v < $start + 86400;
-        $grid  = array_values(array_filter(self::grid(5), $in));
+        $grid  = array_values(array_filter(self::grid(5, self::slotType($userId)), $in));
         $drafts = array_map(static fn ($r) => strtotime($r['slot_at'] . ' UTC'), self::db()->table(self::t('drafts'))->select('slot_at')
             ->whereIn('status', ['approved', 'sending', 'scheduled', 'posted'])->where('slot_at IS NOT NULL', null, false)->get()->getResultArray());
         $xs = [];
@@ -170,7 +187,7 @@ class Drafts
         $dayMax = max(1, (int) $watch['day_max']);
         $taken = self::taken($userId);
         $from  = max(time() + self::LEAD_MIN * 60, $notBefore ?? 0);
-        foreach (self::grid(5) as $t) {
+        foreach (self::grid(5, self::slotType($userId)) as $t) {
             if ($t < $from) continue;
             $ok = true;
             foreach ($taken as $x) {

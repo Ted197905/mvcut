@@ -17,7 +17,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 <div class="lib-col">
   <?= view('partials/alerts') ?>
   <h1>초안</h1>
-  <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날 09:05부터 15분 간격으로 승인한 순서대로 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
+  <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날부터 아래 슬롯 방식대로 승인한 순서에 따라 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
   <div class="alert error dr-ext" hidden></div>
   <form class="dr-mode" method="post" action="<?= site_url('drafts/mode') ?>"><?= csrf_field() ?>
@@ -30,6 +30,16 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     <span class="muted small"><?= $mode === 'auto'
         ? '승인한 초안을 확장이 승인 순서대로 10분에 1건씩 X 예약에 등록합니다. 실패하면 다시 줄을 서고 ' . D::MAX_TRIES . '번까지 재시도합니다 (크롬이 켜져 있어야 함).'
         : '승인하면 X 작성창에 본문, 사진, 예약 시각까지 넣어 엽니다. "예약하기"만 직접 누르면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
+  </form>
+  <form class="dr-mode" method="post" action="<?= site_url('drafts/slots') ?>"><?= csrf_field() ?>
+    <input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
+    <span class="small">슬롯</span>
+    <div class="seg">
+      <?php foreach (D::SLOT_TYPES as $k => $g): ?>
+        <button class="seg-item<?= $slot === $k ? ' on' : '' ?>" name="type" value="<?= $k ?>" type="submit"><?= esc($g['label']) ?></button>
+      <?php endforeach ?>
+    </div>
+    <span class="muted small">새로 승인하는 초안부터 적용됩니다.</span>
   </form>
   <form class="lib-toolbar" method="get" action="<?= site_url('drafts') ?>">
     <select class="input" name="batch" onchange="this.form.submit()">
@@ -44,7 +54,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       <?php endforeach ?>
     </div>
     <span class="spacer"></span>
-    <span class="muted small dr-usage" title="슬롯: 09:05~21:50, 15분 간격 52개. 이미 예약된 글 앞뒤 15분 안의 슬롯은 쓰지 않습니다.">
+    <span class="muted small dr-usage" title="슬롯: <?= esc(D::SLOT_TYPES[$slot]['label'], 'attr') ?>. 이미 예약된 글 앞뒤 15분 안의 슬롯은 쓰지 않습니다.">
       <?= esc($usage) ?>
     </span>
   </form>

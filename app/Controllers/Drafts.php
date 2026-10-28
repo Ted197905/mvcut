@@ -64,7 +64,7 @@ class Drafts extends BaseController
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
                                      'usage' => D::usageText($this->uid(), $batch !== '' ? $batch : null),
-                                     'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid())]);
+                                     'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid()), 'slot' => D::slotType($this->uid())]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */
@@ -117,6 +117,15 @@ class Drafts extends BaseController
         \App\Libraries\XWatch::update($this->uid(), ['draft_mode' => $m]);
         return $this->back(0)->with('flash', $m === 'auto' ? '자동 등록: 확장이 승인한 초안을 10분 간격으로 X 예약에 등록합니다 (실패하면 ' . D::MAX_TRIES . '번까지 다시 시도).'
                                                           : '반자동: 승인하면 X 작성창을 채워 엽니다. 예약은 직접 합니다.');
+    }
+
+    /** POST /drafts/slots  type=q15|q20|rand - the posting grid for drafts approved from now on */
+    public function slots()
+    {
+        $t = (string) $this->request->getPost('type');
+        if (! isset(D::SLOT_TYPES[$t])) return $this->back(0)->with('error', '알 수 없는 슬롯 방식입니다.');
+        \App\Libraries\XWatch::update($this->uid(), ['slot_type' => $t]);
+        return $this->back(0)->with('flash', '슬롯: ' . D::SLOT_TYPES[$t]['label'] . '. 이미 승인한 초안의 시각은 그대로입니다.');
     }
 
     /** POST /drafts/{id}/xfill - text, signed file links and the slot, for the extension to fill X's composer */

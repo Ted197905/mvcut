@@ -130,6 +130,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/approve', 'Drafts::approve/$1');
         $routes->post('(:num)/xfill', 'Drafts::xfill/$1');
         $routes->post('mode', 'Drafts::mode');
+        $routes->post('slots', 'Drafts::slots');
         $routes->post('(:num)/unapprove', 'Drafts::unapprove/$1');
         $routes->post('(:num)/reject', 'Drafts::reject/$1');
         $routes->post('(:num)/regen', 'Drafts::regen/$1');
