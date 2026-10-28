@@ -58,7 +58,8 @@ class WorkerRun extends BaseCommand
             if (time() >= $nextCleanup) {
                 $nextCleanup = time() + 6 * 3600;
                 try {
-                    $r = Cleanup::run();
+                    // switched off in 설정 > 자동 기능: nothing removed
+                    $r = \App\Libraries\Ops::on('mvcut_cleanup') ? Cleanup::run() : [];
                     if (array_sum($r) > 0) {
                         $log(sprintf('cleanup: stale %d, orphans %d, chunks %d, jobs %d', $r['stale'], $r['orphans'], $r['chunks'], $r['jobs']));
                     }

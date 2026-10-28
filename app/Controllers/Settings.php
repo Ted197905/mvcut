@@ -14,7 +14,54 @@ class Settings extends BaseController
             'title'   => '설정',
             'user'    => $users->find(session()->get('user_id')),
             'cookies' => Cookies::all(),
+            'auto'    => session()->get('role') === 'admin' ? $this->autoRows() : null,
         ]);
+    }
+
+    /**
+     * Everything that runs by itself, for 설정 > 자동 기능: [key, group, label, about, on, state].
+     * Collector / worker parts are switches in hallyuwire.switches (Libraries\Ops); the X check and the
+     * drafts' X registration are the user's x_watch settings.
+     */
+    private function autoRows(): array
+    {
+        $uid  = (int) session()->get('user_id');
+        $rows = [];
+        $ago  = static fn (?int $s) => $s === null ? '' : ($s < 60 ? $s . '초' : ($s < 3600 ? intdiv($s, 60) . '분' : ($s < 86400 ? intdiv($s, 3600) . '시간' : intdiv($s, 86400) . '일'))) . ' 전';
+        foreach (\App\Libraries\Ops::status($uid)['parts'] as $p) {
+            $rows[] = ['key' => $p['name'], 'group' => $p['group'], 'label' => $p['label'], 'about' => $p['about'], 'on' => $p['on'],
+                       'state' => ! $p['on'] ? '꺼짐' : ($p['busy'] ? '실행 중: ' . $p['detail'] : ($p['last'] !== null ? '대기 · 마지막 ' . $ago($p['last']) : '대기'))];
+        }
+        $w = \App\Libraries\XWatch::forUser($uid);
+        $c = db_connect()->table('x_checks')->select('status, summary, checked_at')->where('user_id', $uid)->orderBy('id', 'DESC')->get(1)->getRowArray();
+        $rows[] = ['key' => 'xcheck', 'group' => 'X', 'label' => 'X 제한 체크', 'on' => (bool) $w['enabled'],
+                   'about' => '@' . ($w['handle'] ?: '-') . ' 서치밴 검사: 평소 10분, 제한 중엔 1시간마다 + 텔레그램 알림',
+                   'state' => ! $w['enabled'] ? '꺼짐' : ($c ? $ago(time() - strtotime($c['checked_at'] . ' UTC')) . ': ' . $c['summary'] : '검사 기록 없음')];
+        $rows[] = ['key' => 'draft_auto', 'group' => '초안', 'label' => '초안 X 자동 등록', 'on' => ($w['draft_mode'] ?? 'semi') === 'auto',
+                   'about' => '켜면 확장이 승인한 초안을 10분에 1건씩 X 예약에 등록, 끄면 반자동(작성창을 채워 열고 "예약하기"는 직접)',
+                   'state' => ($w['draft_mode'] ?? 'semi') === 'auto' ? '자동 등록' : '반자동'];
+        $order = ['수집' => 0, '모델' => 1, '초안' => 2, 'X' => 3, 'MV Cut' => 4];
+        usort($rows, static fn ($a, $b) => ($order[$a['group']] ?? 9) <=> ($order[$b['group']] ?? 9));
+        return $rows;
+    }
+
+    /** POST /settings/auto  key, on=0|1 (admin) */
+    public function auto()
+    {
+        if (session()->get('role') !== 'admin') return $this->response->setStatusCode(403)->setJSON(['ok' => false]);
+        $key = (string) $this->request->getPost('key');
+        $on  = $this->request->getPost('on') === '1';
+        $uid = (int) session()->get('user_id');
+        if (isset(\App\Libraries\Ops::PARTS[$key])) {
+            \App\Libraries\Ops::setSwitch($key, $on);
+        } elseif ($key === 'xcheck') {
+            \App\Libraries\XWatch::update($uid, ['enabled' => $on ? 1 : 0] + ($on ? ['next_check_at' => null] : []));
+        } elseif ($key === 'draft_auto') {
+            \App\Libraries\XWatch::update($uid, ['draft_mode' => $on ? 'auto' : 'semi']);
+        } else {
+            return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'unknown']);
+        }
+        return $this->response->setJSON(['ok' => true]);
     }
 
     /** POST /settings/account - display name, email, password */

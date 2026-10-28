@@ -17,8 +17,21 @@ class Ops
         'judge'     => ['모델', '뉴스 판정', 'Nemotron 3.5 Bolt (GPU 3GB)'],
         'translate' => ['모델', '번역', 'TranslateGemma 4B (GPU 3GB)'],
         'drafts'    => ['모델', '초안 작성', 'Qwen3.6 35B (GPU 8GB + RAM 18GB), 06/12/18시 100건씩'],
-        'xviral'    => ['X', 'X 바이럴 검색', '매일 06:40, 24시간 100만 조회 이상'],
+        'xviral'    => ['X', 'X 100만+ 수집', '매일 06:40, 24시간 안에 조회 100만 넘은 X 게시물'],
+        'cleanup'   => ['수집', '오래된 수집 글 정리', '1시간마다, 14일 지난 글과 파일 삭제 (사용한 글은 보존)'],
+        'mvcut_cleanup' => ['MV Cut', '미디어 정리', '6시간마다, 지운 항목의 남은 파일, 업로드 조각, 오래된 작업 기록 정리'],
     ];
+
+    /** A switch read by MV Cut itself (worker housekeeping); on unless switched off. */
+    public static function on(string $name): bool
+    {
+        try {
+            $row = db_connect()->table(self::t('switches'))->where('name', $name)->get()->getRowArray();
+            return $row === null || (bool) $row['enabled'];
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
     private const BUSY_MAX = 900;   // a 'busy' row older than this (seconds) is a process that died mid-step
 
     private static function t(string $table): string

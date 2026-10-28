@@ -4,6 +4,38 @@
   <h1>설정</h1>
   <?= view('partials/alerts') ?>
 
+  <?php if ($auto): ?>
+  <section class="set-card" id="auto">
+    <h2>자동 기능</h2>
+    <p class="muted small" style="margin-bottom:14px">서버가 스스로 돌리는 작업입니다. 끄면 다음 차례부터 멈추고, 지금 하던 작업은 그 한 건까지 마칩니다(초안 작성은 쓰던 도중에도 멈추고 모델을 내림). 지금 실행 중인 것은 화면 맨 아래 상태 바에 보입니다.</p>
+    <?php $g = null; foreach ($auto as $r): ?>
+      <?php if ($r['group'] !== $g): $g = $r['group']; ?><div class="auto-group"><?= esc($g) ?></div><?php endif ?>
+      <div class="auto-row<?= $r['on'] ? '' : ' off' ?>">
+        <div class="auto-txt"><b><?= esc($r['label']) ?></b><span class="muted small"><?= esc($r['about']) ?></span><span class="small auto-st"><?= esc($r['state']) ?></span></div>
+        <label class="sw" title="켜기/끄기"><input type="checkbox" data-key="<?= esc($r['key'], 'attr') ?>"<?= $r['on'] ? ' checked' : '' ?>><span></span></label>
+      </div>
+    <?php endforeach ?>
+  </section>
+  <script>
+  document.getElementById('auto').addEventListener('change', async (e) => {
+    const c = e.target.closest('input[data-key]');
+    if (!c) return;
+    const csrf = MV.csrf(), fd = new FormData();
+    fd.append('key', c.dataset.key); fd.append('on', c.checked ? '1' : '0');
+    if (csrf) fd.append(csrf.name, csrf.hash);
+    c.disabled = true;
+    try {
+      const r = await fetch(<?= json_encode(site_url('settings/auto')) ?>, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf ? csrf.hash : '' } });
+      if (!r.ok) throw new Error(MV.httpError(r.status));
+      const row = c.closest('.auto-row');
+      row.classList.toggle('off', !c.checked);
+      row.querySelector('.auto-st').textContent = c.checked ? (c.dataset.key === 'draft_auto' ? '자동 등록' : '켜짐') : (c.dataset.key === 'draft_auto' ? '반자동' : '꺼짐');
+    } catch (err) { c.checked = !c.checked; alert('저장하지 못했습니다: ' + err.message); }
+    c.disabled = false;
+  });
+  </script>
+  <?php endif ?>
+
   <section class="set-card">
     <h2>계정 정보</h2>
     <form method="post" action="<?= site_url('settings/account') ?>" novalidate>

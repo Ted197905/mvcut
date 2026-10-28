@@ -792,3 +792,19 @@ body.has-ops { padding-bottom: 46px; }
 .ops-g { color: var(--label2); }
 .ops-st { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 760px) { .ops-row { grid-template-columns: 20px 90px minmax(0, 1fr); } .ops-row .ops-g, .ops-row > .muted { display: none; } }
+
+/* ---------- 설정 > 자동 기능 ---------- */
+.auto-group { font-size: 12px; font-weight: 600; color: var(--label2); margin: 16px 0 6px; }
+.auto-group:first-of-type { margin-top: 0; }
+.auto-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: var(--bg-elev); border-radius: 12px; margin-bottom: 6px; }
+.auto-row.off .auto-txt { opacity: .55; }
+.auto-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.auto-txt b { font-size: 15px; }
+.auto-st { color: var(--label2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw { position: relative; flex: 0 0 51px; width: 51px; height: 31px; margin: 0 !important; cursor: pointer; }
+.sw input { position: absolute; opacity: 0; width: 0; height: 0; }
+.sw span { position: absolute; inset: 0; background: var(--fill1); border-radius: 31px; transition: background .2s; }
+.sw span::after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.2); transition: transform .2s; }
+.sw input:checked + span { background: var(--green); }
+.sw input:checked + span::after { transform: translateX(20px); }
+.sw input:focus-visible + span { outline: 2px solid var(--blue); }
