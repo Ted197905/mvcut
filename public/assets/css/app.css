@@ -765,6 +765,10 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.85); display: flex; align-items: center; justify-content: center; padding: 24px; }
 .dr-modal[hidden] { display: none; }
 .dr-modal-body img, .dr-modal-body video { display: block; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); border-radius: 8px; background: #000; }
+.dr-modal-body iframe { display: block; width: min(1100px, calc(100vw - 48px)); aspect-ratio: 16 / 9; max-height: calc(100vh - 48px); border: 0; border-radius: 8px; background: #000; }
+.dr-yt { opacity: 1; }
+.dr-yt img { width: 100%; height: 100%; object-fit: cover; }
+.dr-yt-tag { position: absolute; left: 6px; bottom: 6px; background: #f00; color: #fff; font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
 .dr-modal-x { position: absolute; top: 12px; right: 16px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(255,255,255,.15); color: #fff; font-size: 26px; line-height: 40px; cursor: pointer; }
 .dr-modal-x:hover { background: rgba(255,255,255,.3); }
 .dr-mode { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: -6px 0 14px; }

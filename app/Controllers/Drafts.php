@@ -51,7 +51,7 @@ class Drafts extends BaseController
             default => null,
         };
         $rows = $b->orderBy($filter === 'done' ? 'd.slot_at' : 'd.score', $filter === 'done' ? 'ASC' : 'DESC')->orderBy('d.id')->get()->getResultArray();
-        foreach ($rows as &$d) $d['files'] = D::media($d);
+        foreach ($rows as &$d) { $d['files'] = D::media($d); $d['yt'] = D::youtube($d); }
         unset($d);
 
         $counts = [];

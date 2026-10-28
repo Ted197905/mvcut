@@ -88,7 +88,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <?php foreach ($rs['background'] ?? [] as $b): ?><p><b>위키백과 <?= esc($b['title']) ?></b> <?= esc($b['text']) ?></p><?php endforeach ?>
           </details>
         <?php endif ?>
-        <?php if ($d['files'] || $editable): ?>
+        <?php if ($d['files'] || $d['yt'] || $editable): ?>
           <div class="dr-media" data-id="<?= (int) $d['id'] ?>">
             <?php foreach ($d['files'] as $m): ?>
               <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 크게 보기', 'attr') ?>">
@@ -96,6 +96,13 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
                 <a class="dr-view" href="<?= site_url('collect/media/' . (int) $m['id']) ?>" data-kind="<?= esc($m['kind'], 'attr') ?>">
                   <?php if ($m['kind'] === 'image'): ?><img src="<?= site_url('collect/media/' . (int) $m['id']) ?>" alt="" loading="lazy">
                   <?php else: ?><video src="<?= site_url('collect/media/' . (int) $m['id']) ?>#t=0.5" preload="metadata" muted playsinline></video><span class="dr-play">&#9654;</span><?php endif ?>
+                </a>
+              </div>
+            <?php endforeach ?>
+            <?php foreach ($d['yt'] as $y): ?>
+              <div class="dr-m dr-yt" title="본문의 YouTube 영상 (X에 파일로 올릴 수 없어 선택 불가) - 누르면 재생">
+                <a class="dr-view" href="<?= esc($y['url'], 'attr') ?>" data-kind="youtube" data-yt="<?= esc($y['id'], 'attr') ?>">
+                  <img src="https://i.ytimg.com/vi/<?= esc($y['id'], 'attr') ?>/hqdefault.jpg" alt="" loading="lazy"><span class="dr-play">&#9654;</span><span class="dr-yt-tag">YouTube</span>
                 </a>
               </div>
             <?php endforeach ?>
@@ -270,7 +277,9 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const a = e.target.closest('a.dr-view');
     if (!a) return;
     e.preventDefault();
-    body.innerHTML = a.dataset.kind === 'video'
+    body.innerHTML = a.dataset.kind === 'youtube'
+      ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(a.dataset.yt) + '?autoplay=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'
+      : a.dataset.kind === 'video'
       ? '<video src="' + a.href + '" controls autoplay playsinline></video>'
       : '<img src="' + a.href + '" alt="">';
     modal.hidden = false;

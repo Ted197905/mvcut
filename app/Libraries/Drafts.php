@@ -239,6 +239,19 @@ class Drafts
         return $rows;
     }
 
+    /** YouTube videos linked in the post: [['id' => video id, 'url' => watch url]]. Shown on the card; X takes no YouTube file. */
+    public static function youtube(array $d): array
+    {
+        $out = [];
+        foreach (self::db()->table(self::t('media'))->select('src_url')->where('item_id', (int) $d['item_id'])->where('kind', 'youtube')
+                     ->orderBy('id')->get()->getResultArray() as $r) {
+            if (preg_match('~(?:v=|youtu\.be/|/embed/|/shorts/)([\w-]{11})~', (string) $r['src_url'], $m) && ! isset($out[$m[1]])) {
+                $out[$m[1]] = ['id' => $m[1], 'url' => 'https://www.youtube.com/watch?v=' . $m[1]];
+            }
+        }
+        return array_values($out);
+    }
+
     /** Validates a media choice for X: up to 4 images or one video. Returns an error or null. */
     public static function checkMedia(array $rows, array $pick): ?string
     {
