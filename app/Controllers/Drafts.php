@@ -97,17 +97,27 @@ class Drafts extends BaseController
     public function approve(int $id)
     {
         $d = $this->draft($id);
-        if (! in_array($d['status'], ['new', 'error', 'rejected', 'skipped', 'failed'], true)) return $this->back($id)->with('error', '지금 상태에서는 승인할 수 없습니다.');
-        if ($e = $this->take($d)) return $this->back($id)->with('error', $e);
+        if (! in_array($d['status'], ['new', 'error', 'rejected', 'skipped', 'failed'], true)) return $this->answer($id, '지금 상태에서는 승인할 수 없습니다.');
+        if ($e = $this->take($d)) return $this->answer($id, $e);
         $d = $this->draft($id);
         if (in_array($d['status'], ['skipped', 'failed'], true)) D::update($id, ['status' => 'new']);
         $r = D::approve($this->uid(), $this->draft($id));
-        if (is_string($r)) return $this->back($id)->with('error', $r);
+        if (is_string($r)) return $this->answer($id, $r);
         $at = \App\Libraries\XWatch::kst($r, 'n/j H:i');
-        if (D::mode($this->uid()) === 'auto') {
-            return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. 확장이 승인 순서대로 10분 간격으로 X 예약에 등록합니다.');
+        $semi = D::mode($this->uid()) !== 'auto';
+        $msg = $at . ' 슬롯에 넣었습니다. ' . ($semi ? 'X 작성창에 본문과 예약 시각을 넣어 엽니다: "예약하기"만 누르세요.' : '확장이 승인 순서대로 10분 간격으로 X 예약에 등록합니다.');
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON(['ok' => true, 'msg' => $msg, 'label' => $at . ' 예약 대기', 'fill' => $semi ? $id : 0]);
         }
-        return $this->back($id)->with('flash', $at . ' 슬롯에 넣었습니다. X 작성창에 본문과 예약 시각을 넣어 엽니다: "예약하기"만 누르세요.')->with('fill', $id);
+        $res = $this->back($id)->with('flash', $msg);
+        return $semi ? $res->with('fill', $id) : $res;
+    }
+
+    /** An error for the card: JSON for the page's in-place approve / reject, a redirect otherwise. */
+    private function answer(int $id, string $error)
+    {
+        if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => false, 'error' => $error]);
+        return $this->back($id)->with('error', $error);
     }
 
     /** POST /drafts/mode  mode=auto|semi */
@@ -153,8 +163,9 @@ class Drafts extends BaseController
     public function reject(int $id)
     {
         $d = $this->draft($id);
-        if (in_array($d['status'], ['sending', 'scheduled', 'posted'], true)) return $this->back($id)->with('error', '이미 예약된 초안입니다.');
+        if (in_array($d['status'], ['sending', 'scheduled', 'posted'], true)) return $this->answer($id, '이미 예약된 초안입니다.');
         D::update($id, ['status' => 'rejected', 'slot_at' => null]);
+        if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => true, 'label' => '제외']);
         return $this->back($id)->with('flash', '제외했습니다.');
     }
 

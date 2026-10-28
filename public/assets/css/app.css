@@ -712,6 +712,8 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-list { display: flex; flex-direction: column; gap: 16px; }
 .dr-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; background: var(--bg-elev); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow-sm); }
 .dr-card.st-rejected, .dr-card.st-skipped { opacity: .6; }
+.dr-card.dr-ok { box-shadow: 0 0 0 2px var(--blue); background: var(--blue-tint); }
+.dr-card.dr-out { opacity: .45; filter: grayscale(1); }
 .dr-src { min-width: 0; }
 .dr-src-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .dr-title { display: block; font-weight: 600; font-size: 15px; line-height: 1.4; color: var(--label); margin-bottom: 4px; overflow-wrap: anywhere; }

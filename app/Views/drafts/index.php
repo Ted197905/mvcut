@@ -163,6 +163,7 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     document.querySelectorAll('.dr-fill').forEach((b) => { b.hidden = true; });
     return;
   }
+  window.drFill = fill;
   document.addEventListener('click', (e) => { const b = e.target.closest('.dr-fill'); if (b) fill(b.dataset.id); });
   const auto = <?= json_encode((int) (session()->getFlashdata('fill') ?? 0)) ?>;
   if (auto) setTimeout(() => fill(auto), 600);
@@ -185,6 +186,36 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.5 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
     box.hidden = false;
   }, 800);
+})();
+(() => {
+  // approve / reject in place: the card turns blue (approved) or grey (excluded); the list is sorted again on reload
+  document.addEventListener('submit', async (e) => {
+    const f = e.target.closest('form.dr-edit'), btn = e.submitter;
+    if (!f || !btn) return;
+    const fa = btn.getAttribute('formaction') || '';
+    const kind = !fa ? 'approve' : (fa.endsWith('/reject') ? 'reject' : '');
+    if (!kind) return;   // save, rewrite, unapprove: as before (page reload)
+    e.preventDefault();
+    const card = f.closest('.dr-card'), acts = f.querySelector('.dr-acts');
+    acts.querySelectorAll('button, select').forEach((b) => { b.disabled = true; });
+    try {
+      const r = await fetch(fa || f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
+      card.dataset.status = kind === 'approve' ? 'approved' : 'rejected';
+      card.classList.add(kind === 'approve' ? 'dr-ok' : 'dr-out');
+      const b = card.querySelector('.dr-src-head .ck-badge');
+      b.textContent = j.label; b.className = 'ck-badge ' + (kind === 'approve' ? 'warn' : 'bad');
+      f.querySelectorAll('textarea').forEach((t) => { t.readOnly = true; });
+      card.querySelectorAll('.dr-m input').forEach((i) => { i.disabled = true; });
+      acts.innerHTML = '<span class="muted small"></span>';
+      acts.firstChild.textContent = kind === 'approve' ? j.msg : '제외했습니다. 새로고침하면 목록에서 빠집니다.';
+      if (j.fill && window.drFill && !drMobile) window.drFill(j.fill);
+    } catch (err) {
+      acts.querySelectorAll('button, select').forEach((b) => { b.disabled = false; });
+      alert((kind === 'approve' ? '승인' : '제외') + ' 실패: ' + err.message);
+    }
+  });
 })();
 (() => {
   // photo / video viewer: a layer over the page, closed by the backdrop, the X or Esc
