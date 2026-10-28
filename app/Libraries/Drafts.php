@@ -11,7 +11,7 @@ namespace App\Libraries;
  */
 class Drafts
 {
-    public const STYLES = ['info' => '음슴체 정보', 'story' => '썰 헤드라인', 'quote' => '요약 + 한 줄 평', 'insight' => '장문 인사이트'];
+    public const STYLES = ['info' => '음슴체 정보', 'story' => '썰 헤드라인', 'quote' => '요약 + 한 줄 평', 'insight' => '장문 인사이트', 'orig' => '원문 정리'];
     /** Posting grids (KST): first slot, last possible slot, minutes between slots [min, max] (max > min: random per slot). */
     public const SLOT_TYPES = [
         'q15'  => ['label' => '09:05~22:00 15분', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 15]],
