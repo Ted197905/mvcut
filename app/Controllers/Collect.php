@@ -16,6 +16,8 @@ class Collect extends BaseController
     private const PER_PAGE  = 30;
     private const SORTS     = ['new' => 'i.id', 'views' => 'i.views', 'comments' => 'i.comments', 'likes' => 'i.likes'];
     public const COUNTRIES  = ['KR' => '한국', 'JP' => '일본', 'GLOBAL' => '글로벌', 'TH' => '태국', 'TW' => '대만', 'CN' => '중국'];
+    /** Daily X search sources (hallyuwire xsearch.py): posts past 1M views in the last 24 hours. */
+    public const X_SOURCES  = ['x_viral_kr', 'x_viral_kpop'];
 
     private function t(string $table): string
     {
@@ -84,14 +86,28 @@ class Collect extends BaseController
         $get = fn (string $k) => trim((string) $this->request->getGet($k));
         $f = ['src' => $get('src'), 'cc' => $get('cc'), 'q' => $get('q'), 'sort' => $get('sort'),
               'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1',
-              'scope' => in_array($get('scope'), ['issue', 'all'], true) ? $get('scope') : 'k'];   // k = K-entertainment, issue = popular boards whatever the topic
-        if (! isset(self::SORTS[$f['sort']])) $f['sort'] = 'new';
+              'scope' => in_array($get('scope'), ['issue', 'all', 'x'], true) ? $get('scope') : 'k',   // k = K-entertainment, issue = popular boards whatever the topic, x = X 1M+
+              'day' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $get('day')) ? $get('day') : ''];
+        if (! isset(self::SORTS[$f['sort']])) $f['sort'] = $f['scope'] === 'x' ? 'views' : 'new';
 
         $b = $db->table($this->t('items') . ' i')
             ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.issue, i.news, i.news_why, i.title_ko, i.used_at')
             ->where('i.deleted_at', null);
         if ($f['unused']) $b->where('i.used_at', null);
-        if ($f['scope'] === 'issue') {
+        $days = [];   // X 1M+: KST day of the daily run => posts
+        if ($f['scope'] === 'x') {
+            $b->whereIn('i.source_id', self::X_SOURCES);
+            foreach ($db->table($this->t('items'))->select('DATE(first_seen + INTERVAL 9 HOUR) AS d, COUNT(*) AS n', false)
+                    ->whereIn('source_id', self::X_SOURCES)->where('deleted_at', null)->groupBy('d')->orderBy('d', 'DESC')
+                    ->get(14)->getResultArray() as $r) {
+                $days[$r['d']] = (int) $r['n'];
+            }
+            if (! isset($days[$f['day']])) $f['day'] = (string) array_key_first($days);
+            if ($f['day'] !== '') {
+                $from = (new \DateTimeImmutable($f['day'], new \DateTimeZone('Asia/Seoul')))->getTimestamp();
+                $b->where('i.first_seen >=', gmdate('Y-m-d H:i:s', $from))->where('i.first_seen <', gmdate('Y-m-d H:i:s', $from + 86400));
+            }
+        } elseif ($f['scope'] === 'issue') {
             $b->where('i.issue', 1);   // the latest from the popular/issue boards, any topic
         } elseif ($f['scope'] === 'k' && ! $f['all']) {
             // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
@@ -135,6 +151,7 @@ class Collect extends BaseController
         return view('collect/index', [
             'title' => '수집', 'items' => $items, 'media' => $media, 'f' => $f, 'page' => $page, 'pages' => $pages,
             'matched' => $matched, 'sources' => $sources, 'counts' => $counts, 'names' => array_column($sources, 'name', 'id'),
+            'days' => $days,
             'cookies' => $this->cookieFiles(),
         ]);
     }

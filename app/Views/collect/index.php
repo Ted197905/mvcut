@@ -3,8 +3,9 @@
 <?php
 use App\Controllers\Collect;
 
+$defSort = $f['scope'] === 'x' ? 'views' : 'new';
 $qs = static fn (array $over) => site_url('collect?' . http_build_query(array_filter(array_merge(
-    ['src' => $f['src'], 'cc' => $f['cc'], 'q' => $f['q'], 'sort' => $f['sort'] === 'new' ? '' : $f['sort'],
+    ['src' => $f['src'], 'cc' => $f['cc'], 'q' => $f['q'], 'sort' => $f['sort'] === $defSort ? '' : $f['sort'], 'day' => $f['scope'] === 'x' ? $f['day'] : '',
      'all' => $f['all'] ? '1' : '', 'media' => $f['media'] ? '1' : '', 'unused' => $f['unused'] ? '1' : '',
      'scope' => $f['scope'] === 'k' ? '' : $f['scope']], $over), static fn ($v) => $v !== '' && $v !== null)));
 $num = static fn ($v) => $v === null ? '-' : number_format((int) $v);
@@ -23,7 +24,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
 <main class="yt-page cl-page">
   <?= view('partials/alerts') ?>
   <h1>수집</h1>
-  <p class="muted" style="margin:0 0 22px">hallyuwire가 국내외 커뮤니티에서 모은 글입니다. "한류"는 K-연예 관련 글 중 미디어가 있거나 소식을 전하는 글, "최신 이슈"는 인기/이슈 게시판의 글 전부(장르 무관)입니다.</p>
+  <p class="muted" style="margin:0 0 22px">hallyuwire가 국내외 커뮤니티에서 모은 글입니다. "한류"는 K-연예 관련 글 중 미디어가 있거나 소식을 전하는 글, "최신 이슈"는 인기/이슈 게시판의 글 전부(장르 무관), "X 100만+"는 매일 아침 6시 40분부터 X에서 찾은 최근 24시간 조회수 100만 이상 글(한국어 + 해외 K-연예)입니다.</p>
 
   <details class="import-panel cl-sources">
     <summary>소스 상태 <span class="muted"><?= count($sources) ?>개<?= $bad ? ' · 확인 필요 ' . $bad . '개' : ' · 모두 정상' ?></span></summary>
@@ -113,9 +114,11 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     <div class="seg" role="tablist">
       <a class="seg-item<?= $f['scope'] === 'k' ? ' on' : '' ?>" href="<?= $qs(['scope' => '', 'page' => null]) ?>">한류</a>
       <a class="seg-item<?= $f['scope'] === 'issue' ? ' on' : '' ?>" href="<?= $qs(['scope' => 'issue', 'page' => null]) ?>">최신 이슈</a>
+      <a class="seg-item<?= $f['scope'] === 'x' ? ' on' : '' ?>" href="<?= $qs(['scope' => 'x', 'page' => null, 'src' => '', 'day' => '', 'sort' => '']) ?>">X 100만+</a>
       <a class="seg-item<?= $f['scope'] === 'all' ? ' on' : '' ?>" href="<?= $qs(['scope' => 'all', 'page' => null]) ?>">전체</a>
     </div>
     <?php if ($f['scope'] !== 'k'): ?><input type="hidden" name="scope" value="<?= esc($f['scope'], 'attr') ?>"><?php endif ?>
+    <?php if ($f['scope'] === 'x' && $f['day'] !== ''): ?><input type="hidden" name="day" value="<?= esc($f['day'], 'attr') ?>"><?php endif ?>
     <input class="input search" type="search" name="q" value="<?= esc($f['q']) ?>" placeholder="제목 · 그룹/인물 검색" autocomplete="off">
     <select class="input" name="src" onchange="this.form.submit()">
       <option value="">모든 소스</option>
@@ -138,10 +141,19 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     <?php if ($f['scope'] === 'k'): ?><label class="cl-check"><input type="checkbox" name="all" value="1"<?= $f['all'] ? ' checked' : '' ?> onchange="this.form.submit()"> 숨긴 글 포함</label><?php endif ?>
     <label class="cl-check"><input type="checkbox" name="unused" value="1"<?= $f['unused'] ? ' checked' : '' ?> onchange="this.form.submit()"> 사용한 글 제외</label>
     <button class="btn secondary sm" type="submit">검색</button>
-    <?php if ($f['q'] !== '' || $f['src'] !== '' || $f['cc'] !== '' || $f['all'] || $f['media'] || $f['unused'] || $f['scope'] !== 'k' || $f['sort'] !== 'new'): ?><a class="btn ghost sm" href="<?= site_url('collect') ?>">초기화</a><?php endif ?>
+    <?php if ($f['q'] !== '' || $f['src'] !== '' || $f['cc'] !== '' || $f['all'] || $f['media'] || $f['unused'] || $f['scope'] !== 'k' || $f['sort'] !== $defSort): ?><a class="btn ghost sm" href="<?= site_url('collect') ?>">초기화</a><?php endif ?>
     <span class="spacer"></span>
     <span class="muted small"><?= number_format($matched) ?>개</span>
   </form>
+
+  <?php if ($f['scope'] === 'x'): ?>
+    <nav class="pager cl-days" aria-label="날짜">
+      <?php foreach ($days as $d => $n): $t = strtotime($d); ?>
+        <a class="pg<?= $d === $f['day'] ? ' on' : '' ?>" href="<?= $qs(['day' => $d, 'page' => null]) ?>"><?= date('n/j', $t) ?> <?= ['일', '월', '화', '수', '목', '금', '토'][(int) date('w', $t)] ?> <span class="muted"><?= $n ?></span></a>
+      <?php endforeach ?>
+      <?php if ($days === []): ?><span class="muted small">아직 수집한 글이 없습니다. 매일 06:40에 시작해 7시 40분 전후에 끝납니다.</span><?php endif ?>
+    </nav>
+  <?php endif ?>
 
   <?php if ($items === []): ?>
     <div class="empty">조건에 맞는 글이 없습니다.</div>
@@ -169,7 +181,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <span class="badge"><?= esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
             <?php if ((int) $it['breaking']): ?><span class="badge hot">속보 후보</span><?php endif ?>
             <?php if ($it['used_at']): ?><span class="badge used" title="<?= esc(Collect::when($it['used_at']), 'attr') ?>">사용함</span><?php endif ?>
-            <?php if ($f['scope'] !== 'issue'): ?><?php if (! (int) $it['relevant']): ?><span class="badge off">관련 없음</span><?php elseif ($it['news'] !== null && ! (int) $it['news']): ?><span class="badge off" title="<?= esc((string) $it['news_why'], 'attr') ?>">뉴스 아님</span><?php endif ?><?php elseif ((int) $it['relevant']): ?><span class="badge off">한류</span><?php endif ?>
+            <?php if (! in_array($f['scope'], ['issue', 'x'], true)): ?><?php if (! (int) $it['relevant']): ?><span class="badge off">관련 없음</span><?php elseif ($it['news'] !== null && ! (int) $it['news']): ?><span class="badge off" title="<?= esc((string) $it['news_why'], 'attr') ?>">뉴스 아님</span><?php endif ?><?php elseif ((int) $it['relevant']): ?><span class="badge off">한류</span><?php endif ?>
             <?php if ($files || ($m['embeds'] ?? 0)): ?>
               <span class="dur"><?= $m['vids'] ? '영상 ' . (int) $m['vids'] . ' ' : '' ?><?= $m['imgs'] ? '사진 ' . (int) $m['imgs'] . ' ' : '' ?><?= $m['embeds'] ? 'YT ' . (int) $m['embeds'] : '' ?></span>
             <?php endif ?>
