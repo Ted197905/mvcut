@@ -88,7 +88,7 @@ class Collect extends BaseController
               'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1',
               'scope' => in_array($get('scope'), ['issue', 'all', 'x'], true) ? $get('scope') : 'k',   // k = K-entertainment, issue = popular boards whatever the topic, x = X 1M+
               'day' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $get('day')) ? $get('day') : ''];
-        if (! isset(self::SORTS[$f['sort']])) $f['sort'] = $f['scope'] === 'x' ? 'views' : 'new';
+        if (! isset(self::SORTS[$f['sort']])) $f['sort'] = $f['scope'] === 'x' ? 'likes' : 'new';   // X 1M+: most liked first
 
         $b = $db->table($this->t('items') . ' i')
             ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.issue, i.news, i.news_why, i.title_ko, i.used_at')

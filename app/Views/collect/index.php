@@ -3,7 +3,7 @@
 <?php
 use App\Controllers\Collect;
 
-$defSort = $f['scope'] === 'x' ? 'views' : 'new';
+$defSort = $f['scope'] === 'x' ? 'likes' : 'new';
 $qs = static fn (array $over) => site_url('collect?' . http_build_query(array_filter(array_merge(
     ['src' => $f['src'], 'cc' => $f['cc'], 'q' => $f['q'], 'sort' => $f['sort'] === $defSort ? '' : $f['sort'], 'day' => $f['scope'] === 'x' ? $f['day'] : '',
      'all' => $f['all'] ? '1' : '', 'media' => $f['media'] ? '1' : '', 'unused' => $f['unused'] ? '1' : '',
@@ -133,7 +133,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
       <?php endforeach ?>
     </select>
     <select class="input" name="sort" onchange="this.form.submit()">
-      <?php foreach (['new' => '최신순', 'views' => '조회순', 'comments' => '댓글순', 'likes' => '추천순'] as $k => $v): ?>
+      <?php foreach (['new' => '최신순', 'views' => '조회순', 'comments' => '댓글순', 'likes' => $f['scope'] === 'x' ? '좋아요순' : '추천순'] as $k => $v): ?>
         <option value="<?= $k ?>"<?= $f['sort'] === $k ? ' selected' : '' ?>><?= $v ?></option>
       <?php endforeach ?>
     </select>
@@ -163,7 +163,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
         $m = $media[$it['id']] ?? null;
         $files = $m ? (int) $m['imgs'] + (int) $m['vids'] : 0;
         $stat = array_filter(['조회 ' . $num($it['views']) => $it['views'] !== null, '댓글 ' . $num($it['comments']) => $it['comments'] !== null,
-                              '추천 ' . $num($it['likes']) => $it['likes'] !== null, $num($it['rank_pos']) . '위' => $it['rank_pos'] !== null]);
+                              (in_array($it['source_id'], Collect::X_SOURCES, true) ? '좋아요 ' : '추천 ') . $num($it['likes']) => $it['likes'] !== null, $num($it['rank_pos']) . '위' => $it['rank_pos'] !== null]);
         // X 1M+ posts: the thumbnail opens the post here, the title goes straight to X
         $isX = in_array($it['source_id'], Collect::X_SOURCES, true);
         $detail = site_url('collect/' . $it['id']);
