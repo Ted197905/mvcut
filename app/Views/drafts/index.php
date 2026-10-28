@@ -137,6 +137,8 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <div class="dr-modal-body"></div>
 </div>
 <script>
+// phones and tablets have no extension: review and approve here, X scheduling happens from the PC's Chrome
+const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));
 (() => {
   // semi-automatic scheduling: X's composer filled with the draft (Send to X); the time is set by hand
   const fill = async (id) => {
@@ -149,6 +151,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
       window.postMessage({ source: 'mvcut', type: 'send-to-x', url: '', text: j.text, files: j.files, note: j.note, at: j.ts }, location.origin);
     } catch (e) { alert('X 작성창 채우기 실패: ' + e.message); }
   };
+  if (drMobile && document.documentElement.dataset.mvcutX !== '1') {
+    document.querySelectorAll('.dr-fill').forEach((b) => { b.hidden = true; });
+    return;
+  }
   document.addEventListener('click', (e) => { const b = e.target.closest('.dr-fill'); if (b) fill(b.dataset.id); });
   const auto = <?= json_encode((int) (session()->getFlashdata('fill') ?? 0)) ?>;
   if (auto) setTimeout(() => fill(auto), 600);
@@ -159,6 +165,14 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     const v = document.documentElement.dataset.mvcutXVersion || '', box = document.querySelector('.dr-ext');
     const old = !v || v.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0) < 10805;
     if (!old) return;
+    if (drMobile && !v) {
+      box.className = 'muted small dr-ext dr-ext-mobile';
+      box.textContent = <?= json_encode($mode === 'auto'
+          ? '모바일: 검토, 수정, 승인은 여기서 하면 됩니다. X 예약 등록은 MV Cut 확장이 설치된 PC 크롬이 켜져 있을 때 확장이 10분에 1건씩 합니다.'
+          : '모바일: 검토, 수정, 승인은 여기서 하면 됩니다. X 예약 등록은 PC 크롬에서 승인한 카드의 "X 작성창 채우기"를 누르고 "예약하기"만 누르면 됩니다.', JSON_UNESCAPED_UNICODE) ?>;
+      box.hidden = false;
+      return;
+    }
     box.textContent = (v ? 'MV Cut 확장 ' + v + '는' : '이 브라우저에 MV Cut 확장이 없거나 오래된 버전이라') + ' 승인한 초안을 X 예약으로 등록하지 못합니다. '
       + 'chrome://extensions 에서 MV Cut 확장을 새로고침(1.8.5 이상)하세요. 확장은 x.com에 감시 계정으로 로그인된 크롬에서 2분마다 등록합니다.';
     box.hidden = false;
