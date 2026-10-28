@@ -764,3 +764,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .pager.cl-days { justify-content: flex-start; margin: 0 0 16px; }
 .cl-days .pg .muted { margin-left: 5px; font-size: 12px; }
 .cl-days .pg.on .muted { color: rgba(255,255,255,.8); }
+.cl-thumb-link { display: block; color: inherit; }
+.cl-thumb-link:hover { text-decoration: none; }
+.card a.cl-xlink { color: inherit; }
+.card a.cl-xlink:hover { color: var(--blue); text-decoration: underline; }

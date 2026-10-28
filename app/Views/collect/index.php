@@ -164,8 +164,12 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
         $files = $m ? (int) $m['imgs'] + (int) $m['vids'] : 0;
         $stat = array_filter(['조회 ' . $num($it['views']) => $it['views'] !== null, '댓글 ' . $num($it['comments']) => $it['comments'] !== null,
                               '추천 ' . $num($it['likes']) => $it['likes'] !== null, $num($it['rank_pos']) . '위' => $it['rank_pos'] !== null]);
+        // X 1M+ posts: the thumbnail opens the post here, the title goes straight to X
+        $isX = in_array($it['source_id'], Collect::X_SOURCES, true);
+        $detail = site_url('collect/' . $it['id']);
       ?>
-        <a class="card<?= $it['used_at'] ? ' used' : '' ?>" href="<?= site_url('collect/' . $it['id']) ?>" data-id="<?= (int) $it['id'] ?>">
+        <<?= $isX ? 'div' : 'a href="' . $detail . '"' ?> class="card<?= $it['used_at'] ? ' used' : '' ?>" data-id="<?= (int) $it['id'] ?>">
+          <?php if ($isX): ?><a class="cl-thumb-link" href="<?= $detail ?>"><?php endif ?>
           <div class="thumb">
             <span class="cl-acts">
               <button class="cl-act use" type="button" title="사용한 글 표시/해제" aria-label="사용한 글 표시/해제">&#10003;</button>
@@ -186,12 +190,17 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
               <span class="dur"><?= $m['vids'] ? '영상 ' . (int) $m['vids'] . ' ' : '' ?><?= $m['imgs'] ? '사진 ' . (int) $m['imgs'] . ' ' : '' ?><?= $m['embeds'] ? 'YT ' . (int) $m['embeds'] : '' ?></span>
             <?php endif ?>
           </div>
+          <?php if ($isX): ?></a><?php endif ?>
           <div class="body">
-            <div class="title"><?= esc($it['title_ko'] ?: $it['title']) ?></div>
+            <?php if ($isX): ?>
+              <a class="title cl-xlink" href="<?= esc($it['url'], 'attr') ?>" target="_blank" rel="noopener noreferrer" title="X에서 열기"><?= esc($it['title_ko'] ?: $it['title']) ?></a>
+            <?php else: ?>
+              <div class="title"><?= esc($it['title_ko'] ?: $it['title']) ?></div>
+            <?php endif ?>
             <div class="meta"><?= esc($names[$it['source_id']] ?? $it['source_id']) ?> · <?= esc(Collect::when($it['posted_at'] ?: $it['first_seen'])) ?><?= $stat ? ' · ' . esc(implode(' · ', array_keys($stat))) : '' ?></div>
             <?php if ($it['entities']): ?><div class="meta cl-ents"><?= esc($it['entities']) ?></div><?php endif ?>
           </div>
-        </a>
+        </<?= $isX ? 'div' : 'a' ?>>
       <?php endforeach ?>
     </div>
     <?php if ($pages > 1): ?>
