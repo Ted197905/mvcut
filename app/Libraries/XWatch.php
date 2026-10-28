@@ -240,7 +240,10 @@ class XWatch
             ->get()->getResultArray();
         foreach ($due as $w) {
             $uid  = (int) $w['user_id'];
-            $hold = self::restricted($uid);
+            // restricted mode lasts from the confirmed alert until a check says clear (stored, so it survives
+            // worker restarts and episodes longer than the look-back)
+            $was  = ! empty($w['restricted_at']);
+            $hold = $was || self::restricted($uid);
             // push the next run first so a crash inside the check cannot make it loop
             self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $hold ? self::nextHour() : self::nextSlot())]);
             // a fresh restriction verdict: the checkers that have not looked yet go first, 10 minutes apart
@@ -249,7 +252,7 @@ class XWatch
             $c = self::check($w, $src);
             $log("xwatch @{$w['handle']}: {$c['status']} {$c['summary']}" . ($hold ? ' (restricted mode)' : ($src ? ' (cross-check)' : '')));
             // the first restricted verdict of an episode is reported at once, the cross-check follows
-            $now = self::restricted($uid);
+            $now = self::restricted($uid) || ($was && $c['status'] !== 'ok');
             if ($c['status'] === 'banned' && ! $hold && ! $now && Telegram::ready($uid)) {
                 $v = self::verification($uid);
                 $alerted = $w['alerted_at'] ? strtotime($w['alerted_at'] . ' UTC') : 0;
@@ -259,12 +262,15 @@ class XWatch
                     $log('xwatch telegram (suspected): ' . ($err ?? 'sent'));
                 }
             }
-            // entering or leaving restricted mode changes the schedule right away
-            if ($now !== $hold) {
-                self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot())]);
+            // entering or leaving restricted mode, against the stored state (x_watch.restricted_at)
+            if ($now !== $was || $now !== $hold) {
+                self::update($uid, ['next_check_at' => gmdate('Y-m-d H:i:s', $now ? self::nextHour() : self::nextSlot()),
+                                    'restricted_at' => $now ? ($w['restricted_at'] ?: gmdate('Y-m-d H:i:s')) : null]);
+            }
+            if ($now !== $was) {
                 $log("xwatch @{$w['handle']}: " . ($now ? 'restriction confirmed by every checker, hourly probe checks until it clears' : 'restriction cleared, back to the 10-minute rotation'));
                 if (Telegram::ready($uid)) {
-                    $err = Telegram::send($uid, self::alertText($w, $c, $now));
+                    $err = Telegram::send($uid, self::alertText($w, $c, $now, $was ? strtotime($w['restricted_at'] . ' UTC') : null));
                     $log('xwatch telegram: ' . ($err ?? 'sent'));
                 }
             }
@@ -306,8 +312,8 @@ class XWatch
     public static function verification(int $userId): ?array
     {
         $rows = self::db()->table('x_checks')->select('status, result, checked_at')->where('user_id', $userId)
-            ->where('checked_at >=', gmdate('Y-m-d H:i:s', time() - 3 * 86400))
-            ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(500)->get()->getResultArray();
+            ->where('checked_at >=', gmdate('Y-m-d H:i:s', time() - 30 * 86400))   // the whole kept log: with 3 days a long episode
+            ->orderBy('checked_at', 'DESC')->orderBy('id', 'DESC')->limit(3000)->get()->getResultArray();   // lost its first verdicts and ended unnoticed
         $episode = [];
         foreach ($rows as $r) {
             $src = json_decode((string) $r['result'], true)['source'] ?? 'probe';
@@ -349,7 +355,7 @@ class XWatch
     }
 
     /** Telegram text for entering ($restricted) or leaving restricted mode. */
-    public static function alertText(array $w, array $c, bool $restricted): string
+    public static function alertText(array $w, array $c, bool $restricted, ?int $since = null): string
     {
         helper('url');   // the worker runs from the CLI
         $src = self::SOURCES[json_decode((string) $c['result'], true)['source'] ?? 'probe'] ?? '';
@@ -363,7 +369,9 @@ class XWatch
                  . '제한 발견 일시: ' . self::kst($start, $fmt) . "\n"
                  . "풀릴 때까지 1시간마다 부계정으로 검사합니다.\n" . site_url('xwatch/checks');
         }
-        $start = self::restrictionStart((int) $w['user_id'], $now);
+        // the episode's first verdict: before the alert of restricted mode ($since) when that is earlier
+        $first = $since ? self::restrictionStart((int) $w['user_id'], $since) : null;
+        $start = $first ?? $since ?? self::restrictionStart((int) $w['user_id'], $now);
         $lines = "[제한 풀림] @{$w['handle']}\n{$c['summary']} ({$src})\n";
         if ($start) {
             $lines .= '시작 일시: ' . self::kst($start, $fmt) . "\n"
@@ -725,7 +733,7 @@ class XWatch
             'check'    => $c ? ['id' => (int) $c['id'], 'status' => $c['status'], 'summary' => $c['summary'], 'at' => $c['ts'],
                                'tests' => array_map(static fn ($k) => $c['result'][$k]['ban'] ?? null, array_combine(array_keys(self::TESTS), array_keys(self::TESTS)))] : null,
             'next_check' => $watch['next_check_at'] ? strtotime($watch['next_check_at'] . ' UTC') : null,
-            'restricted' => self::restricted((int) $watch['user_id']),
+            'restricted' => ! empty($watch['restricted_at']) || self::restricted((int) $watch['user_id']),
             'timeline' => $tl,
             'scheduled' => self::scheduled($watch, $tl['last'] ?: null),
             'now'      => time(),
