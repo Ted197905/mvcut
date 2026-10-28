@@ -80,6 +80,14 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
         <a class="dr-title" href="<?= site_url('collect/' . (int) $d['item_id']) ?>" target="_blank" rel="noopener"><?= esc($d['title_ko'] ?: $d['title']) ?></a>
         <div class="meta"><?= esc($names[$d['source_id']] ?? $d['source_id']) ?> · <?= esc(Collect::when($d['posted_at'] ?: $d['first_seen'])) ?><?= $stat ? ' · ' . esc(implode(' · ', array_keys($stat))) : '' ?> · <a href="<?= esc($d['url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">원문</a></div>
         <?php if ($d['error']): ?><div class="dr-err"><?= esc($d['error']) ?></div><?php endif ?>
+        <?php $rs = json_decode((string) ($d['research'] ?? ''), true) ?: []; if (array_filter($rs)): ?>
+          <details class="dr-rs"><summary>조사 메모</summary>
+            <?php if (! empty($rs['meaning'])): ?><p><b>글의 뜻</b> <?= esc($rs['meaning']) ?></p><?php endif ?>
+            <?php if (! empty($rs['image_text'])): ?><p><b>사진 속 글자</b><br><?= nl2br(esc($rs['image_text'])) ?></p><?php endif ?>
+            <?php if (! empty($rs['image_desc'])): ?><p><b>사진 내용</b> <?= esc($rs['image_desc']) ?></p><?php endif ?>
+            <?php foreach ($rs['background'] ?? [] as $b): ?><p><b>위키백과 <?= esc($b['title']) ?></b> <?= esc($b['text']) ?></p><?php endforeach ?>
+          </details>
+        <?php endif ?>
         <?php if ($d['files']): ?>
           <div class="dr-media">
             <?php foreach ($d['files'] as $m): ?>

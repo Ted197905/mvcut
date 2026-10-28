@@ -716,6 +716,10 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-src-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .dr-title { display: block; font-weight: 600; font-size: 15px; line-height: 1.4; color: var(--label); margin-bottom: 4px; overflow-wrap: anywhere; }
 .dr-err { color: var(--red); font-size: 13px; margin-top: 6px; }
+.dr-rs { font-size: 13px; color: var(--label2); margin-top: 8px; }
+.dr-rs summary { cursor: pointer; color: var(--blue); }
+.dr-rs p { margin: 6px 0 0; line-height: 1.5; }
+.dr-rs b { color: var(--label); font-weight: 600; }
 .dr-media { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .dr-m { position: relative; width: 168px; height: 168px; border-radius: 10px; overflow: hidden; background: var(--fill3); opacity: .5; }
 .dr-m.on, .dr-m:has(input:checked) { opacity: 1; box-shadow: 0 0 0 3px var(--blue); }
