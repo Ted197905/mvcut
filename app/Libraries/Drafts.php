@@ -16,7 +16,7 @@ class Drafts
     public const SLOT_TYPES = [
         'q15'  => ['label' => '09:05~22:00 15분', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 15]],
         'q20'  => ['label' => '10:00~22:00 20분', 'from' => '10:00', 'to' => '22:00', 'step' => [20, 20]],
-        'rand' => ['label' => '09:05~22:00 15~25분 랜덤', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 25]],
+        'rand' => ['label' => '09:05~22:00 15~30분 랜덤', 'from' => '09:05', 'to' => '22:00', 'step' => [15, 30]],
     ];
     public const SLOT_STEP = 15;      // minutes: the least gap kept to anything taken
     public const LEAD_MIN  = 12;      // a slot must be at least this far ahead (the extension polls every 2 minutes)
@@ -108,8 +108,9 @@ class Drafts
     }
 
     /**
-     * Unix timestamps of the posting grid (SLOT_TYPES[$type]) for `days` days from today. Random steps
-     * come from a hash of the date and slot number, so a day's grid stays the same on every call.
+     * Unix timestamps of the posting grid (SLOT_TYPES[$type]) for `days` days from today. A random grid
+     * is seeded with the date, so a day's grid stays the same on every call: the first slot 0-10 min after
+     * `from`, then steps in [min, max] where two steps in a row differ by 4+ minutes (21, 21 looked fixed).
      */
     public static function grid(int $days = 3, string $type = 'q15'): array
     {
@@ -121,11 +122,25 @@ class Drafts
         for ($i = 0; $i < $days; $i++) {
             $t    = $day->modify($g['from']);
             $last = $day->modify($g['to']);
-            for ($n = 0; $t <= $last; $n++) {
+            $rand = $hi > $lo;
+            if ($rand) {
+                mt_srand(crc32('mvcut-slots-' . $day->format('Y-m-d')));
+                $t = $t->modify('+' . mt_rand(0, 10) . ' minutes');
+            }
+            $prev = 0;
+            while ($t <= $last) {
                 $out[] = $t->getTimestamp();
-                $step = $lo + ($hi > $lo ? crc32($day->format('Y-m-d') . '#' . $n) % ($hi - $lo + 1) : 0);
+                $step = $lo;
+                if ($rand) {
+                    for ($k = 0; $k < 6; $k++) {
+                        $step = mt_rand($lo, $hi);
+                        if (abs($step - $prev) >= 4) break;
+                    }
+                }
+                $prev = $step;
                 $t = $t->modify('+' . $step . ' minutes');
             }
+            if ($rand) mt_srand();   // back to a random seed for everything else
             $day = $day->modify('+1 day');
         }
         return $out;
