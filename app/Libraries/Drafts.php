@@ -11,7 +11,7 @@ namespace App\Libraries;
  */
 class Drafts
 {
-    public const STYLES = ['info' => '음슴체 정보', 'story' => '썰 헤드라인', 'quote' => '요약 + 한 줄 평'];
+    public const STYLES = ['info' => '음슴체 정보', 'story' => '썰 헤드라인', 'quote' => '요약 + 한 줄 평', 'insight' => '장문 인사이트'];
     public const SLOT_FROM = '09:05';
     public const SLOT_TO   = '22:00';
     public const SLOT_STEP = 15;      // minutes
