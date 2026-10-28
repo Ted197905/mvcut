@@ -116,6 +116,12 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/delete', 'Collect::delete/$1');
     });
 
+    $routes->group('ops', ['filter' => 'admin'], static function (RouteCollection $routes) {
+        $routes->get('status', 'Ops::status');
+        $routes->post('switch', 'Ops::switch');
+        $routes->post('unload', 'Ops::unload');
+    });
+
     $routes->group('drafts', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Drafts::index');
         $routes->get('status', 'Drafts::status');

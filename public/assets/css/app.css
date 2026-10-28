@@ -768,3 +768,27 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .cl-thumb-link:hover { text-decoration: none; }
 .card a.cl-xlink { color: inherit; }
 .card a.cl-xlink:hover { color: var(--blue); text-decoration: underline; }
+
+/* ---------- admin status bar: automatic work (partials/opsbar.php) ---------- */
+body.has-ops { padding-bottom: 46px; }
+.ops-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; background: var(--bg-elev); border-top: 0.5px solid var(--separator); box-shadow: 0 -4px 16px rgba(0,0,0,.06); font-size: 12.5px; }
+.ops-line { display: flex; align-items: center; gap: 10px; padding: 7px 14px; min-height: 40px; }
+.ops-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--label3); flex: 0 0 9px; }
+.ops-dot.on { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.ops-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.ops-chips::-webkit-scrollbar { display: none; }
+.ops-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px 3px 10px; border-radius: 8px; background: var(--fill3); max-width: 460px; overflow: hidden; text-overflow: ellipsis; }
+.ops-chip.hot { background: color-mix(in srgb, var(--blue) 14%, transparent); }
+.ops-chip.gpu { background: color-mix(in srgb, #af52de 14%, transparent); }
+.ops-chip.off { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); padding-right: 10px; }
+.ops-chip button { border: 0; background: rgba(0,0,0,.08); color: inherit; width: 20px; height: 20px; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 20px; padding: 0; flex: 0 0 20px; }
+.ops-chip button:hover { background: var(--red); color: #fff; }
+.ops-more { border: 0; background: var(--fill2); border-radius: 8px; padding: 5px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+.ops-panel { border-top: 0.5px solid var(--separator); padding: 10px 14px 12px; max-height: 50vh; overflow-y: auto; }
+.ops-grid { display: grid; gap: 4px; }
+.ops-row { display: grid; grid-template-columns: 20px 44px 110px minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; align-items: center; padding: 5px 4px; border-radius: 8px; cursor: pointer; }
+.ops-row:hover { background: var(--fill3); }
+.ops-row.is-off { opacity: .55; }
+.ops-g { color: var(--label2); }
+.ops-st { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .ops-row { grid-template-columns: 20px 90px minmax(0, 1fr); } .ops-row .ops-g, .ops-row > .muted { display: none; } }

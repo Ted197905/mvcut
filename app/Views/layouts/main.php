@@ -36,6 +36,7 @@
 </div></nav>
 <?= $this->renderSection('content') ?>
 <script src="<?= asset_url('assets/js/app.js') ?>"></script>
+<?php if (session()->get('role') === 'admin'): ?><?= view('partials/opsbar') ?><?php endif ?>
 <?= $this->renderSection('scripts') ?>
 </body>
 </html>
