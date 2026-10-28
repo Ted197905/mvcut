@@ -760,6 +760,7 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-mode { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: -6px 0 14px; }
 .dr-mode .seg-item { border: 0; background: transparent; font: inherit; font-size: 13px; cursor: pointer; }
 .dr-mode .seg { flex-wrap: wrap; max-width: 100%; }
+.dr-mode .seg-item.on { background: var(--blue); color: #fff; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .dr-ext-mobile { margin: 0 0 14px; }
 
 /* collect: X 1M+ day picker */
