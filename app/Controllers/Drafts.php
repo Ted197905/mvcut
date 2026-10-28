@@ -159,6 +159,55 @@ class Drafts extends BaseController
         return $this->back($id)->with('flash', '승인을 취소했습니다.');
     }
 
+    /**
+     * POST /drafts/{id}/photos  photo[] - photos added by hand: stored as media rows of the post
+     * (hallyuwire media dir, manual/YYYY/MM/<sha1>.<ext>) and chosen for the draft while it has room
+     * (4 photos, no video). JSON for the page, a redirect otherwise.
+     */
+    public function photos(int $id)
+    {
+        $d = $this->draft($id);
+        if (! in_array($d['status'], ['new', 'error', 'failed', 'rejected', 'skipped'], true)) return $this->answer($id, '지금 상태에서는 사진을 추가할 수 없습니다.');
+        $types = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $root  = rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/');
+        $db    = db_connect();
+        $chosen = array_map('intval', json_decode((string) ($d['media'] ?? '[]'), true) ?: []);
+        $kinds  = array_column(D::media($d), 'kind', 'id');
+        $added  = [];
+        foreach ($this->request->getFileMultiple('photo') ?? [] as $f) {
+            if (! $f->isValid()) return $this->answer($id, '업로드 실패: ' . $f->getErrorString());
+            $info = @getimagesize($f->getTempName());
+            $mime = $info['mime'] ?? '';
+            if (! isset($types[$mime])) return $this->answer($id, '사진 파일(JPG, PNG, WEBP, GIF)만 넣을 수 있습니다: ' . $f->getClientName());
+            if ($f->getSize() > 5 * 1024 * 1024) return $this->answer($id, 'X 사진은 5MB까지입니다: ' . $f->getClientName());
+            $sha = sha1_file($f->getTempName());
+            $old = $db->table(D::t('media'))->select('id')->where('item_id', (int) $d['item_id'])->where('sha1', $sha)->get()->getRowArray();
+            if ($old) {
+                $mid = (int) $old['id'];
+            } else {
+                $rel = 'manual/' . gmdate('Y/m') . '/' . $sha . '.' . $types[$mime];
+                if (! is_dir(dirname($root . '/' . $rel)) && ! @mkdir(dirname($root . '/' . $rel), 02775, true)) return $this->answer($id, '저장 폴더를 만들 수 없습니다.');
+                if (! @copy($f->getTempName(), $root . '/' . $rel)) return $this->answer($id, '파일을 저장할 수 없습니다.');
+                @chmod($root . '/' . $rel, 0664);
+                $now = gmdate('Y-m-d H:i:s');
+                $db->table(D::t('media'))->insert(['item_id' => (int) $d['item_id'], 'kind' => 'image', 'src_url' => 'manual:' . $f->getClientName(),
+                    'src_hash' => $sha, 'status' => 'done', 'path' => $rel, 'bytes' => $f->getSize(), 'mime' => $mime, 'sha1' => $sha,
+                    'width' => $info[0] ?? null, 'height' => $info[1] ?? null, 'created_at' => $now, 'done_at' => $now]);
+                $mid = (int) $db->insertID();
+                $kinds[$mid] = 'image';
+            }
+            $imgs = array_filter($chosen, static fn ($c) => ($kinds[$c] ?? '') === 'image');
+            $vid  = array_filter($chosen, static fn ($c) => ($kinds[$c] ?? '') === 'video');
+            $on   = in_array($mid, $chosen, true) || (! $vid && count($imgs) < 4);
+            if ($on && ! in_array($mid, $chosen, true)) $chosen[] = $mid;
+            $added[] = ['id' => $mid, 'chosen' => $on, 'url' => site_url('collect/media/' . $mid)];
+        }
+        if ($added === []) return $this->answer($id, '사진을 골라 주세요.');
+        D::update($id, ['media' => json_encode(array_values($chosen))]);
+        if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => true, 'items' => $added]);
+        return $this->back($id)->with('flash', '사진 ' . count($added) . '장을 추가했습니다.');
+    }
+
     /** POST /drafts/{id}/reject */
     public function reject(int $id)
     {

@@ -727,6 +727,10 @@ main.lib-layout .grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1
 .dr-m.on, .dr-m:has(input:checked) { opacity: 1; box-shadow: 0 0 0 3px var(--blue); }
 .dr-m input { position: absolute; left: 6px; top: 6px; z-index: 2; margin: 0; width: 20px; height: 20px; cursor: pointer; }
 .dr-m a { display: block; width: 100%; height: 100%; }
+.dr-add { width: 168px; height: 168px; border-radius: 10px; border: 2px dashed var(--sep, #ccc); display: flex; align-items: center; justify-content: center; color: var(--blue); font-size: 14px; cursor: pointer; }
+.dr-add:hover, .dr-media.drop .dr-add { background: var(--blue-tint); border-color: var(--blue); }
+.dr-add.busy { opacity: .5; pointer-events: none; }
+.dr-add.busy span::after { content: ' 올리는 중...'; }
 .dr-m img, .dr-m video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
 .dr-m .dr-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 34px; text-shadow: 0 2px 8px rgba(0,0,0,.6); pointer-events: none; }
 @media (max-width: 760px) { .dr-m { width: calc(50% - 3px); height: auto; aspect-ratio: 1; } }

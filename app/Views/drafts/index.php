@@ -88,8 +88,8 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <?php foreach ($rs['background'] ?? [] as $b): ?><p><b>위키백과 <?= esc($b['title']) ?></b> <?= esc($b['text']) ?></p><?php endforeach ?>
           </details>
         <?php endif ?>
-        <?php if ($d['files']): ?>
-          <div class="dr-media">
+        <?php if ($d['files'] || $editable): ?>
+          <div class="dr-media" data-id="<?= (int) $d['id'] ?>">
             <?php foreach ($d['files'] as $m): ?>
               <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 크게 보기', 'attr') ?>">
                 <input type="checkbox" name="media[]" value="<?= (int) $m['id'] ?>" form="f<?= (int) $d['id'] ?>" title="게시물에 넣기"<?= $m['chosen'] ? ' checked' : '' ?><?= $editable ? '' : ' disabled' ?>>
@@ -99,6 +99,12 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
                 </a>
               </div>
             <?php endforeach ?>
+            <?php if ($editable): ?>
+              <label class="dr-add" title="사진 추가 (여기로 끌어 놓아도 됩니다, 5MB까지)">
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+                <span>+ 사진</span>
+              </label>
+            <?php endif ?>
           </div>
         <?php endif ?>
       </div>
@@ -208,6 +214,7 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       b.textContent = j.label; b.className = 'ck-badge ' + (kind === 'approve' ? 'warn' : 'bad');
       f.querySelectorAll('textarea').forEach((t) => { t.readOnly = true; });
       card.querySelectorAll('.dr-m input').forEach((i) => { i.disabled = true; });
+      card.querySelectorAll('.dr-add').forEach((x) => x.remove());
       acts.innerHTML = '<span class="muted small"></span>';
       acts.firstChild.textContent = kind === 'approve' ? j.msg : '제외했습니다. 새로고침하면 목록에서 빠집니다.';
       if (j.fill && window.drFill && !drMobile) window.drFill(j.fill);
@@ -215,6 +222,44 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       acts.querySelectorAll('button, select').forEach((b) => { b.disabled = false; });
       alert((kind === 'approve' ? '승인' : '제외') + ' 실패: ' + err.message);
     }
+  });
+})();
+(() => {
+  // photos added by hand: picked with "+ 사진" or dropped on the photo row; added ones are chosen while there is room
+  const upload = async (box, files) => {
+    const imgs = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (!imgs.length) return;
+    const id = box.dataset.id, add = box.querySelector('.dr-add'), c = MV.csrf(), fd = new FormData();
+    imgs.forEach((f) => fd.append('photo[]', f));
+    if (c) fd.append(c.name, c.hash);
+    add.classList.add('busy');
+    try {
+      const r = await fetch('<?= site_url('drafts') ?>/' + id + '/photos', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json().catch(() => ({ ok: false, error: MV.httpError(r.status) }));
+      if (!j.ok) throw new Error(j.error);
+      for (const it of j.items) {
+        if (box.querySelector('input[value="' + it.id + '"]')) continue;
+        const el = document.createElement('div');
+        el.className = 'dr-m' + (it.chosen ? ' on' : '');
+        el.innerHTML = '<input type="checkbox" name="media[]" title="게시물에 넣기"><a class="dr-view" data-kind="image"><img alt=""></a>';
+        const cb = el.querySelector('input');
+        cb.value = it.id; cb.setAttribute('form', 'f' + id); cb.checked = it.chosen;
+        el.querySelector('a').href = it.url; el.querySelector('img').src = it.url;
+        box.insertBefore(el, add);
+      }
+    } catch (e) { alert('사진 추가 실패: ' + e.message); }
+    add.classList.remove('busy');
+  };
+  document.addEventListener('change', (e) => {
+    const inp = e.target.closest('.dr-add input[type=file]');
+    if (inp) { upload(inp.closest('.dr-media'), inp.files); inp.value = ''; }
+  });
+  document.addEventListener('dragover', (e) => { const box = e.target.closest('.dr-media'); if (box && box.querySelector('.dr-add')) { e.preventDefault(); box.classList.add('drop'); } });
+  document.addEventListener('dragleave', (e) => { const box = e.target.closest('.dr-media'); if (box) box.classList.remove('drop'); });
+  document.addEventListener('drop', (e) => {
+    const box = e.target.closest('.dr-media');
+    if (!box || !box.querySelector('.dr-add')) return;
+    e.preventDefault(); box.classList.remove('drop'); upload(box, e.dataTransfer.files);
   });
 })();
 (() => {
