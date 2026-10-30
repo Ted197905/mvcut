@@ -138,7 +138,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 // closed or reloaded: at the end, while waiting, and every 5 posts handled
 function purgeReport(j, msg) {
   const n = (j.deleted || 0) + (j.failed || 0);
-  const due = msg.done || msg.force || (msg.waiting && Date.now() - j.postedAt > 60000) || (n > 0 && n % 5 === 0 && n !== j.posted)
+  const due = msg.done || msg.force || msg.start || (msg.waiting && Date.now() - j.postedAt > 60000) || (n > 0 && n % 5 === 0 && n !== j.posted)
     || (j.log.length - j.logSent >= 25 && Date.now() - j.postedAt > 20000);
   if (!due) return Promise.resolve();
   j.posted = n; j.postedAt = Date.now();
@@ -148,15 +148,16 @@ function purgeReport(j, msg) {
   }) }).catch((e) => { j.logSent = Math.max(0, j.logSent - log.length); console.warn('purge report failed', e); });
 }
 
-chrome.tabs.onRemoved.addListener((id) => {
+chrome.tabs.onRemoved.addListener((id, info) => {
   pending.delete(id);
   (async () => {
     const all = await loadPurges();
     const j = all[id];
     if (!j) return;   // the X tab was closed in the middle: the page and the server learn it stopped
-    const msg = { job: j.id, done: true, status: 'stopped', error: 'X 탭이 닫혔습니다' };
+    const how = info && info.isWindowClosing ? '창 전체가 닫힘' : '탭만 닫힘';
+    const msg = { job: j.id, done: true, status: 'stopped', error: 'X 탭이 닫혔습니다 (' + how + ')' };
     if (j.mvcutTab != null) chrome.tabs.sendMessage(j.mvcutTab, { type: 'x-purge-progress', ...msg }).catch(() => {});
-    j.log.push(new Date().toTimeString().slice(0, 8) + ' [bg] X tab closed');
+    j.log.push(new Date().toTimeString().slice(0, 8) + ' [bg] X tab removed: ' + how + ' (isWindowClosing=' + (info && info.isWindowClosing) + ')');
     await purgeReport(j, msg);
     delete all[id];
     await savePurges(all);

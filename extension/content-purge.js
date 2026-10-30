@@ -24,6 +24,12 @@
     for (let i = 0; i < steps; i++) { window.scrollBy({ top: total / steps, behavior: 'smooth' }); await sleep(jitter(90, 220)); }
   };
   let stopped = false;
+  // the tab going away (closed, reloaded, navigated): the last thing logged, so a tab that "closes by itself" leaves a trace
+  window.addEventListener('pagehide', (e) => {
+    log('pagehide persisted=' + e.persisted + ' visibility=' + document.visibilityState + ' url=' + location.pathname + location.search.slice(0, 80));
+    report({ found, deleted, failed, done: false, force: true });
+  });
+  window.addEventListener('beforeunload', () => { log('beforeunload'); });
   chrome.runtime.onMessage.addListener((m) => {
     if (m && m.type === 'x-purge-stop' && (!m.job || String(m.job) === String(job.id))) { stopped = true; log('stop received'); }
   });
@@ -206,6 +212,7 @@
     const column = (document.querySelector('[data-testid="primaryColumn"]') || {}).innerText || '';
     const notice = (column.match(/결과가? 없[^\n]*|No results[^\n]*|다시 시도[^\n]*|Something went wrong[^\n]*|문제가 발생[^\n]*/) || [''])[0];
     log('page ready: articles=' + document.querySelectorAll('article[data-testid="tweet"]').length + ' viewer=@' + v + (notice ? ' notice="' + notice.slice(0, 40) + '"' : ''));
+    report({ found, deleted, failed, done: false, start: true });   // the server gets the start of every run at once
     if (!first) {
       // empty: when posts were handled already the page is the "deleted first page" case -> page by until:; a fresh run
       // steps the until: back a day up to 3 times before taking the empty result at its word
