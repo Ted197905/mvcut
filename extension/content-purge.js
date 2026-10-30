@@ -94,20 +94,20 @@
     return !document.contains(r.el);
   };
 
-  // X throttles a run of deletions (replies above all): at most RATE_N in any RATE_WINDOW, then a wait (user, 2026-10-30)
-  const RATE_N = 50, RATE_WINDOW = 15 * 60 * 1000;
-  const attempts = [];   // times of the last deletion attempts
+  // X throttles a run of deletions (replies above all): RATE_N deletions, then a full RATE_REST break (user, 2026-10-30)
+  const RATE_N = 50, RATE_REST = 15 * 60 * 1000;
+  let batch = 0;   // deletions since the last break
   const throttle = async () => {
-    while (!stopped) {
-      const now = Date.now();
-      while (attempts.length && now - attempts[0] > RATE_WINDOW) attempts.shift();
-      if (attempts.length < RATE_N) return;
-      const wait = attempts[0] + RATE_WINDOW - now + 2000;
-      const until = new Date(now + wait);
-      say('15분에 ' + RATE_N + '건까지만: ' + Math.ceil(wait / 60000) + '분 쉬는 중 (' + until.getHours() + ':' + String(until.getMinutes()).padStart(2, '0') + '에 계속)');
+    if (batch < RATE_N) return;
+    const end = Date.now() + RATE_REST;
+    while (!stopped && Date.now() < end) {
+      const wait = end - Date.now();
+      const until = new Date(end);
+      say(RATE_N + '건 지웠으니 15분 휴식: ' + Math.ceil(wait / 60000) + '분 남음 (' + until.getHours() + ':' + String(until.getMinutes()).padStart(2, '0') + '에 계속)');
       report({ found, deleted, failed, done: false, waiting: Math.ceil(wait / 1000) });
       await sleep(Math.min(wait, 30000));
     }
+    batch = 0;
   };
 
   const kinds = new Set(job.kinds || ['post', 'reply']);
@@ -153,7 +153,7 @@
         }
         await throttle();
         if (stopped) { done.delete(r.id); items.pop(); found--; break; }
-        attempts.push(Date.now());
+        batch++;
         try {
           it.ok = await remove(r);
           if (it.ok) deleted++; else { failed++; it.error = '화면에서 사라지지 않음'; }
