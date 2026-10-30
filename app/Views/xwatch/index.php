@@ -192,7 +192,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
 
   <section class="set-card" id="purge">
     <div class="xw-head"><h2>게시물 정리</h2><span class="ck-badge none xp-ext" hidden>확장 필요</span></div>
-    <p class="muted small" style="margin:0 0 14px">아래 검색어로 X 검색(최신순)을 열고, 결과 중 "시작" 시각 이전 ~ "끝" 시각 사이의 내 글을 크롬 확장이 X 화면에서 하나씩 지웁니다(사람이 스크롤하며 메뉴 &gt; 삭제를 누르는 속도로, 50건 지우면 15분 쉽니다 - 연속 삭제는 X가 막습니다). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
+    <p class="muted small" style="margin:0 0 14px">아래 검색어로 X 검색(최신순)을 열고, 결과 중 "시작" 시각 이전 ~ "끝" 시각 사이의 내 글을 크롬 확장이 X 화면에서 하나씩 지웁니다(사람이 스크롤하며 메뉴 &gt; 삭제를 누르는 속도로, 50건 지우면 15분 쉬고, 지운 글이 다시 보이면 제한으로 보고 바로 15분 쉰 뒤 다시 시도합니다). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
     <?php if ($w['handle'] === ''): ?>
       <p class="ck-alert">먼저 설정에서 X 아이디를 넣어야 합니다.</p>
     <?php else: ?>
@@ -341,7 +341,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         if (stale) status.textContent += ' · 20분 넘게 보고 없음: X 탭을 확인하세요 (닫혔으면 다시 실행)';
         if (d.items && d.items.length && list.children.length < d.items.length) {
           list.innerHTML = '';
-          d.items.forEach((it) => { const li = document.createElement('li'); li.textContent = (it.ok ? '삭제: ' : '실패 (' + (it.error || '') + '): ') + new Date(it.time * 1000).toLocaleString('ko-KR') + ' ' + (it.text || '(본문 없음)').slice(0, 80); list.appendChild(li); });
+          d.items.forEach((it) => { const li = document.createElement('li'); li.textContent = (it.ok ? '삭제: ' : it.ok === null ? '재시도 예정 (' + (it.error || '') + '): ' : '실패 (' + (it.error || '') + '): ') + new Date(it.time * 1000).toLocaleString('ko-KR') + ' ' + (it.text || '(본문 없음)').slice(0, 80); list.appendChild(li); });
           list.hidden = false;
         }
         if (done) { finish(d); return; }
@@ -389,7 +389,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       if (d.item) {
         items.push(d.item);
         const li = document.createElement('li');
-        li.textContent = (d.item.ok ? '삭제: ' : '실패 (' + (d.item.error || '') + '): ') + new Date(d.item.time * 1000).toLocaleString('ko-KR') + ' ' + (d.item.text || '(본문 없음)').slice(0, 80);
+        li.textContent = (d.item.ok ? '삭제: ' : d.item.ok === null ? '재시도 예정 (' + (d.item.error || '') + '): ' : '실패 (' + (d.item.error || '') + '): ') + new Date(d.item.time * 1000).toLocaleString('ko-KR') + ' ' + (d.item.text || '(본문 없음)').slice(0, 80);
         list.prepend(li); list.hidden = false;
       }
       if (d.done && Array.isArray(d.items)) items = d.items;

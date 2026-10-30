@@ -144,17 +144,38 @@
   // X throttles a run of deletions (replies above all): RATE_N deletions, then a full RATE_REST break (user, 2026-10-30)
   const RATE_N = 50, RATE_REST = 15 * 60 * 1000;
   let batch = 0;   // deletions since the last break
-  const throttle = async () => {
-    if (batch < RATE_N) return;
+  const rest = async (why) => {
+    log('rest 15 min: ' + why);
     const end = Date.now() + RATE_REST;
     while (!stopped && Date.now() < end) {
       const wait = end - Date.now();
       const until = new Date(end);
-      say(RATE_N + '건 지웠으니 15분 휴식: ' + Math.ceil(wait / 60000) + '분 남음 (' + until.getHours() + ':' + String(until.getMinutes()).padStart(2, '0') + '에 계속)');
+      say(why + ': ' + Math.ceil(wait / 60000) + '분 쉬는 중 (' + until.getHours() + ':' + String(until.getMinutes()).padStart(2, '0') + '에 계속)');
       report({ found, deleted, failed, done: false, waiting: Math.ceil(wait / 1000) });
       await sleep(Math.min(wait, 30000));
     }
     batch = 0;
+  };
+  const throttle = async () => { if (batch >= RATE_N) await rest(RATE_N + '건 지웠으니 15분 휴식'); };
+  // a post that was "deleted" but is on screen again, or one that does not leave the screen: X is refusing deletions
+  // (the limit) -> 15 minutes off at once, then the post is tried again (twice at most) (user, 2026-10-31)
+  const retried = new Map();
+  const limited = async (r, it, why) => {
+    log('limit? ' + r.id + ': ' + why);
+    const n = (retried.get(r.id) || 0) + 1;
+    retried.set(r.id, n);
+    if (it.ok) deleted--;
+    done.delete(r.id);
+    const i = items.indexOf(it); if (i >= 0) items.splice(i, 1);
+    found--;
+    report({ found, deleted, failed, done: false, item: { id: r.id, time: r.time, kind: r.kind, text: r.text, ok: null, error: why + ' (재시도 ' + n + ')' } });
+    if (n > 2) {
+      const fail = { id: r.id, time: r.time, kind: r.kind, text: r.text, ok: false, error: why + ' - 3번 실패' };
+      done.set(r.id, fail); items.push(fail); found++; failed++;
+      log('give up ' + r.id);
+      return;
+    }
+    await rest('삭제가 안 먹힘(제한 추정), 15분 휴식');
   };
 
   const kinds = new Set(job.kinds || ['post', 'reply']);
@@ -211,6 +232,12 @@
           if (cell && pcell && cell.previousElementSibling === pcell) r.kind = 'reply';
         }
         if (!r.pinned && r.time < oldest) oldest = r.time;
+        const earlier = done.get(r.id);
+        if (earlier && earlier.ok === true && job.mode !== 'scan') {   // deleted a moment ago, back on screen: the deletion did not take
+          await limited(r, earlier, '삭제한 글이 다시 보임');
+          acted = true;
+          break;
+        }
         if (done.has(r.id) || r.pinned || (job.from && r.time < job.from) || r.time > job.to || !kinds.has(r.kind)) continue;
         const it = { id: r.id, time: r.time, kind: r.kind, text: r.text, ok: null };
         done.set(r.id, it);
@@ -226,7 +253,8 @@
         batch++;
         try {
           it.ok = await remove(r);
-          if (it.ok) deleted++; else { failed++; it.error = '화면에서 사라지지 않음'; }
+          if (it.ok) deleted++;
+          else { await limited(r, it, '확인을 눌렀는데 화면에서 사라지지 않음'); acted = true; break; }
         } catch (e) {
           it.ok = false; it.error = e.message; failed++;
           log('error ' + r.id + ': ' + e.message);
