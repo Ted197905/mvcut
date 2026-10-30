@@ -19,6 +19,13 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <h1>초안</h1>
   <p class="muted" style="margin:0 0 18px">매일 06시, 12시, 18시에 수집 글 100건씩으로 쓴 X 게시글 초안입니다. 본문을 고쳐 "저장"하거나 바로 "승인"하면 다음 날부터 아래 슬롯 방식대로 승인한 순서에 따라 슬롯에 들어가고, 확장이 X 예약 게시로 등록합니다. 승인하지 않은 글은 올라가지 않습니다.</p>
 
+  <?php if ($off): ?>
+    <div class="alert error">
+      <?= implode(', ', array_map(static fn ($k) => ['drafts' => '초안 작성', 'collect' => '글 수집', 'judge' => '뉴스/썰 판정'][$k], $off)) ?> 스위치가 꺼져 있습니다.
+      <?= in_array('drafts', $off, true) ? '새 배치가 만들어지지 않고 "쓰는 중" 초안도 그대로 멈춥니다. ' : '' ?>
+      <a href="<?= site_url('settings') ?>#auto">설정 &gt; 자동 기능</a>에서 켤 수 있습니다.
+    </div>
+  <?php endif ?>
   <div class="alert error dr-ext" hidden></div>
   <form class="dr-mode" method="post" action="<?= site_url('drafts/mode') ?>"><?= csrf_field() ?>
     <input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">

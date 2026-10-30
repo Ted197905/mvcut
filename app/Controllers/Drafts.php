@@ -64,7 +64,8 @@ class Drafts extends BaseController
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
                                      'usage' => D::usageText($this->uid(), $batch !== '' ? $batch : null),
-                                     'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid()), 'slot' => D::slotType($this->uid())]);
+                                     'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid()), 'slot' => D::slotType($this->uid()),
+                                     'off' => array_keys(array_filter(['drafts' => ! \App\Libraries\Ops::on('drafts'), 'collect' => ! \App\Libraries\Ops::on('collect'), 'judge' => ! \App\Libraries\Ops::on('judge')]))]);
     }
 
     /** Text / thread / media from the card's form (approve and save both take it). Returns an error or null. */
