@@ -37,7 +37,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const url = 'https://x.com/search?q=' + encodeURIComponent(query) + '&src=typed_query&f=live';
     chrome.tabs.create({ url, active: true }, (tab) => {
       purges.set(tab.id, { id: String(msg.job), mode: msg.mode === 'scan' ? 'scan' : 'delete', handle, kinds, query,
-                           from: Number(msg.from) || 0, to: Number(msg.to) || 0, mvcutTab: from, started: false });
+                           from: Number(msg.from) || 0, to: Number(msg.to) || 0, mvcutTab: from, started: false,
+                           found: 0, deleted: 0, failed: 0, items: [], posted: 0, postedAt: 0 });
       reply({ ok: true });
     });
     return true;
@@ -45,16 +46,22 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.type === 'x-purge-ready') {
     const id = sender.tab && sender.tab.id;
     const j = id != null ? purges.get(id) : null;
-    if (!j || j.started) { reply(null); return true; }   // a reload of that tab does not start it over
+    if (!j) { reply(null); return true; }
+    // the tab was reloaded in the middle (X does that on its own now and then): the new script carries on with the counts so far
+    const resume = j.started ? { found: j.found, deleted: j.deleted, failed: j.failed, items: j.items } : null;
     j.started = true;
-    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to, query: j.query });
+    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to, query: j.query, resume });
     return true;
   }
   if (msg && msg.type === 'x-purge-progress') {
     const id = sender.tab && sender.tab.id;
     const j = id != null ? purges.get(id) : null;
     if (j) {
+      j.found = msg.found || 0; j.deleted = msg.deleted || 0; j.failed = msg.failed || 0;
+      if (msg.item) j.items.push(msg.item);
+      if (msg.done && Array.isArray(msg.items)) j.items = msg.items;
       chrome.tabs.sendMessage(j.mvcutTab, { type: 'x-purge-progress', ...msg }).catch(() => {});
+      purgeReport(j, msg);
       if (msg.done) purges.delete(id);
     }
     reply({ ok: true });
@@ -75,11 +82,25 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
 });
 
+// the run's state goes to the server from here (POST /xapi/purge/{id}, the extension's token), so the page may be
+// closed or reloaded: at the end, while waiting, and every 5 posts handled
+function purgeReport(j, msg) {
+  const n = (j.deleted || 0) + (j.failed || 0);
+  const due = msg.done || (msg.waiting && Date.now() - j.postedAt > 60000) || (n > 0 && n % 5 === 0 && n !== j.posted);
+  if (!due) return;
+  j.posted = n; j.postedAt = Date.now();
+  api('/xapi/purge/' + encodeURIComponent(j.id), { method: 'POST', body: JSON.stringify({
+    status: msg.done ? (msg.status || 'done') : 'running', found: j.found, deleted: j.deleted, failed: j.failed, error: msg.error || null, items: j.items,
+  }) }).catch(() => {});
+}
+
 chrome.tabs.onRemoved.addListener((id) => {
   pending.delete(id);
   const j = purges.get(id);
-  if (j) {   // the X tab was closed in the middle: the page learns it stopped
-    chrome.tabs.sendMessage(j.mvcutTab, { type: 'x-purge-progress', job: j.id, done: true, status: 'stopped', error: 'X 탭이 닫혔습니다' }).catch(() => {});
+  if (j) {   // the X tab was closed in the middle: the page and the server learn it stopped
+    const msg = { job: j.id, done: true, status: 'stopped', error: 'X 탭이 닫혔습니다' };
+    chrome.tabs.sendMessage(j.mvcutTab, { type: 'x-purge-progress', ...msg }).catch(() => {});
+    purgeReport(j, msg);
     purges.delete(id);
   }
 });

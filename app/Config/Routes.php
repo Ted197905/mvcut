@@ -36,6 +36,7 @@ $routes->post('xapi/scheduled', 'XApi::scheduled');
 $routes->get('xapi/jobs/(:num)', 'XApi::job/$1');
 $routes->get('xapi/queue', 'XApi::queue');
 $routes->post('xapi/queue/(:num)', 'XApi::queueDone/$1');
+$routes->post('xapi/purge/(:num)', 'XApi::purge/$1');
 
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
     $routes->get('account', 'Settings::index');
@@ -54,7 +55,9 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('xwatch/check', 'XWatchPage::checkNow');
     $routes->post('xwatch/posts/(:num)/delete', 'XWatchPage::deletePost/$1');
     $routes->post('xwatch/purge', 'XWatchPage::purgeStart');
+    $routes->post('xwatch/purge/prefs', 'XWatchPage::purgePrefs');
     $routes->post('xwatch/purge/(:num)', 'XWatchPage::purgeReport/$1');
+    $routes->get('xwatch/purge/(:num)', 'XWatchPage::purgeState/$1');
 
     $routes->get('keywords', 'Keywords::index');
     $routes->post('api/keywords', 'Keywords::create');

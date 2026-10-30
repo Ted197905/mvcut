@@ -113,6 +113,37 @@ class XWatch
     }
 
     /**
+     * 게시물 정리 progress from the extension (or the page): counts, status, the items so far. Deleted posts
+     * leave x_posts. Returns the updated row or null when the run is not this user's.
+     */
+    public static function purgeUpdate(int $userId, int $id, array $j): ?array
+    {
+        $db  = self::db();
+        $row = $db->table('x_purges')->where(['id' => $id, 'user_id' => $userId])->get()->getRowArray();
+        if (! $row) return null;
+        $items = is_array($j['items'] ?? null) ? array_slice($j['items'], 0, 5000) : null;
+        $data = ['found' => (int) ($j['found'] ?? 0), 'deleted' => (int) ($j['deleted'] ?? 0), 'failed' => (int) ($j['failed'] ?? 0),
+                 'status' => in_array($j['status'] ?? '', ['running', 'done', 'stopped', 'error'], true) ? $j['status'] : 'running',
+                 'error' => isset($j['error']) ? mb_substr((string) $j['error'], 0, 255) : null, 'updated_at' => gmdate('Y-m-d H:i:s')];
+        if ($items !== null) {
+            $data['items'] = json_encode($items, JSON_UNESCAPED_UNICODE);
+            foreach ($items as $it) {
+                if (! empty($it['ok']) && preg_match('/^\d+$/', (string) ($it['id'] ?? ''))) self::deletePost($userId, (string) $it['id']);
+            }
+        }
+        if ($row['status'] !== 'running' && $data['status'] === 'running') unset($data['status']);   // a late progress report after the end
+        $db->table('x_purges')->where('id', $id)->update($data);
+        return $row + $data;
+    }
+
+    /** The purge run still going for this user (reported within 20 minutes), for the page to pick up after a reload. */
+    public static function purgeRunning(int $userId): ?array
+    {
+        return self::db()->table('x_purges')->where('user_id', $userId)->where('status', 'running')
+            ->where('updated_at >=', gmdate('Y-m-d H:i:s', time() - 1200))->orderBy('id', 'DESC')->get()->getRowArray();
+    }
+
+    /**
      * Posts of the last $hours with the gap to the previous counted post, plus cadence warnings.
      * Posts and quotes count toward the limits; replies only when count_replies is on; reposts never.
      */

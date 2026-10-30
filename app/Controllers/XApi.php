@@ -25,6 +25,15 @@ class XApi extends BaseController
         return $this->response->setStatusCode(401)->setJSON(['error' => 'invalid token']);
     }
 
+    /** POST /xapi/purge/{id} - 게시물 정리 progress from the extension's X tab (survives the page being closed) */
+    public function purge(int $id)
+    {
+        $w = $this->watch();
+        if (! $w) return $this->deny();
+        $row = XWatch::purgeUpdate((int) $w['user_id'], $id, $this->request->getJSON(true) ?: []);
+        return $row ? $this->response->setJSON(['ok' => true, 'status' => $row['status']]) : $this->response->setStatusCode(404)->setJSON(['ok' => false]);
+    }
+
     /** GET /xapi/status */
     public function status()
     {

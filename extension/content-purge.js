@@ -127,6 +127,10 @@
   const done = new Map();    // id -> item reported
   const items = [];
   let found = 0, deleted = 0, failed = 0, oldest = Infinity, idle = 0;
+  if (job.resume) {   // the tab was reloaded in the middle: carry on, skipping what was handled already
+    found = job.resume.found || 0; deleted = job.resume.deleted || 0; failed = job.resume.failed || 0;
+    for (const it of job.resume.items || []) { done.set(it.id, it); items.push(it); }
+  }
   const me = (job.handle || '').toLowerCase();
 
   try {
@@ -136,7 +140,7 @@
     const v = viewer();
     if (!v) throw new Error('X에 로그인되어 있지 않습니다');
     if (v.toLowerCase() !== me) throw new Error('로그인 계정(@' + v + ')이 감시 계정(@' + job.handle + ')과 다릅니다');
-    say((job.mode === 'scan' ? '대상 세는 중' : '삭제 중') + ' ...');
+    say((job.resume ? '이어서 ' : '') + (job.mode === 'scan' ? '대상 세는 중' : '삭제 중') + ' ...');
     if (!first) idle = 99;   // no result: the loop below ends at once
 
     while (!stopped && idle < 10) {

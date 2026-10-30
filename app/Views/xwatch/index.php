@@ -255,6 +255,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     const pad = (n) => String(n).padStart(2, '0');
     const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());   // date only (user, 2026-10-30)
     const all = $('xpAll'), kw = $('xpKw'), query = $('xpQuery'), rebuild = $('xpRebuild');
+    const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
     const handle = <?= json_encode($w['handle']) ?>;
     let edited = false;   // the user typed in the query box: inputs no longer overwrite it
     // the user's own search shapes (2026-10-30): 게시물 "from:h until:D", 댓글 "from:h until:D filter:replies";
@@ -284,9 +285,28 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     from.addEventListener('change', () => { document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.remove('on')); if (from.value) to.value = local(monthsAgo(new Date(from.value + 'T00:00'), 1)); build(); });
     all.onchange = () => { to.disabled = all.checked; build(); };
     to.disabled = all.checked;
+    // the form's values are kept per account (x_watch.purge_prefs): restored here, saved a moment after any change
+    const prefs = <?= json_encode($purgePrefs, JSON_UNESCAPED_UNICODE) ?>;
+    if (prefs && prefs.from) {
+      from.value = prefs.from; to.value = prefs.to || to.value; all.checked = !!prefs.all; to.disabled = all.checked; kw.value = prefs.kw || '';
+      const kr = document.querySelector('.xp-kinds input[value="' + (prefs.kind === 'reply' ? 'reply' : 'post') + '"]'); if (kr) kr.checked = true;
+      document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.toggle('on', String(x.dataset.months) === String(prefs.preset || '')));
+      build();
+      if (prefs.query && prefs.query !== query.value) { query.value = prefs.query; edited = true; rebuild.hidden = false; }
+    }
+    let saveT = null;
+    const savePrefs = () => {
+      clearTimeout(saveT);
+      saveT = setTimeout(() => {
+        const on = document.querySelector('.xp-preset button.on');
+        fetch('<?= site_url('xwatch/purge/prefs') ?>', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...csrf() },
+          body: JSON.stringify({ preset: on ? Number(on.dataset.months) : 0, from: from.value, to: to.value, all: all.checked, kw: kw.value, kind: kinds()[0] === 'reply' ? 'reply' : 'post', query: edited ? query.value : '' }) }).catch(() => {});
+      }, 800);
+    };
+    [from, to, all, kw, query].forEach((el) => { el.addEventListener('input', savePrefs); el.addEventListener('change', savePrefs); });
+    document.querySelectorAll('.xp-kinds input, .xp-preset button, #xpRebuild').forEach((el) => el.addEventListener('click', savePrefs));
     setTimeout(() => { if (document.documentElement.dataset.mvcutX !== '1') { document.querySelector('.xp-ext').hidden = false; $('xpScan').disabled = $('xpDelete').disabled = true; } }, 800);
-    let job = null, mode = '', items = [], lastSent = 0;
-    const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
+    let job = null, mode = '', items = [], lastSent = 0, pollT = null;
     const report = async (d) => {
       if (!job) return;
       await fetch('<?= site_url('xwatch/purge') ?>/' + job, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...csrf() },
@@ -298,6 +318,35 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         + (d.done ? (d.status === 'stopped' ? ' · 중지됨' : d.status === 'error' ? ' · 오류: ' + (d.error || '') : ' · 완료')
                   : d.waiting ? ' · 50건 지우고 15분 휴식: ' + Math.ceil(d.waiting / 60) + '분 뒤 계속' : ' · 진행 중 (X 탭에서 작업 중)');
       if (mode === 'delete' && n) { bar.hidden = false; bar.firstElementChild.style.width = Math.round(((d.deleted || 0) + (d.failed || 0)) * 100 / n) + '%'; }
+    };
+    const finish = (d) => {
+      $('xpScan').disabled = $('xpDelete').disabled = false; $('xpStop').hidden = true;
+      clearTimeout(pollT); pollT = null;
+      const reload = mode === 'delete' && d.deleted;
+      job = null;
+      if (reload) setTimeout(() => location.reload(), 1500);
+    };
+    // the run's state from the server (the extension reports there from the X tab, so a page reload or a closed
+    // page loses nothing): every 3 s while a run is on
+    const poll = async () => {
+      if (!job) return;
+      try {
+        const r = await fetch('<?= site_url('xwatch/purge') ?>/' + job, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const d = await r.json();
+        if (!d.ok || String(d.id) !== job) return;
+        const done = d.status !== 'running';
+        const stale = !done && Date.now() / 1000 - d.updated_at > 20 * 60;
+        show({ found: d.found, deleted: d.deleted, failed: d.failed, done, status: d.status, error: d.error });
+        if (stale) status.textContent += ' · 20분 넘게 보고 없음: X 탭을 확인하세요 (닫혔으면 다시 실행)';
+        if (d.items && d.items.length && list.children.length < d.items.length) {
+          list.innerHTML = '';
+          d.items.forEach((it) => { const li = document.createElement('li'); li.textContent = (it.ok ? '삭제: ' : '실패 (' + (it.error || '') + '): ') + new Date(it.time * 1000).toLocaleString('ko-KR') + ' ' + (it.text || '(본문 없음)').slice(0, 80); list.appendChild(li); });
+          list.hidden = false;
+        }
+        if (done) { finish(d); return; }
+        if (stale) { $('xpScan').disabled = $('xpDelete').disabled = false; }
+      } catch (e) { /* next tick */ }
+      pollT = setTimeout(poll, 3000);
     };
     const start = async (m) => {
       // "시작" is the newer bound (where the walk down the timeline begins), "끝" the older one; 끝까지 = no older bound
@@ -318,7 +367,16 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       $('xpScan').disabled = $('xpDelete').disabled = true; $('xpStop').hidden = false;
       show({ found: 0 });
       window.postMessage({ source: 'mvcut', type: 'x-purge', action: 'start', job, mode: m, handle, kinds: k, from: f, to: t, query: q }, location.origin);
+      clearTimeout(pollT); pollT = setTimeout(poll, 3000);
     };
+    // a run that is still going (the page was reloaded or reopened): show it and offer 중지
+    const running = <?= json_encode($purgeRun ? ['id' => (int) $purgeRun['id'], 'mode' => $purgeRun['mode']] : null) ?>;
+    if (running) {
+      job = String(running.id); mode = running.mode;
+      $('xpScan').disabled = $('xpDelete').disabled = true; $('xpStop').hidden = false;
+      show({ found: 0 });
+      poll();
+    }
     $('xpScan').onclick = () => start('scan');
     $('xpDelete').onclick = () => start('delete');
     $('xpStop').onclick = () => window.postMessage({ source: 'mvcut', type: 'x-purge', action: 'stop', job }, location.origin);
@@ -334,8 +392,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       if (d.done && Array.isArray(d.items)) items = d.items;
       show(d);
       if (d.done) {
-        report(d).then(() => { if (mode === 'delete' && d.deleted) setTimeout(() => location.reload(), 1500); });
-        $('xpScan').disabled = $('xpDelete').disabled = false; $('xpStop').hidden = true; job = null;
+        report(d).then(() => finish(d));   // the extension reports too; this covers an extension without a token
       } else if ((d.deleted || 0) + (d.failed || 0) >= lastSent + 10) {
         lastSent = (d.deleted || 0) + (d.failed || 0); report(d);
       }

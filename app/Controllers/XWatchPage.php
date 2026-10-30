@@ -26,6 +26,8 @@ class XWatchPage extends BaseController
             'tg'      => Telegram::config($this->uid()),
             'token'   => session()->getFlashdata('xtoken'),
             'purges'  => db_connect()->table('x_purges')->where('user_id', $this->uid())->orderBy('id', 'DESC')->get(8)->getResultArray(),
+            'purgeRun' => XWatch::purgeRunning($this->uid()),
+            'purgePrefs' => json_decode((string) ($w['purge_prefs'] ?? ''), true) ?: [],
         ]);
     }
 
@@ -52,21 +54,28 @@ class XWatchPage extends BaseController
     /** POST /xwatch/purge/{id} - the page reports the extension's progress / result; deleted posts leave x_posts. */
     public function purgeReport(int $id)
     {
-        $db  = db_connect();
-        $row = $db->table('x_purges')->where(['id' => $id, 'user_id' => $this->uid()])->get()->getRowArray();
+        $row = XWatch::purgeUpdate($this->uid(), $id, $this->request->getJSON(true) ?: []);
+        return $row ? $this->response->setJSON(['ok' => true]) : $this->response->setStatusCode(404)->setJSON(['ok' => false]);
+    }
+
+    /** GET /xwatch/purge/{id} - the run's state for the page (the extension reports through /xapi/purge/{id}) */
+    public function purgeState(int $id)
+    {
+        $row = db_connect()->table('x_purges')->where(['id' => $id, 'user_id' => $this->uid()])->get()->getRowArray();
         if (! $row) return $this->response->setStatusCode(404)->setJSON(['ok' => false]);
-        $j = $this->request->getJSON(true) ?: [];
-        $items = is_array($j['items'] ?? null) ? array_slice($j['items'], 0, 5000) : null;
-        $data = ['found' => (int) ($j['found'] ?? 0), 'deleted' => (int) ($j['deleted'] ?? 0), 'failed' => (int) ($j['failed'] ?? 0),
-                 'status' => in_array($j['status'] ?? '', ['running', 'done', 'stopped', 'error'], true) ? $j['status'] : 'running',
-                 'error' => isset($j['error']) ? mb_substr((string) $j['error'], 0, 255) : null, 'updated_at' => gmdate('Y-m-d H:i:s')];
-        if ($items !== null) {
-            $data['items'] = json_encode($items, JSON_UNESCAPED_UNICODE);
-            foreach ($items as $it) {
-                if (! empty($it['ok']) && preg_match('/^\d+$/', (string) ($it['id'] ?? ''))) XWatch::deletePost($this->uid(), (string) $it['id']);
-            }
-        }
-        $db->table('x_purges')->where('id', $id)->update($data);
+        $items = json_decode((string) $row['items'], true) ?: [];
+        return $this->response->setJSON(['ok' => true, 'id' => (int) $row['id'], 'mode' => $row['mode'], 'status' => $row['status'], 'found' => (int) $row['found'],
+            'deleted' => (int) $row['deleted'], 'failed' => (int) $row['failed'], 'error' => $row['error'], 'updated_at' => strtotime($row['updated_at'] . ' UTC'),
+            'items' => array_slice(array_reverse($items), 0, 30)]);
+    }
+
+    /** POST /xwatch/purge/prefs - the form's values, kept per account (x_watch.purge_prefs) */
+    public function purgePrefs()
+    {
+        $j = $this->request->getJSON(true);
+        if (! is_array($j)) return $this->response->setStatusCode(422)->setJSON(['ok' => false]);
+        $keep = array_intersect_key($j, array_flip(['preset', 'from', 'to', 'all', 'kw', 'kind', 'query']));
+        XWatch::update($this->uid(), ['purge_prefs' => mb_substr(json_encode($keep, JSON_UNESCAPED_UNICODE), 0, 2000)]);
         return $this->response->setJSON(['ok' => true]);
     }
 
