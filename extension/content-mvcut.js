@@ -14,7 +14,7 @@ window.addEventListener('message', (e) => {
   if (d && d.source === 'mvcut' && d.type === 'x-purge') {
     chrome.runtime.sendMessage({ type: 'x-purge', action: d.action === 'stop' ? 'stop' : 'start', job: String(d.job || ''), mode: d.mode,
                                  handle: String(d.handle || ''), kinds: Array.isArray(d.kinds) ? d.kinds.map(String) : ['post', 'reply'],
-                                 from: Number(d.from) || 0, to: Number(d.to) || 0 })
+                                 from: Number(d.from) || 0, to: Number(d.to) || 0, query: String(d.query || '').slice(0, 500) })
       .then((r) => { if (r && !r.ok) window.postMessage({ source: 'mvcut-ext', type: 'x-purge-progress', job: String(d.job || ''), done: true, status: 'error', error: r.error }, location.origin); })
       .catch(() => {});
     return;

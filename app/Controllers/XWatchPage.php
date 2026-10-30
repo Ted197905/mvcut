@@ -43,7 +43,8 @@ class XWatchPage extends BaseController
         if ($kinds === []) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '종류를 하나는 골라야 합니다.']);
         $db = db_connect();
         $db->table('x_purges')->insert(['user_id' => $this->uid(), 'mode' => $this->request->getPost('mode') === 'scan' ? 'scan' : 'delete',
-            'from_at' => gmdate('Y-m-d H:i:s', $from ?: 0), 'to_at' => gmdate('Y-m-d H:i:s', $to), 'kinds' => implode(',', $kinds),
+            'from_at' => gmdate('Y-m-d H:i:s', $from ?: 0), 'to_at' => gmdate('Y-m-d H:i:s', $to),
+            'query' => mb_substr(trim((string) $this->request->getPost('query')), 0, 500), 'kinds' => implode(',', $kinds),
             'status' => 'running', 'created_at' => gmdate('Y-m-d H:i:s')]);
         return $this->response->setJSON(['ok' => true, 'id' => (int) $db->insertID()]);
     }

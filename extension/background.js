@@ -32,9 +32,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const handle = String(msg.handle || '').replace(/^@/, '');
     if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) { reply({ ok: false, error: '계정 아이디가 없습니다' }); return true; }
     const kinds = Array.isArray(msg.kinds) ? msg.kinds : ['post', 'reply'];
-    const url = 'https://x.com/' + handle + (kinds.includes('reply') ? '/with_replies' : '');
+    // X search, latest first (from:handle until: since: filter:... as composed on the page); the profile timeline before 1.8.8
+    const query = String(msg.query || '').trim() || ('from:' + handle);
+    const url = 'https://x.com/search?q=' + encodeURIComponent(query) + '&src=typed_query&f=live';
     chrome.tabs.create({ url, active: true }, (tab) => {
-      purges.set(tab.id, { id: String(msg.job), mode: msg.mode === 'scan' ? 'scan' : 'delete', handle, kinds,
+      purges.set(tab.id, { id: String(msg.job), mode: msg.mode === 'scan' ? 'scan' : 'delete', handle, kinds, query,
                            from: Number(msg.from) || 0, to: Number(msg.to) || 0, mvcutTab: from, started: false });
       reply({ ok: true });
     });
@@ -45,7 +47,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const j = id != null ? purges.get(id) : null;
     if (!j || j.started) { reply(null); return true; }   // a reload of that tab does not start it over
     j.started = true;
-    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to });
+    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to, query: j.query });
     return true;
   }
   if (msg && msg.type === 'x-purge-progress') {

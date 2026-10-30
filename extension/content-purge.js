@@ -1,5 +1,6 @@
-// Deletes the signed-in account's own posts / replies / quotes of a date range from the profile
-// timeline, through X's own UI (the "..." menu > 삭제 > confirm), the way a person would: scrolling down
+// Deletes the signed-in account's own posts / replies / quotes of a date range from an X search
+// (latest first: from:handle until: since: filter:..., composed on MV Cut's page; the profile timeline
+// before 1.8.8), through X's own UI (the "..." menu > 삭제 > confirm), the way a person would: scrolling down
 // a screen at a time with uneven pauses, a longer breather now and then, deleting one post at a time.
 // Nothing goes through X's API directly: direct GraphQL calls got the account flagged as automated (2026-10-27).
 // job.to = the newer bound (the walk starts there), job.from = the older bound (0: down to the first post).
@@ -101,14 +102,16 @@
   const me = (job.handle || '').toLowerCase();
 
   try {
-    await waitFor('article[data-testid="tweet"]', 30000);
+    // a search with nothing in it shows no article at all: that is a finished run, not a failure
+    const first = await Promise.race([waitFor('article[data-testid="tweet"]', 30000).then(() => true), sleep(30000).then(() => false)]);
     await sleep(1000);
     const v = viewer();
     if (!v) throw new Error('X에 로그인되어 있지 않습니다');
     if (v.toLowerCase() !== me) throw new Error('로그인 계정(@' + v + ')이 감시 계정(@' + job.handle + ')과 다릅니다');
     say((job.mode === 'scan' ? '대상 세는 중' : '삭제 중') + ' ...');
+    if (!first) idle = 99;   // no result: the loop below ends at once
 
-    while (!stopped) {
+    while (!stopped && idle < 10) {
       const arts = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
       let acted = false, fresh = 0, prev = null;
       for (const a of arts) {
