@@ -94,6 +94,22 @@
     return !document.contains(r.el);
   };
 
+  // X throttles a run of deletions (replies above all): at most RATE_N in any RATE_WINDOW, then a wait (user, 2026-10-30)
+  const RATE_N = 50, RATE_WINDOW = 15 * 60 * 1000;
+  const attempts = [];   // times of the last deletion attempts
+  const throttle = async () => {
+    while (!stopped) {
+      const now = Date.now();
+      while (attempts.length && now - attempts[0] > RATE_WINDOW) attempts.shift();
+      if (attempts.length < RATE_N) return;
+      const wait = attempts[0] + RATE_WINDOW - now + 2000;
+      const until = new Date(now + wait);
+      say('15분에 ' + RATE_N + '건까지만: ' + Math.ceil(wait / 60000) + '분 쉬는 중 (' + until.getHours() + ':' + String(until.getMinutes()).padStart(2, '0') + '에 계속)');
+      report({ found, deleted, failed, done: false, waiting: Math.ceil(wait / 1000) });
+      await sleep(Math.min(wait, 30000));
+    }
+  };
+
   const kinds = new Set(job.kinds || ['post', 'reply']);
   const seen = new Set();    // every post id that has been on screen
   const done = new Map();    // id -> item reported
@@ -135,6 +151,9 @@
           report({ found, deleted, failed, last: r.text, done: false });
           continue;
         }
+        await throttle();
+        if (stopped) { done.delete(r.id); items.pop(); found--; break; }
+        attempts.push(Date.now());
         try {
           it.ok = await remove(r);
           if (it.ok) deleted++; else { failed++; it.error = '화면에서 사라지지 않음'; }
