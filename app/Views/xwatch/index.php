@@ -204,7 +204,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <div class="xp-row">
       <span class="small">끝 (이 시각까지 거슬러)</span>
       <input class="input" type="datetime-local" id="xpTo">
-      <label class="xw-check"><input type="checkbox" id="xpAll"> 끝까지 (계정의 첫 글까지)</label>
+      <label class="xw-check"><input type="checkbox" id="xpAll" checked> 끝까지 (계정의 첫 글까지)</label>
     </div>
     <div class="xp-row">
       <span class="small">키워드 (선택)</span>
@@ -216,9 +216,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <button class="btn sm ghost" type="button" id="xpRebuild" hidden>다시 만들기</button>
     </div>
     <div class="xp-kinds">
-      <label class="xw-check"><input type="checkbox" value="post" checked> 게시물</label>
-      <label class="xw-check"><input type="checkbox" value="reply" checked> 답글</label>
-      <label class="xw-check"><input type="checkbox" value="quote" checked> 인용</label>
+      <label class="xw-check"><input type="radio" name="xpKind" value="post" checked> 게시물 (인용 포함)</label>
+      <label class="xw-check"><input type="radio" name="xpKind" value="reply"> 댓글 (답글)</label>
     </div>
     <div class="xp-acts">
       <button class="btn sm secondary" type="button" id="xpScan">대상 세기</button>
@@ -251,27 +250,24 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     const from = $('xpFrom'), to = $('xpTo');
     if (!from) return;
     const status = document.querySelector('.xp-status'), bar = document.querySelector('.xp-bar'), list = document.querySelector('.xp-list');
-    const kinds = () => Array.from(document.querySelectorAll('.xp-kinds input:checked')).map((i) => i.value);
+    // 게시물 = post + quote, 댓글 = reply (the extension checks each post's kind; the query only adds filter:replies for 댓글)
+    const kinds = () => (document.querySelector('.xp-kinds input:checked') || {}).value === 'reply' ? ['reply'] : ['post', 'quote'];
     const pad = (n) => String(n).padStart(2, '0');
     const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     const all = $('xpAll'), kw = $('xpKw'), query = $('xpQuery'), rebuild = $('xpRebuild');
     const handle = <?= json_encode($w['handle']) ?>;
     const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     let edited = false;   // the user typed in the query box: inputs no longer overwrite it
-    // X search operators: from:, until: (exclusive, UTC days) / since:, filter:replies; the day bounds are a day wide of the
-    // exact times (UTC vs KST), the exact window is applied by the extension on each post's own time
+    // the user's own search shapes (2026-10-30): 게시물 "from:h until:D", 댓글 "from:h until:D filter:replies";
+    // until: is exclusive (UTC days) so it is the day after the start; since: only when an end is set
     const build = () => {
       if (edited) return;
       const parts = [];
       if (kw.value.trim()) parts.push(kw.value.trim());
       parts.push('from:' + handle);
-      if (from.value) { const d = new Date(from.value); d.setDate(d.getDate() + 2); parts.push('until:' + ymd(d)); }
+      if (from.value) { const d = new Date(from.value); d.setDate(d.getDate() + 1); parts.push('until:' + ymd(d)); }
       if (!all.checked && to.value) { const d = new Date(to.value); d.setDate(d.getDate() - 1); parts.push('since:' + ymd(d)); }
-      const k = kinds();
-      if (k.length === 1 && k[0] === 'reply') parts.push('filter:replies');
-      else if (!k.includes('reply')) parts.push('-filter:replies');
-      if (k.length === 1 && k[0] === 'quote') parts.push('filter:quote');
-      else if (!k.includes('quote') && k.includes('post')) parts.push('-filter:quote');
+      if (kinds()[0] === 'reply') parts.push('filter:replies');
       query.value = parts.join(' ');
     };
     query.addEventListener('input', () => { edited = true; rebuild.hidden = false; });
@@ -288,6 +284,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     document.querySelector('.xp-preset button').classList.add('on');
     from.addEventListener('change', () => { document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.remove('on')); if (from.value && !all.checked) to.value = local(monthsAgo(new Date(from.value), 1)); build(); });
     all.onchange = () => { to.disabled = all.checked; build(); };
+    to.disabled = all.checked;
     setTimeout(() => { if (document.documentElement.dataset.mvcutX !== '1') { document.querySelector('.xp-ext').hidden = false; $('xpScan').disabled = $('xpDelete').disabled = true; } }, 800);
     let job = null, mode = '', items = [], lastSent = 0;
     const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
@@ -309,7 +306,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       if (!k.length) { alert('종류를 하나는 골라야 합니다.'); return; }
       const q = query.value.trim();
       if (!q) { alert('X 검색어가 비어 있습니다.'); return; }
-      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' 이전 ~ ' + (all.checked ? '첫 글까지' : to.value.replace('T', ' ')) + ' 사이의 ' + k.map((x) => ({ post: '게시물', reply: '답글', quote: '인용' })[x]).join(', ') + '을 X에서 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' 이전 ~ ' + (all.checked ? '첫 글까지' : to.value.replace('T', ' ')) + ' 사이의 ' + (k[0] === 'reply' ? '댓글(답글)' : '게시물(인용 포함)') + '을 X에서 지웁니다.\n검색어: ' + q + '\n되돌릴 수 없습니다. 계속할까요?')) return;
       const fd = new FormData(); fd.append('mode', m); fd.append('from', f); fd.append('to', t); fd.append('query', q); k.forEach((x) => fd.append('kinds[]', x));
       const c = MV.csrf(); if (c) fd.append(c.name, c.hash);
       const r = await fetch('<?= site_url('xwatch/purge') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
