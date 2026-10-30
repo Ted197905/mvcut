@@ -26,7 +26,17 @@
   let stopped = false;
   chrome.runtime.onMessage.addListener((m) => { if (m && m.type === 'x-purge-stop') stopped = true; });
 
-  const report = (data) => chrome.runtime.sendMessage({ type: 'x-purge-progress', job: job.id, ...data }).catch(() => {});
+  // every step is logged (console + the server through background.js), so a run that misbehaves can be read back
+  let logBuf = [];
+  const log = (m) => {
+    const line = new Date().toTimeString().slice(0, 8) + ' ' + m;
+    console.log('[MV Cut purge]', line);
+    logBuf.push(line);
+  };
+  const report = (data) => {
+    const lines = logBuf; logBuf = [];
+    return chrome.runtime.sendMessage({ type: 'x-purge-progress', job: job.id, log: lines, ...data }).catch(() => {});
+  };
 
   const banner = document.createElement('div');
   banner.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2147483647;padding:10px 16px;border-radius:10px;'
@@ -90,20 +100,45 @@
     caret.click();
     await waitFor('div[role="menu"] [role="menuitem"]', 8000);
     await sleep(jitter(400, 900));
+    const menu = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).map((x) => (x.innerText || '').trim().split('\n')[0]);
+    log('menu ' + r.id + ': ' + menu.slice(0, 6).join(' / '));
     // "삭제하기" / "삭제" / "Delete": \b does not work after Hangul, so match the start of the text only
     const item = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).find((x) => /^\s*(삭제|Delete)/.test(x.innerText || ''));
     if (!item) {
-      const seen = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).map((x) => (x.innerText || '').trim().split('\n')[0]).slice(0, 4).join(' / ');
       await closeMenu();
-      throw new Error('삭제 메뉴 없음 (메뉴: ' + seen + ')');
+      throw new Error('삭제 메뉴 없음 (메뉴: ' + menu.slice(0, 4).join(' / ') + ')');
     }
     item.click();
     const ok = await waitFor('[data-testid="confirmationSheetConfirm"]', 8000);
     await sleep(jitter(500, 1100));
+    log('confirm ' + r.id + ': "' + (ok.innerText || '').trim().slice(0, 20) + '"');
     ok.click();
     // the article leaves the timeline; wait for it (or give it 4 s)
     for (let i = 0; i < 20 && document.contains(r.el); i++) await sleep(200);
-    return !document.contains(r.el);
+    const gone = !document.contains(r.el);
+    const toast = (document.querySelector('[data-testid="toast"]') || {}).innerText || '';
+    log('result ' + r.id + ': ' + (gone ? 'gone' : 'still on screen') + (toast ? ' toast="' + toast.slice(0, 60) + '"' : ''));
+    return gone;
+  };
+
+  // X's search shows "결과 없음" when the first page of results is made only of posts that are gone (the ones just
+  // deleted): the same until: then looks empty although older posts exist (verified 2026-10-31: until:2026-03-01
+  // empty, until:2026-03-01_00:00:00_KST 21 results). The walk therefore pages by until: itself: when the results
+  // run out (or come back empty) it reloads the search with until: = the oldest time seen, in X's full time format.
+  const fmtUntil = (ts) => {
+    const d = new Date(ts * 1000), p = (n) => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + '_' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + '_UTC';
+  };
+  const hop = async (ts, why) => {
+    const q = (job.query || '').replace(/\s*until:\S+/g, '') + ' until:' + fmtUntil(ts);
+    const r = await chrome.runtime.sendMessage({ type: 'x-purge-hop', query: q, until: ts, why }).catch(() => null);
+    if (!r || !r.ok) { log('hop refused: ' + ((r && r.error) || 'no answer')); return false; }
+    log('hop -> ' + q + ' (' + why + ')');
+    say('더 오래된 글 찾는 중 (' + fmtUntil(ts).replace('_UTC', ' UTC') + ' 이전)...');
+    await sleep(jitter(1500, 3000));
+    location.href = 'https://x.com/search?q=' + encodeURIComponent(q) + '&src=typed_query&f=live';
+    await sleep(60000);   // the page is leaving; nothing below should run
+    return true;
   };
 
   // X throttles a run of deletions (replies above all): RATE_N deletions, then a full RATE_REST break (user, 2026-10-30)
@@ -126,22 +161,39 @@
   const seen = new Set();    // every post id that has been on screen
   const done = new Map();    // id -> item reported
   const items = [];
-  let found = 0, deleted = 0, failed = 0, oldest = Infinity, idle = 0;
-  if (job.resume) {   // the tab was reloaded in the middle: carry on, skipping what was handled already
+  let found = 0, deleted = 0, failed = 0, oldest = Infinity, idle = 0, mine = 0;
+  if (job.resume) {   // the tab was reloaded in the middle (or a hop): carry on, skipping what was handled already
     found = job.resume.found || 0; deleted = job.resume.deleted || 0; failed = job.resume.failed || 0;
     for (const it of job.resume.items || []) { done.set(it.id, it); items.push(it); }
+    if (job.resume.oldest) oldest = job.resume.oldest;
   }
   const me = (job.handle || '').toLowerCase();
+  log('start job ' + job.id + ' mode=' + job.mode + ' kinds=' + (job.kinds || []).join(',') + ' to=' + job.to + ' from=' + job.from
+      + ' hop=' + (job.hop || 0) + (job.resume ? ' resume found=' + found + ' deleted=' + deleted + ' failed=' + failed + ' oldest=' + (isFinite(oldest) ? fmtUntil(oldest) : '-') : '')
+      + ' url=' + location.pathname + location.search.slice(0, 160));
 
   try {
-    // a search with nothing in it shows no article at all: that is a finished run, not a failure
+    // a search with nothing in it shows no article at all
     const first = await Promise.race([waitFor('article[data-testid="tweet"]', 30000).then(() => true), sleep(30000).then(() => false)]);
     await sleep(1000);
     const v = viewer();
     if (!v) throw new Error('X에 로그인되어 있지 않습니다');
     if (v.toLowerCase() !== me) throw new Error('로그인 계정(@' + v + ')이 감시 계정(@' + job.handle + ')과 다릅니다');
     say((job.resume ? '이어서 ' : '') + (job.mode === 'scan' ? '대상 세는 중' : '삭제 중') + ' ...');
-    if (!first) idle = 99;   // no result: the loop below ends at once
+    const column = (document.querySelector('[data-testid="primaryColumn"]') || {}).innerText || '';
+    const notice = (column.match(/결과가? 없[^\n]*|No results[^\n]*|다시 시도[^\n]*|Something went wrong[^\n]*|문제가 발생[^\n]*/) || [''])[0];
+    log('page ready: articles=' + document.querySelectorAll('article[data-testid="tweet"]').length + ' viewer=@' + v + (notice ? ' notice="' + notice.slice(0, 40) + '"' : ''));
+    if (!first) {
+      // empty: when posts were handled already the page is the "deleted first page" case -> page by until:; a fresh run
+      // steps the until: back a day up to 3 times before taking the empty result at its word
+      const base = isFinite(oldest) ? oldest : (job.to || Math.floor(Date.now() / 1000));
+      const step = isFinite(oldest) ? 1 : 86400;
+      if ((job.hop || 0) < 40 && (isFinite(oldest) || (job.hop || 0) < 3) && (!job.from || base - step > job.from)) {
+        if (await hop(base - step, 'empty result')) return;
+      }
+      idle = 99;   // nothing there: the loop below ends at once
+      log('empty result accepted (hop=' + (job.hop || 0) + ')');
+    }
 
     while (!stopped && idle < 10) {
       const arts = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
@@ -152,6 +204,7 @@
         prev = r;
         if (r && !seen.has(r.id)) { seen.add(r.id); fresh++; }   // anything new on screen, mine or not: the page is still loading more
         if (!r || r.handle.toLowerCase() !== me || r.repost) continue;
+        if (!done.has(r.id) && !seen.has(r.id + ':mine')) { seen.add(r.id + ':mine'); mine++; }
         // in a conversation the post right above (someone else's) is the parent: this one is a reply
         if (r.kind === 'post' && before && before.handle.toLowerCase() !== me) {
           const cell = a.closest('[data-testid="cellInnerDiv"]'), pcell = before.el.closest('[data-testid="cellInnerDiv"]');
@@ -163,8 +216,9 @@
         done.set(r.id, it);
         items.push(it);
         found++;
+        log('target #' + found + ' ' + r.id + ' ' + fmtUntil(r.time) + ' ' + r.kind + ' "' + (r.text || '').slice(0, 40).replace(/\s+/g, ' ') + '"');
         if (job.mode === 'scan') {
-          report({ found, deleted, failed, last: r.text, done: false });
+          report({ found, deleted, failed, last: r.text, done: false, oldest: isFinite(oldest) ? oldest : 0 });
           continue;
         }
         await throttle();
@@ -175,25 +229,37 @@
           if (it.ok) deleted++; else { failed++; it.error = '화면에서 사라지지 않음'; }
         } catch (e) {
           it.ok = false; it.error = e.message; failed++;
+          log('error ' + r.id + ': ' + e.message);
         }
         say('삭제 ' + deleted + '건' + (failed ? ', 실패 ' + failed : '') + ' ...');
-        report({ found, deleted, failed, last: r.text, done: false, item: it });
+        report({ found, deleted, failed, last: r.text, done: false, item: it, oldest: isFinite(oldest) ? oldest : 0 });
         acted = true;
         await pause(1800, 4500);
         break;   // the timeline shifted: read it again
       }
       if (acted) continue;
       // nothing left on screen: older posts are further down, unless the range is already behind us
-      if (job.from && oldest < job.from - 86400 * 3) break;   // 3 days past the end of the range (threads can be out of order)
+      if (job.from && oldest < job.from - 86400 * 3) { log('past the older bound: oldest=' + fmtUntil(oldest)); break; }
       idle = fresh ? 0 : idle + 1;
-      if (idle >= 10) break;                                  // the end of the timeline (10 screens without anything new)
+      if (idle % 3 === 0 || fresh) log('scroll: articles=' + arts.length + ' fresh=' + fresh + ' idle=' + idle + ' mine=' + mine + ' oldest=' + (isFinite(oldest) ? fmtUntil(oldest) : '-') + ' y=' + Math.round(window.scrollY));
+      if (idle >= 10) {
+        // the results ran out: X search pages only so far; anything older comes with a new search until: the oldest seen
+        if (isFinite(oldest) && mine > 0 && (job.hop || 0) < 40 && (!job.from || oldest - 1 > job.from)) {
+          report({ found, deleted, failed, done: false, oldest });
+          if (await hop(oldest - 1, 'results ran out after ' + mine + ' of mine')) return;
+        }
+        log('end of results (hop=' + (job.hop || 0) + ', mine=' + mine + ')');
+        break;
+      }
       await scrollDown();
       await pause(900, 2400);
     }
     const status = stopped ? 'stopped' : 'done';
+    log('finish ' + status + ' found=' + found + ' deleted=' + deleted + ' failed=' + failed);
     say(status === 'stopped' ? '중지됨' : (job.mode === 'scan' ? '대상 ' + found + '건' : '끝: 삭제 ' + deleted + '건, 실패 ' + failed + '건'));
     report({ found, deleted, failed, done: true, status, items });
   } catch (e) {
+    log('fatal: ' + e.message);
     say('오류: ' + e.message);
     report({ found, deleted, failed, done: true, status: 'error', error: e.message, items });
   }

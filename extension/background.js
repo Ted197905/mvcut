@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     chrome.tabs.create({ url, active: true }, (tab) => {
       purges.set(tab.id, { id: String(msg.job), mode: msg.mode === 'scan' ? 'scan' : 'delete', handle, kinds, query,
                            from: Number(msg.from) || 0, to: Number(msg.to) || 0, mvcutTab: from, started: false,
-                           found: 0, deleted: 0, failed: 0, items: [], posted: 0, postedAt: 0 });
+                           found: 0, deleted: 0, failed: 0, items: [], posted: 0, postedAt: 0, hop: 0, oldest: 0, until: 0, log: [], logSent: 0 });
       reply({ ok: true });
     });
     return true;
@@ -48,9 +48,24 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const j = id != null ? purges.get(id) : null;
     if (!j) { reply(null); return true; }
     // the tab was reloaded in the middle (X does that on its own now and then): the new script carries on with the counts so far
-    const resume = j.started ? { found: j.found, deleted: j.deleted, failed: j.failed, items: j.items } : null;
+    const resume = j.started ? { found: j.found, deleted: j.deleted, failed: j.failed, items: j.items, oldest: j.oldest } : null;
     j.started = true;
-    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to, query: j.query, resume });
+    reply({ id: j.id, mode: j.mode, handle: j.handle, kinds: j.kinds, from: j.from, to: j.to, query: j.query, hop: j.hop, resume });
+    return true;
+  }
+  // the walk pages by until: (X search shows nothing when the first page is all deleted posts): the script asks before
+  // reloading the tab with a new query; each hop must go further back, 40 hops at most
+  if (msg && msg.type === 'x-purge-hop') {
+    const id = sender.tab && sender.tab.id;
+    const j = id != null ? purges.get(id) : null;
+    if (!j) { reply({ ok: false, error: 'no job' }); return true; }
+    const ts = Number(msg.until) || 0;
+    if (j.hop >= 40) { reply({ ok: false, error: '40 hops' }); return true; }
+    if (j.until && ts >= j.until) { reply({ ok: false, error: 'until did not move back (' + ts + ' >= ' + j.until + ')' }); return true; }
+    j.hop++; j.until = ts; j.oldest = ts; j.query = String(msg.query || j.query);
+    j.log.push(new Date().toTimeString().slice(0, 8) + ' [bg] hop ' + j.hop + ': ' + j.query + ' (' + (msg.why || '') + ')');
+    purgeReport(j, { force: true });
+    reply({ ok: true, hop: j.hop });
     return true;
   }
   if (msg && msg.type === 'x-purge-progress') {
@@ -58,6 +73,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const j = id != null ? purges.get(id) : null;
     if (j) {
       j.found = msg.found || 0; j.deleted = msg.deleted || 0; j.failed = msg.failed || 0;
+      if (msg.oldest && (!j.oldest || msg.oldest < j.oldest)) j.oldest = msg.oldest;
+      if (Array.isArray(msg.log) && msg.log.length) { j.log.push(...msg.log); if (j.log.length > 2000) { const cut = j.log.length - 2000; j.log.splice(0, cut); j.logSent = Math.max(0, j.logSent - cut); } }
       if (msg.item) j.items.push(msg.item);
       if (msg.done && Array.isArray(msg.items)) j.items = msg.items;
       chrome.tabs.sendMessage(j.mvcutTab, { type: 'x-purge-progress', ...msg }).catch(() => {});
@@ -86,12 +103,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 // closed or reloaded: at the end, while waiting, and every 5 posts handled
 function purgeReport(j, msg) {
   const n = (j.deleted || 0) + (j.failed || 0);
-  const due = msg.done || (msg.waiting && Date.now() - j.postedAt > 60000) || (n > 0 && n % 5 === 0 && n !== j.posted);
+  const due = msg.done || msg.force || (msg.waiting && Date.now() - j.postedAt > 60000) || (n > 0 && n % 5 === 0 && n !== j.posted)
+    || (j.log.length - j.logSent >= 25 && Date.now() - j.postedAt > 20000);
   if (!due) return;
   j.posted = n; j.postedAt = Date.now();
+  const log = j.log.slice(j.logSent); j.logSent = j.log.length;
   api('/xapi/purge/' + encodeURIComponent(j.id), { method: 'POST', body: JSON.stringify({
-    status: msg.done ? (msg.status || 'done') : 'running', found: j.found, deleted: j.deleted, failed: j.failed, error: msg.error || null, items: j.items,
-  }) }).catch(() => {});
+    status: msg.done ? (msg.status || 'done') : 'running', found: j.found, deleted: j.deleted, failed: j.failed, error: msg.error || null, items: j.items, log,
+  }) }).catch((e) => { j.logSent -= log.length; console.warn('purge report failed', e); });
 }
 
 chrome.tabs.onRemoved.addListener((id) => {

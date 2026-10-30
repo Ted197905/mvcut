@@ -58,6 +58,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('xwatch/purge/prefs', 'XWatchPage::purgePrefs');
     $routes->post('xwatch/purge/(:num)', 'XWatchPage::purgeReport/$1');
     $routes->get('xwatch/purge/(:num)', 'XWatchPage::purgeState/$1');
+    $routes->get('xwatch/purge/(:num)/log', 'XWatchPage::purgeLog/$1');
 
     $routes->get('keywords', 'Keywords::index');
     $routes->post('api/keywords', 'Keywords::create');

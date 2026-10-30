@@ -132,6 +132,12 @@ class XWatch
             }
         }
         if ($row['status'] !== 'running' && $data['status'] === 'running') unset($data['status']);   // a late progress report after the end
+        if (is_array($j['log'] ?? null) && $j['log'] !== []) {   // the extension's step log, appended, the newest 200 KB kept
+            $lines = array_map(static fn ($l) => mb_substr((string) $l, 0, 500), array_slice($j['log'], 0, 500));
+            $log = rtrim((string) $row['log']) . ($row['log'] ? "\n" : '') . implode("\n", $lines);
+            if (strlen($log) > 200000) $log = substr($log, -200000);
+            $data['log'] = $log;
+        }
         $db->table('x_purges')->where('id', $id)->update($data);
         return $row + $data;
     }

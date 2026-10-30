@@ -69,6 +69,15 @@ class XWatchPage extends BaseController
             'items' => array_slice(array_reverse($items), 0, 30)]);
     }
 
+    /** GET /xwatch/purge/{id}/log - the run's step log as plain text */
+    public function purgeLog(int $id)
+    {
+        $row = db_connect()->table('x_purges')->select('log, query, status, found, deleted, failed, created_at')->where(['id' => $id, 'user_id' => $this->uid()])->get()->getRowArray();
+        if (! $row) throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        $head = "# 게시물 정리 #{$id} " . XWatch::kst(strtotime($row['created_at'] . ' UTC'), 'Y-m-d H:i') . " | {$row['query']} | {$row['status']} found {$row['found']} deleted {$row['deleted']} failed {$row['failed']}\n\n";
+        return $this->response->setContentType('text/plain; charset=UTF-8')->setBody($head . ((string) $row['log'] ?: '(기록 없음: 확장 1.9.3 이전 실행)'));
+    }
+
     /** POST /xwatch/purge/prefs - the form's values, kept per account (x_watch.purge_prefs) */
     public function purgePrefs()
     {

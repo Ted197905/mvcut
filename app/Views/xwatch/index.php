@@ -224,6 +224,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <button class="btn sm danger" type="button" id="xpDelete">삭제</button>
       <button class="btn sm ghost" type="button" id="xpStop" hidden>중지</button>
       <span class="small xp-status"></span>
+      <a class="small xp-log" href="#" target="_blank" rel="noopener" hidden>로그</a>
     </div>
     <div class="xp-bar" hidden><i></i></div>
     <ul class="xp-list small muted" hidden></ul>
@@ -237,7 +238,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
             <td><?= esc(XWatch::kst(strtotime($p['created_at'] . ' UTC'), 'm-d H:i')) ?> <?= $p['mode'] === 'scan' ? '세기' : '삭제' ?></td>
             <td><?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d')) ?> 이전 ~ <?= strtotime($p['from_at'] . ' UTC') > 86400 ? esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d')) : '첫 글까지' ?></td>
             <td><?php if (! empty($p['query'])): ?><code><?= esc($p['query']) ?></code><br><?php endif ?><?= esc(implode(', ', array_map(static fn ($k) => $kn[$k] ?? $k, explode(',', $p['kinds'])))) ?></td>
-            <td><?= ['running' => '진행 중', 'done' => '완료', 'stopped' => '중지', 'error' => '오류'][$p['status']] ?? esc($p['status']) ?> · 대상 <?= (int) $p['found'] ?><?= $p['mode'] === 'delete' ? ' · 삭제 ' . (int) $p['deleted'] . ($p['failed'] ? ' · 실패 ' . (int) $p['failed'] : '') : '' ?><?= $p['error'] ? ' · ' . esc($p['error']) : '' ?></td>
+            <td><?= ['running' => '진행 중', 'done' => '완료', 'stopped' => '중지', 'error' => '오류'][$p['status']] ?? esc($p['status']) ?> · 대상 <?= (int) $p['found'] ?><?= $p['mode'] === 'delete' ? ' · 삭제 ' . (int) $p['deleted'] . ($p['failed'] ? ' · 실패 ' . (int) $p['failed'] : '') : '' ?><?= $p['error'] ? ' · ' . esc($p['error']) : '' ?> · <a href="<?= site_url('xwatch/purge/' . (int) $p['id'] . '/log') ?>" target="_blank" rel="noopener">로그</a></td>
           </tr>
         <?php endforeach ?>
         </tbody>
@@ -363,6 +364,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       const j = await r.json().catch(() => ({}));
       if (!j.ok) { alert(j.error || MV.httpError(r.status)); return; }
       job = String(j.id); mode = m; items = []; lastSent = 0;
+      const lg = document.querySelector('.xp-log'); lg.href = '<?= site_url('xwatch/purge') ?>/' + job + '/log'; lg.hidden = false;
       list.innerHTML = ''; list.hidden = true; bar.hidden = true;
       $('xpScan').disabled = $('xpDelete').disabled = true; $('xpStop').hidden = false;
       show({ found: 0 });
@@ -373,6 +375,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     const running = <?= json_encode($purgeRun ? ['id' => (int) $purgeRun['id'], 'mode' => $purgeRun['mode']] : null) ?>;
     if (running) {
       job = String(running.id); mode = running.mode;
+      const lg = document.querySelector('.xp-log'); lg.href = '<?= site_url('xwatch/purge') ?>/' + job + '/log'; lg.hidden = false;
       $('xpScan').disabled = $('xpDelete').disabled = true; $('xpStop').hidden = false;
       show({ found: 0 });
       poll();
