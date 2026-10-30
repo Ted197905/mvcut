@@ -197,7 +197,7 @@
 
   try {
     // a search with nothing in it shows no article at all
-    const first = await Promise.race([waitFor('article[data-testid="tweet"]', 30000).then(() => true), sleep(30000).then(() => false)]);
+    const first = await waitFor('article[data-testid="tweet"]', 30000).then(() => true, () => false);   // a timeout is "empty", not an error
     await sleep(1000);
     const v = viewer();
     if (!v) throw new Error('X에 로그인되어 있지 않습니다');
