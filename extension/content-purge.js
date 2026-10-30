@@ -24,7 +24,9 @@
     for (let i = 0; i < steps; i++) { window.scrollBy({ top: total / steps, behavior: 'smooth' }); await sleep(jitter(90, 220)); }
   };
   let stopped = false;
-  chrome.runtime.onMessage.addListener((m) => { if (m && m.type === 'x-purge-stop') stopped = true; });
+  chrome.runtime.onMessage.addListener((m) => {
+    if (m && m.type === 'x-purge-stop' && (!m.job || String(m.job) === String(job.id))) { stopped = true; log('stop received'); }
+  });
 
   // every step is logged (console + the server through background.js), so a run that misbehaves can be read back
   let logBuf = [];
