@@ -281,7 +281,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.toggle('on', x === b));
     }; });
     document.querySelector('.xp-preset button').classList.add('on');
-    from.addEventListener('change', () => { document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.remove('on')); if (from.value && !all.checked) to.value = local(monthsAgo(new Date(from.value), 1)); build(); });
+    from.addEventListener('change', () => { document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.remove('on')); if (from.value) to.value = local(monthsAgo(new Date(from.value + 'T00:00'), 1)); build(); });
     all.onchange = () => { to.disabled = all.checked; build(); };
     to.disabled = all.checked;
     setTimeout(() => { if (document.documentElement.dataset.mvcutX !== '1') { document.querySelector('.xp-ext').hidden = false; $('xpScan').disabled = $('xpDelete').disabled = true; } }, 800);
