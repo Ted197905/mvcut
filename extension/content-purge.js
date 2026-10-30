@@ -70,8 +70,19 @@
     };
   };
 
+  // closes an open "..." menu (X puts a transparent mask behind it; Escape is the fallback)
+  const closeMenu = async () => {
+    for (let i = 0; i < 3 && document.querySelector('div[role="menu"]'); i++) {
+      const mask = document.querySelector('[data-testid="mask"]');
+      if (mask) mask.click();
+      else for (const t of [document.activeElement, document.body, document]) t && t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+      await sleep(400);
+    }
+  };
+
   // deletes the article's post through its menu; true when the confirm sheet was clicked
   const remove = async (r) => {
+    await closeMenu();   // a menu left open by the previous try would stack under this one
     r.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     await sleep(jitter(700, 1400));   // a glance at the post before the menu
     const caret = r.el.querySelector('button[data-testid="caret"]');
@@ -79,11 +90,12 @@
     caret.click();
     await waitFor('div[role="menu"] [role="menuitem"]', 8000);
     await sleep(jitter(400, 900));
-    const item = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).find((x) => /^(삭제|Delete)(\b|$)/.test((x.innerText || '').trim()));
+    // "삭제하기" / "삭제" / "Delete": \b does not work after Hangul, so match the start of the text only
+    const item = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).find((x) => /^\s*(삭제|Delete)/.test(x.innerText || ''));
     if (!item) {
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      await sleep(300);
-      throw new Error('삭제 메뉴 없음 (내 글이 아니거나 메뉴가 다름)');
+      const seen = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).map((x) => (x.innerText || '').trim().split('\n')[0]).slice(0, 4).join(' / ');
+      await closeMenu();
+      throw new Error('삭제 메뉴 없음 (메뉴: ' + seen + ')');
     }
     item.click();
     const ok = await waitFor('[data-testid="confirmationSheetConfirm"]', 8000);
