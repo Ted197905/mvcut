@@ -53,6 +53,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('xwatch/token', 'XWatchPage::token');
     $routes->post('xwatch/check', 'XWatchPage::checkNow');
     $routes->post('xwatch/posts/(:num)/delete', 'XWatchPage::deletePost/$1');
+    $routes->post('xwatch/purge', 'XWatchPage::purgeStart');
+    $routes->post('xwatch/purge/(:num)', 'XWatchPage::purgeReport/$1');
 
     $routes->get('keywords', 'Keywords::index');
     $routes->post('api/keywords', 'Keywords::create');

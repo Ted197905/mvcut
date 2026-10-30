@@ -461,6 +461,16 @@ main.wide.settings.xwatch { max-width: 860px; }
 .xw-post.short .xw-gap { color: #b26a00; font-weight: 600; }
 .xw-text { display: block; font-size: 14px; color: var(--label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .xw-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.xp-form { max-width: 520px; margin-bottom: 10px; }
+.xp-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--label2); }
+.xp-kinds { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.xp-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.xp-bar { height: 6px; border-radius: 3px; background: var(--fill3); margin-top: 10px; overflow: hidden; }
+.xp-bar i { display: block; height: 100%; width: 0; background: var(--red); transition: width .3s; }
+.xp-list { margin: 10px 0 0; padding-left: 18px; max-height: 220px; overflow: auto; }
+.xp-log { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.xp-log th, .xp-log td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--sep, rgba(0,0,0,.08)); vertical-align: top; }
+.xp-log th { color: var(--label2); font-weight: 500; border-top: 0; }
 .xw-check { display: flex !important; gap: 8px; align-items: center; font-size: 14px !important; color: var(--label) !important; margin: 4px 0 8px !important; }
 @media (max-width: 640px) {
   .xw-tests, .xw-grid { grid-template-columns: 1fr; }

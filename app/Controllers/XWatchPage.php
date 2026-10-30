@@ -25,7 +25,48 @@ class XWatchPage extends BaseController
             'probe'   => Cookies::status(XWatch::PROBE),
             'tg'      => Telegram::config($this->uid()),
             'token'   => session()->getFlashdata('xtoken'),
+            'purges'  => db_connect()->table('x_purges')->where('user_id', $this->uid())->orderBy('id', 'DESC')->get(8)->getResultArray(),
         ]);
+    }
+
+    /**
+     * POST /xwatch/purge {mode: scan|delete, from, to (unix), kinds[]} - 게시물 정리: records the run the
+     * extension is about to make on x.com (the page hands the same numbers to the extension). JSON {id}.
+     */
+    public function purgeStart()
+    {
+        $from = (int) $this->request->getPost('from');
+        $to   = (int) $this->request->getPost('to');
+        $kinds = array_values(array_intersect((array) $this->request->getPost('kinds'), ['post', 'reply', 'quote']));
+        if ($from <= 0 || $to <= $from) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '기간이 잘못됐습니다.']);
+        if ($kinds === []) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '종류를 하나는 골라야 합니다.']);
+        if ($to - $from > 366 * 86400) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '한 번에 1년까지만 지정할 수 있습니다.']);
+        $db = db_connect();
+        $db->table('x_purges')->insert(['user_id' => $this->uid(), 'mode' => $this->request->getPost('mode') === 'scan' ? 'scan' : 'delete',
+            'from_at' => gmdate('Y-m-d H:i:s', $from), 'to_at' => gmdate('Y-m-d H:i:s', $to), 'kinds' => implode(',', $kinds),
+            'status' => 'running', 'created_at' => gmdate('Y-m-d H:i:s')]);
+        return $this->response->setJSON(['ok' => true, 'id' => (int) $db->insertID()]);
+    }
+
+    /** POST /xwatch/purge/{id} - the page reports the extension's progress / result; deleted posts leave x_posts. */
+    public function purgeReport(int $id)
+    {
+        $db  = db_connect();
+        $row = $db->table('x_purges')->where(['id' => $id, 'user_id' => $this->uid()])->get()->getRowArray();
+        if (! $row) return $this->response->setStatusCode(404)->setJSON(['ok' => false]);
+        $j = $this->request->getJSON(true) ?: [];
+        $items = is_array($j['items'] ?? null) ? array_slice($j['items'], 0, 5000) : null;
+        $data = ['found' => (int) ($j['found'] ?? 0), 'deleted' => (int) ($j['deleted'] ?? 0), 'failed' => (int) ($j['failed'] ?? 0),
+                 'status' => in_array($j['status'] ?? '', ['running', 'done', 'stopped', 'error'], true) ? $j['status'] : 'running',
+                 'error' => isset($j['error']) ? mb_substr((string) $j['error'], 0, 255) : null, 'updated_at' => gmdate('Y-m-d H:i:s')];
+        if ($items !== null) {
+            $data['items'] = json_encode($items, JSON_UNESCAPED_UNICODE);
+            foreach ($items as $it) {
+                if (! empty($it['ok']) && preg_match('/^\d+$/', (string) ($it['id'] ?? ''))) XWatch::deletePost($this->uid(), (string) $it['id']);
+            }
+        }
+        $db->table('x_purges')->where('id', $id)->update($data);
+        return $this->response->setJSON(['ok' => true]);
     }
 
     /** GET /xwatch/checks?status=ok|banned|error&page=N - every stored restriction check (30 days) */

@@ -116,6 +116,110 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php endif ?>
   </section>
 
+  <section class="set-card" id="purge">
+    <div class="xw-head"><h2>게시물 정리</h2><span class="ck-badge none xp-ext" hidden>확장 필요</span></div>
+    <p class="muted small" style="margin:0 0 14px">기간 안의 내 게시물을 크롬 확장이 X 화면에서 하나씩 지웁니다(메뉴 &gt; 삭제, 1.5~3초 간격). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
+    <?php if ($w['handle'] === ''): ?>
+      <p class="ck-alert">먼저 설정에서 X 아이디를 넣어야 합니다.</p>
+    <?php else: ?>
+    <div class="xw-grid xp-form">
+      <label>시작 (KST)<input class="input" type="datetime-local" id="xpFrom"></label>
+      <label>끝 (KST)<input class="input" type="datetime-local" id="xpTo"></label>
+    </div>
+    <div class="xp-kinds">
+      <label class="xw-check"><input type="checkbox" value="post" checked> 게시물</label>
+      <label class="xw-check"><input type="checkbox" value="reply" checked> 답글</label>
+      <label class="xw-check"><input type="checkbox" value="quote" checked> 인용</label>
+    </div>
+    <div class="xp-acts">
+      <button class="btn sm secondary" type="button" id="xpScan">대상 세기</button>
+      <button class="btn sm danger" type="button" id="xpDelete">삭제</button>
+      <button class="btn sm ghost" type="button" id="xpStop" hidden>중지</button>
+      <span class="small xp-status"></span>
+    </div>
+    <div class="xp-bar" hidden><i></i></div>
+    <ul class="xp-list small muted" hidden></ul>
+    <?php endif ?>
+    <?php if ($purges): ?>
+      <table class="xp-log small">
+        <thead><tr><th>실행</th><th>기간</th><th>종류</th><th>결과</th></tr></thead>
+        <tbody>
+        <?php $kn = ['post' => '게시물', 'reply' => '답글', 'quote' => '인용']; foreach ($purges as $p): ?>
+          <tr>
+            <td><?= esc(XWatch::kst(strtotime($p['created_at'] . ' UTC'), 'm-d H:i')) ?> <?= $p['mode'] === 'scan' ? '세기' : '삭제' ?></td>
+            <td><?= esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d H:i')) ?> ~ <?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d H:i')) ?></td>
+            <td><?= esc(implode(', ', array_map(static fn ($k) => $kn[$k] ?? $k, explode(',', $p['kinds'])))) ?></td>
+            <td><?= ['running' => '진행 중', 'done' => '완료', 'stopped' => '중지', 'error' => '오류'][$p['status']] ?? esc($p['status']) ?> · 대상 <?= (int) $p['found'] ?><?= $p['mode'] === 'delete' ? ' · 삭제 ' . (int) $p['deleted'] . ($p['failed'] ? ' · 실패 ' . (int) $p['failed'] : '') : '' ?><?= $p['error'] ? ' · ' . esc($p['error']) : '' ?></td>
+          </tr>
+        <?php endforeach ?>
+        </tbody>
+      </table>
+    <?php endif ?>
+  </section>
+  <script>
+  (() => {
+    const $ = (id) => document.getElementById(id);
+    const from = $('xpFrom'), to = $('xpTo');
+    if (!from) return;
+    const status = document.querySelector('.xp-status'), bar = document.querySelector('.xp-bar'), list = document.querySelector('.xp-list');
+    const kinds = () => Array.from(document.querySelectorAll('.xp-kinds input:checked')).map((i) => i.value);
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const now = new Date(); to.value = local(now); from.value = local(new Date(now.getTime() - 7 * 86400000));
+    setTimeout(() => { if (document.documentElement.dataset.mvcutX !== '1') { document.querySelector('.xp-ext').hidden = false; $('xpScan').disabled = $('xpDelete').disabled = true; } }, 800);
+    let job = null, mode = '', items = [], lastSent = 0;
+    const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
+    const report = async (d) => {
+      if (!job) return;
+      await fetch('<?= site_url('xwatch/purge') ?>/' + job, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...csrf() },
+        body: JSON.stringify({ status: d.status || 'running', found: d.found || 0, deleted: d.deleted || 0, failed: d.failed || 0, error: d.error || null, items: d.items || items }) }).catch(() => {});
+    };
+    const show = (d) => {
+      const n = (d.found || 0);
+      status.textContent = (mode === 'scan' ? '대상 ' + n + '건' : '대상 ' + n + '건 · 삭제 ' + (d.deleted || 0) + '건' + (d.failed ? ' · 실패 ' + d.failed + '건' : ''))
+        + (d.done ? (d.status === 'stopped' ? ' · 중지됨' : d.status === 'error' ? ' · 오류: ' + (d.error || '') : ' · 완료') : ' · 진행 중 (X 탭에서 작업 중)');
+      if (mode === 'delete' && n) { bar.hidden = false; bar.firstElementChild.style.width = Math.round(((d.deleted || 0) + (d.failed || 0)) * 100 / n) + '%'; }
+    };
+    const start = async (m) => {
+      const f = Math.floor(new Date(from.value).getTime() / 1000), t = Math.floor(new Date(to.value).getTime() / 1000), k = kinds();
+      if (!f || !t || t <= f) { alert('기간을 확인하세요.'); return; }
+      if (!k.length) { alert('종류를 하나는 골라야 합니다.'); return; }
+      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' ~ ' + to.value.replace('T', ' ') + ' 사이의 ' + k.map((x) => ({ post: '게시물', reply: '답글', quote: '인용' })[x]).join(', ') + '을 X에서 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+      const fd = new FormData(); fd.append('mode', m); fd.append('from', f); fd.append('to', t); k.forEach((x) => fd.append('kinds[]', x));
+      const c = MV.csrf(); if (c) fd.append(c.name, c.hash);
+      const r = await fetch('<?= site_url('xwatch/purge') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) { alert(j.error || MV.httpError(r.status)); return; }
+      job = String(j.id); mode = m; items = []; lastSent = 0;
+      list.innerHTML = ''; list.hidden = true; bar.hidden = true;
+      $('xpScan').disabled = $('xpDelete').disabled = true; $('xpStop').hidden = false;
+      show({ found: 0 });
+      window.postMessage({ source: 'mvcut', type: 'x-purge', action: 'start', job, mode: m, handle: <?= json_encode($w['handle']) ?>, kinds: k, from: f, to: t }, location.origin);
+    };
+    $('xpScan').onclick = () => start('scan');
+    $('xpDelete').onclick = () => start('delete');
+    $('xpStop').onclick = () => window.postMessage({ source: 'mvcut', type: 'x-purge', action: 'stop', job }, location.origin);
+    window.addEventListener('message', (e) => {
+      const d = e.data;
+      if (e.source !== window || !d || d.source !== 'mvcut-ext' || d.type !== 'x-purge-progress' || String(d.job) !== job) return;
+      if (d.item) {
+        items.push(d.item);
+        const li = document.createElement('li');
+        li.textContent = (d.item.ok ? '삭제: ' : '실패 (' + (d.item.error || '') + '): ') + new Date(d.item.time * 1000).toLocaleString('ko-KR') + ' ' + (d.item.text || '(본문 없음)').slice(0, 80);
+        list.prepend(li); list.hidden = false;
+      }
+      if (d.done && Array.isArray(d.items)) items = d.items;
+      show(d);
+      if (d.done) {
+        report(d).then(() => { if (mode === 'delete' && d.deleted) setTimeout(() => location.reload(), 1500); });
+        $('xpScan').disabled = $('xpDelete').disabled = false; $('xpStop').hidden = true; job = null;
+      } else if ((d.deleted || 0) + (d.failed || 0) >= lastSent + 10) {
+        lastSent = (d.deleted || 0) + (d.failed || 0); report(d);
+      }
+    });
+  })();
+  </script>
+
   <section class="set-card">
     <h2>검사 이력</h2>
     <p><a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">전체 검사 기록 보기</a></p>

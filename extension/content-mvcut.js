@@ -3,9 +3,22 @@ document.documentElement.dataset.mvcutX = '1';
 document.documentElement.dataset.mvcutXMulti = '1';   // send-to-x takes files[] (up to 4 photos)
 document.documentElement.dataset.mvcutXVersion = chrome.runtime.getManifest().version;
 
+// 게시물 정리: the page asks (start / stop), progress comes back from the X tab through the service worker
+chrome.runtime.onMessage.addListener((m) => {
+  if (m && m.type === 'x-purge-progress') window.postMessage({ source: 'mvcut-ext', ...m }, location.origin);
+});
+
 window.addEventListener('message', (e) => {
   if (e.source !== window || e.origin !== location.origin) return;
   const d = e.data;
+  if (d && d.source === 'mvcut' && d.type === 'x-purge') {
+    chrome.runtime.sendMessage({ type: 'x-purge', action: d.action === 'stop' ? 'stop' : 'start', job: String(d.job || ''), mode: d.mode,
+                                 handle: String(d.handle || ''), kinds: Array.isArray(d.kinds) ? d.kinds.map(String) : ['post', 'reply'],
+                                 from: Number(d.from) || 0, to: Number(d.to) || 0 })
+      .then((r) => { if (r && !r.ok) window.postMessage({ source: 'mvcut-ext', type: 'x-purge-progress', job: String(d.job || ''), done: true, status: 'error', error: r.error }, location.origin); })
+      .catch(() => {});
+    return;
+  }
   if (!d || d.source !== 'mvcut' || d.type !== 'send-to-x' || (typeof d.url !== 'string' && !Array.isArray(d.files))) return;
   chrome.runtime.sendMessage({
     type: 'send-to-x',
