@@ -197,13 +197,13 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <p class="ck-alert">먼저 설정에서 X 아이디를 넣어야 합니다.</p>
     <?php else: ?>
     <div class="xp-row">
-      <span class="small">시작 (이 시각 이전 글부터)</span>
+      <span class="small">시작 (이 날짜 이전 글부터 = until:)</span>
       <div class="seg xp-preset"><button class="seg-item" type="button" data-months="3">3개월 전</button><button class="seg-item" type="button" data-months="6">6개월 전</button><button class="seg-item" type="button" data-months="12">1년 전</button></div>
-      <input class="input" type="datetime-local" id="xpFrom">
+      <input class="input" type="date" id="xpFrom">
     </div>
     <div class="xp-row">
-      <span class="small">끝 (이 시각까지 거슬러)</span>
-      <input class="input" type="datetime-local" id="xpTo">
+      <span class="small">끝 (이 날짜까지 거슬러 = since:)</span>
+      <input class="input" type="date" id="xpTo">
       <label class="xw-check"><input type="checkbox" id="xpAll" checked> 끝까지 (계정의 첫 글까지)</label>
     </div>
     <div class="xp-row">
@@ -235,7 +235,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
         <?php $kn = ['post' => '게시물', 'reply' => '답글', 'quote' => '인용']; foreach ($purges as $p): ?>
           <tr>
             <td><?= esc(XWatch::kst(strtotime($p['created_at'] . ' UTC'), 'm-d H:i')) ?> <?= $p['mode'] === 'scan' ? '세기' : '삭제' ?></td>
-            <td><?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d H:i')) ?> 이전 ~ <?= strtotime($p['from_at'] . ' UTC') > 86400 ? esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d H:i')) : '첫 글까지' ?></td>
+            <td><?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d')) ?> 이전 ~ <?= strtotime($p['from_at'] . ' UTC') > 86400 ? esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d')) : '첫 글까지' ?></td>
             <td><?php if (! empty($p['query'])): ?><code><?= esc($p['query']) ?></code><br><?php endif ?><?= esc(implode(', ', array_map(static fn ($k) => $kn[$k] ?? $k, explode(',', $p['kinds'])))) ?></td>
             <td><?= ['running' => '진행 중', 'done' => '완료', 'stopped' => '중지', 'error' => '오류'][$p['status']] ?? esc($p['status']) ?> · 대상 <?= (int) $p['found'] ?><?= $p['mode'] === 'delete' ? ' · 삭제 ' . (int) $p['deleted'] . ($p['failed'] ? ' · 실패 ' . (int) $p['failed'] : '') : '' ?><?= $p['error'] ? ' · ' . esc($p['error']) : '' ?></td>
           </tr>
@@ -253,20 +253,19 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     // 게시물 = post + quote, 댓글 = reply (the extension checks each post's kind; the query only adds filter:replies for 댓글)
     const kinds = () => (document.querySelector('.xp-kinds input:checked') || {}).value === 'reply' ? ['reply'] : ['post', 'quote'];
     const pad = (n) => String(n).padStart(2, '0');
-    const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());   // date only (user, 2026-10-30)
     const all = $('xpAll'), kw = $('xpKw'), query = $('xpQuery'), rebuild = $('xpRebuild');
     const handle = <?= json_encode($w['handle']) ?>;
-    const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     let edited = false;   // the user typed in the query box: inputs no longer overwrite it
     // the user's own search shapes (2026-10-30): 게시물 "from:h until:D", 댓글 "from:h until:D filter:replies";
-    // until: is exclusive (UTC days) so it is the day after the start; since: only when an end is set
+    // the dates go into the query as typed: until: = the start date (posts before it), since: = the end date
     const build = () => {
       if (edited) return;
       const parts = [];
       if (kw.value.trim()) parts.push(kw.value.trim());
       parts.push('from:' + handle);
-      if (from.value) { const d = new Date(from.value); d.setDate(d.getDate() + 1); parts.push('until:' + ymd(d)); }
-      if (!all.checked && to.value) { const d = new Date(to.value); d.setDate(d.getDate() - 1); parts.push('since:' + ymd(d)); }
+      if (from.value) parts.push('until:' + from.value);
+      if (!all.checked && to.value) parts.push('since:' + to.value);
       if (kinds()[0] === 'reply') parts.push('filter:replies');
       query.value = parts.join(' ');
     };
@@ -302,12 +301,13 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     };
     const start = async (m) => {
       // "시작" is the newer bound (where the walk down the timeline begins), "끝" the older one; 끝까지 = no older bound
-      const t = Math.floor(new Date(from.value).getTime() / 1000), f = all.checked ? 0 : Math.floor(new Date(to.value).getTime() / 1000), k = kinds();
+      // the same dates as the query, at local midnight: posts before the start day, back to the end day
+      const t = Math.floor(new Date(from.value + 'T00:00').getTime() / 1000), f = all.checked ? 0 : Math.floor(new Date(to.value + 'T00:00').getTime() / 1000), k = kinds();
       if (!t || (!all.checked && (!f || f >= t))) { alert('기간을 확인하세요. "끝"은 "시작"보다 이전 시각이어야 합니다.'); return; }
       if (!k.length) { alert('종류를 하나는 골라야 합니다.'); return; }
       const q = query.value.trim();
       if (!q) { alert('X 검색어가 비어 있습니다.'); return; }
-      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' 이전 ~ ' + (all.checked ? '첫 글까지' : to.value.replace('T', ' ')) + ' 사이의 ' + (k[0] === 'reply' ? '댓글(답글)' : '게시물(인용 포함)') + '을 X에서 지웁니다.\n검색어: ' + q + '\n되돌릴 수 없습니다. 계속할까요?')) return;
+      if (m === 'delete' && !confirm(from.value + ' 이전 ~ ' + (all.checked ? '첫 글까지' : to.value + ' 0시') + ' 사이의 ' + (k[0] === 'reply' ? '댓글(답글)' : '게시물(인용 포함)') + '을 X에서 지웁니다.\n검색어: ' + q + '\n되돌릴 수 없습니다. 계속할까요?')) return;
       const fd = new FormData(); fd.append('mode', m); fd.append('from', f); fd.append('to', t); fd.append('query', q); k.forEach((x) => fd.append('kinds[]', x));
       const c = MV.csrf(); if (c) fd.append(c.name, c.hash);
       const r = await fetch('<?= site_url('xwatch/purge') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
