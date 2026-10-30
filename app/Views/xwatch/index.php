@@ -21,65 +21,13 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   <p class="muted" style="margin:0 0 22px"><?= $w['handle'] !== '' ? '@' . esc($w['handle']) : '아이디 미설정' ?> · 시간은 한국 시간(KST)</p>
   <?= view('partials/alerts') ?>
 
-  <section class="set-card">
-    <div class="xw-head">
-      <h2>제한 검사</h2>
-      <?php if ($check): ?>
-        <?php $cls = ['ok' => 'ok', 'banned' => 'bad', 'error' => 'warn'][$check['status']] ?? 'none'; ?>
-        <span class="ck-badge <?= $cls ?>"><?= $check['status'] === 'ok' ? '정상' : ($check['status'] === 'banned' ? '제한 감지' : '검사 실패') ?></span>
-      <?php endif ?>
-    </div>
-    <?php if (! $st['probe']): ?>
-      <p class="ck-alert">검사용 부계정 쿠키가 없어 검사를 할 수 없습니다. 아래 "검사용 부계정"에 등록하세요.</p>
-    <?php endif ?>
-    <?php if ($check): ?>
-      <p class="small" style="margin:0 0 14px"><?= esc($check['summary']) ?> <span class="muted">· <?= esc(XWatch::kst($check['ts'])) ?> (<?= $ago($check['ts']) ?>)<?= ! empty($check['result']['source']) ? ' · ' . esc(XWatch::SOURCES[$check['result']['source']] ?? $check['result']['source']) : '' ?></span></p>
-      <div class="xw-tests">
-        <?php foreach (XWatch::TESTS as $k => $label): $b = $badge($check['result'][$k]['ban'] ?? null); ?>
-          <div class="xw-test"><span><?= esc($label) ?></span><span class="ck-badge <?= $b[0] ?>"><?= $b[1] ?></span></div>
-        <?php endforeach ?>
-      </div>
-    <?php else: ?>
-      <p class="muted small">아직 검사 기록이 없습니다.</p>
-    <?php endif ?>
-    <div class="ck-actions">
-      <form method="post" action="<?= site_url('xwatch/check') ?>"><?= csrf_field() ?><button class="btn sm" type="submit">지금 검사</button></form>
-      <a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
-      <span class="muted small">
-        <?= ! $w['enabled'] ? '자동 검사 꺼짐' : ($st['restricted'] ? '제한 감지 모드: 풀릴 때까지 1시간마다 부계정으로만 검사' : '10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)') ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
-      </span>
-    </div>
-  </section>
+  <div class="seg xw-tabs" role="tablist">
+    <a class="seg-item" href="#gaps" data-tab="gaps">게시 간격</a>
+    <a class="seg-item" href="#checks" data-tab="checks">검사 이력</a>
+    <a class="seg-item" href="#settings" data-tab="settings">설정</a>
+  </div>
 
-  <section class="set-card" id="telegram">
-    <h2>텔레그램 알림 <?php if (! empty($tg['chat_id'])): ?><span class="ck-badge ok">연결됨</span><?php elseif (! empty($tg['token'])): ?><span class="ck-badge warn">채팅 연결 필요</span><?php else: ?><span class="ck-badge none">미설정</span><?php endif ?></h2>
-    <p class="muted small" style="margin-bottom:14px">제한이 감지되거나 풀리면 휴대폰 텔레그램으로 알려줍니다.</p>
-    <?php if (empty($tg['token'])): ?>
-      <ol class="small" style="margin:0 0 14px;padding-left:20px;line-height:1.7">
-        <li>텔레그램에서 <b>@BotFather</b>를 열고 <code>/newbot</code> 을 보냅니다.</li>
-        <li>봇 이름과 아이디(끝이 bot)를 정하면 <b>토큰</b>(숫자:문자열)을 줍니다.</li>
-        <li>그 토큰을 아래에 붙여 넣고 저장합니다.</li>
-      </ol>
-      <form method="post" action="<?= site_url('xwatch/telegram') ?>" class="ck-actions"><?= csrf_field() ?>
-        <input type="hidden" name="action" value="token">
-        <input class="input" name="token" placeholder="123456789:AA..." autocomplete="off" required style="max-width:420px">
-        <button class="btn sm" type="submit">토큰 저장</button>
-      </form>
-    <?php else: ?>
-      <p class="small" style="margin:0 0 12px">봇: <b>@<?= esc($tg['bot'] ?? '') ?></b><?php if (! empty($tg['chat_id'])): ?> · 받는 사람: <?= esc($tg['chat'] ?? $tg['chat_id']) ?><?php endif ?></p>
-      <?php if (empty($tg['chat_id'])): ?>
-        <p class="small" style="margin:0 0 12px">텔레그램에서 <a href="https://t.me/<?= esc($tg['bot'] ?? '', 'attr') ?>" target="_blank" rel="noopener">@<?= esc($tg['bot'] ?? '') ?></a> 을 열고 <b>시작</b>을 누른 다음 "채팅 연결"을 누르세요.</p>
-      <?php endif ?>
-      <div class="ck-actions">
-        <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="link"><button class="btn sm" type="submit"><?= empty($tg['chat_id']) ? '채팅 연결' : '채팅 다시 연결' ?></button></form>
-        <?php if (! empty($tg['chat_id'])): ?>
-          <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="test"><button class="btn sm secondary" type="submit">테스트 보내기</button></form>
-        <?php endif ?>
-        <form method="post" action="<?= site_url('xwatch/telegram') ?>" onsubmit="return confirm('텔레그램 알림 설정을 삭제할까요?')"><?= csrf_field() ?><input type="hidden" name="action" value="off"><button class="btn sm ghost" type="submit">해제</button></form>
-      </div>
-    <?php endif ?>
-  </section>
-
+  <div class="xw-tab" data-tab="gaps">
   <section class="set-card">
     <div class="xw-head">
       <h2>게시 간격 (최근 48시간)</h2>
@@ -115,16 +63,148 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       </div>
     <?php endif ?>
   </section>
+  </div>
+
+  <div class="xw-tab" data-tab="checks">
+  <section class="set-card">
+    <div class="xw-head">
+      <h2>제한 검사</h2>
+      <?php if ($check): ?>
+        <?php $cls = ['ok' => 'ok', 'banned' => 'bad', 'error' => 'warn'][$check['status']] ?? 'none'; ?>
+        <span class="ck-badge <?= $cls ?>"><?= $check['status'] === 'ok' ? '정상' : ($check['status'] === 'banned' ? '제한 감지' : '검사 실패') ?></span>
+      <?php endif ?>
+    </div>
+    <?php if (! $st['probe']): ?>
+      <p class="ck-alert">검사용 부계정 쿠키가 없어 검사를 할 수 없습니다. 아래 "검사용 부계정"에 등록하세요.</p>
+    <?php endif ?>
+    <?php if ($check): ?>
+      <p class="small" style="margin:0 0 14px"><?= esc($check['summary']) ?> <span class="muted">· <?= esc(XWatch::kst($check['ts'])) ?> (<?= $ago($check['ts']) ?>)<?= ! empty($check['result']['source']) ? ' · ' . esc(XWatch::SOURCES[$check['result']['source']] ?? $check['result']['source']) : '' ?></span></p>
+      <div class="xw-tests">
+        <?php foreach (XWatch::TESTS as $k => $label): $b = $badge($check['result'][$k]['ban'] ?? null); ?>
+          <div class="xw-test"><span><?= esc($label) ?></span><span class="ck-badge <?= $b[0] ?>"><?= $b[1] ?></span></div>
+        <?php endforeach ?>
+      </div>
+    <?php else: ?>
+      <p class="muted small">아직 검사 기록이 없습니다.</p>
+    <?php endif ?>
+    <div class="ck-actions">
+      <form method="post" action="<?= site_url('xwatch/check') ?>"><?= csrf_field() ?><button class="btn sm" type="submit">지금 검사</button></form>
+      <a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">검사 기록 보기</a>
+      <span class="muted small">
+        <?= ! $w['enabled'] ? '자동 검사 꺼짐' : ($st['restricted'] ? '제한 감지 모드: 풀릴 때까지 1시간마다 부계정으로만 검사' : '10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)') ?><?php if ($st['next_check'] && $w['enabled']): ?> · 다음 <?= esc(XWatch::kst($st['next_check'], 'H:i')) ?><?php endif ?>
+      </span>
+    </div>
+  </section>
+
+  <section class="set-card">
+    <h2>검사 이력</h2>
+    <p><a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">전체 검사 기록 보기</a></p>
+    <?php if (! $history): ?>
+      <p class="muted small">없음</p>
+    <?php else: ?>
+      <dl class="list">
+        <?php foreach ($history as $h): $cls = ['ok' => 'ok', 'banned' => 'bad', 'error' => 'warn'][$h['status']] ?? 'none'; ?>
+          <div class="row"><dt><?= esc(XWatch::kst($h['ts'])) ?></dt><dd><span class="ck-badge <?= $cls ?>"><?= esc($h['summary']) ?></span></dd></div>
+        <?php endforeach ?>
+      </dl>
+    <?php endif ?>
+  </section>
+  </div>
+
+  <div class="xw-tab" data-tab="settings">
+  <section class="set-card">
+    <h2>설정</h2>
+    <form method="post" action="<?= site_url('xwatch/settings') ?>">
+      <?= csrf_field() ?>
+      <div class="field"><label for="handle">감시할 X 아이디</label>
+        <input class="input" id="handle" name="handle" value="<?= esc($w['handle']) ?>" placeholder="blackout_kr" maxlength="16" required></div>
+      <div class="xw-grid">
+        <div class="field"><label for="gap_min">권장 간격 (분, 미만이면 주황)</label><input class="input" type="number" id="gap_min" name="gap_min" min="0" max="720" value="<?= (int) $w['gap_min'] ?>"></div>
+        <div class="field"><label for="gap_warn">경고 간격 (분, 미만이면 빨강)</label><input class="input" type="number" id="gap_warn" name="gap_warn" min="0" max="720" value="<?= (int) ($w['gap_warn'] ?? 10) ?>"></div>
+        <div class="field"><label for="hour_max">1시간 경고 개수</label><input class="input" type="number" id="hour_max" name="hour_max" min="1" max="100" value="<?= (int) $w['hour_max'] ?>"></div>
+        <div class="field"><label for="day_max">하루 경고 개수 (09시 리셋)</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
+      </div>
+      <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)</label>
+      <p class="muted small">제한이 감지되면 풀릴 때까지 매시 정각에 부계정으로만 검사하고, 부계정 검사에서 정상이 나오면 10분 주기로 돌아갑니다.</p>
+      <label class="xw-check"><input type="checkbox" name="count_replies" value="1" <?= ! empty($w['count_replies']) ? 'checked' : '' ?>> 답글도 간격/개수 계산에 포함</label>
+      <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
+      <button class="btn" type="submit">저장</button>
+    </form>
+  </section>
+
+  <section class="set-card" id="telegram">
+    <h2>텔레그램 알림 <?php if (! empty($tg['chat_id'])): ?><span class="ck-badge ok">연결됨</span><?php elseif (! empty($tg['token'])): ?><span class="ck-badge warn">채팅 연결 필요</span><?php else: ?><span class="ck-badge none">미설정</span><?php endif ?></h2>
+    <p class="muted small" style="margin-bottom:14px">제한이 감지되거나 풀리면 휴대폰 텔레그램으로 알려줍니다.</p>
+    <?php if (empty($tg['token'])): ?>
+      <ol class="small" style="margin:0 0 14px;padding-left:20px;line-height:1.7">
+        <li>텔레그램에서 <b>@BotFather</b>를 열고 <code>/newbot</code> 을 보냅니다.</li>
+        <li>봇 이름과 아이디(끝이 bot)를 정하면 <b>토큰</b>(숫자:문자열)을 줍니다.</li>
+        <li>그 토큰을 아래에 붙여 넣고 저장합니다.</li>
+      </ol>
+      <form method="post" action="<?= site_url('xwatch/telegram') ?>" class="ck-actions"><?= csrf_field() ?>
+        <input type="hidden" name="action" value="token">
+        <input class="input" name="token" placeholder="123456789:AA..." autocomplete="off" required style="max-width:420px">
+        <button class="btn sm" type="submit">토큰 저장</button>
+      </form>
+    <?php else: ?>
+      <p class="small" style="margin:0 0 12px">봇: <b>@<?= esc($tg['bot'] ?? '') ?></b><?php if (! empty($tg['chat_id'])): ?> · 받는 사람: <?= esc($tg['chat'] ?? $tg['chat_id']) ?><?php endif ?></p>
+      <?php if (empty($tg['chat_id'])): ?>
+        <p class="small" style="margin:0 0 12px">텔레그램에서 <a href="https://t.me/<?= esc($tg['bot'] ?? '', 'attr') ?>" target="_blank" rel="noopener">@<?= esc($tg['bot'] ?? '') ?></a> 을 열고 <b>시작</b>을 누른 다음 "채팅 연결"을 누르세요.</p>
+      <?php endif ?>
+      <div class="ck-actions">
+        <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="link"><button class="btn sm" type="submit"><?= empty($tg['chat_id']) ? '채팅 연결' : '채팅 다시 연결' ?></button></form>
+        <?php if (! empty($tg['chat_id'])): ?>
+          <form method="post" action="<?= site_url('xwatch/telegram') ?>"><?= csrf_field() ?><input type="hidden" name="action" value="test"><button class="btn sm secondary" type="submit">테스트 보내기</button></form>
+        <?php endif ?>
+        <form method="post" action="<?= site_url('xwatch/telegram') ?>" onsubmit="return confirm('텔레그램 알림 설정을 삭제할까요?')"><?= csrf_field() ?><input type="hidden" name="action" value="off"><button class="btn sm ghost" type="submit">해제</button></form>
+      </div>
+    <?php endif ?>
+  </section>
+
+  <section class="set-card">
+    <h2>크롬 확장 연결</h2>
+    <?php if ($token): ?>
+      <p class="small">아래 토큰을 확장 설정에 붙여 넣으세요. 이 화면을 벗어나면 다시 볼 수 없습니다.</p>
+      <input class="input" readonly value="<?= esc($token) ?>" onclick="this.select()" style="font-family:ui-monospace,monospace;margin-bottom:12px">
+    <?php else: ?>
+      <p class="muted small"><?= $w['token_hash'] ? '토큰이 발급되어 있습니다. 잃어버렸으면 새로 발급하세요.' : '확장이 이 서버에 게시 기록을 보내고 상태를 받으려면 토큰이 필요합니다.' ?></p>
+    <?php endif ?>
+    <form method="post" action="<?= site_url('xwatch/token') ?>"><?= csrf_field() ?><button class="btn sm secondary" type="submit"><?= $w['token_hash'] ? '토큰 재발급' : '토큰 발급' ?></button></form>
+    <p class="muted small" style="margin-top:14px">서버 주소: <code><?= esc(rtrim(base_url(), '/')) ?></code></p>
+  </section>
+
+  <section class="set-card">
+    <h2>검사용 부계정</h2>
+    <p class="muted small" style="margin-bottom:14px">검사는 이 부계정 세션으로만 합니다. 감시하는 본 계정의 쿠키는 절대 등록하지 마세요(같은 계정이면 검사가 거부됩니다). 부계정이 감시 계정을 차단/뮤트하지 않은 상태여야 합니다.</p>
+    <?php $c = $probe; $state = ! $c['exists'] ? ['none', '미등록'] : ($c['expired'] ? ['bad', '만료됨'] : ($c['failure'] ? ['bad', '오류'] : ($c['soon'] ? ['warn', '곧 만료'] : ['ok', '정상']))); ?>
+    <div class="ck">
+      <div class="ck-head"><b>X 부계정 cookies.txt</b><span class="ck-badge <?= $state[0] ?>"><?= $state[1] ?></span></div>
+      <?php if ($c['failure']): ?><p class="ck-alert"><?= esc($c['failure']['message']) ?></p><?php endif ?>
+      <div class="ck-actions">
+        <form method="post" action="<?= site_url('settings/cookies/' . XWatch::PROBE) ?>" enctype="multipart/form-data">
+          <?= csrf_field() ?><input type="hidden" name="back" value="xwatch">
+          <input class="input" type="file" name="cookies" accept=".txt,text/plain" required>
+          <button class="btn sm" type="submit"><?= $c['exists'] ? '교체' : '등록' ?></button>
+        </form>
+      </div>
+    </div>
+  </section>
 
   <section class="set-card" id="purge">
     <div class="xw-head"><h2>게시물 정리</h2><span class="ck-badge none xp-ext" hidden>확장 필요</span></div>
-    <p class="muted small" style="margin:0 0 14px">기간 안의 내 게시물을 크롬 확장이 X 화면에서 하나씩 지웁니다(메뉴 &gt; 삭제, 1.5~3초 간격). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
+    <p class="muted small" style="margin:0 0 14px">"시작" 시각 이전의 내 게시물을 "끝" 시각까지 거슬러 올라가며 크롬 확장이 X 화면에서 하나씩 지웁니다(사람이 스크롤하며 메뉴 &gt; 삭제를 누르는 속도로). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
     <?php if ($w['handle'] === ''): ?>
       <p class="ck-alert">먼저 설정에서 X 아이디를 넣어야 합니다.</p>
     <?php else: ?>
-    <div class="xw-grid xp-form">
-      <label>시작 (KST)<input class="input" type="datetime-local" id="xpFrom"></label>
-      <label>끝 (KST)<input class="input" type="datetime-local" id="xpTo"></label>
+    <div class="xp-row">
+      <span class="small">시작 (이 시각 이전 글부터)</span>
+      <div class="seg xp-preset"><button class="seg-item" type="button" data-months="3">3개월 전</button><button class="seg-item" type="button" data-months="6">6개월 전</button><button class="seg-item" type="button" data-months="12">1년 전</button></div>
+      <input class="input" type="datetime-local" id="xpFrom">
+    </div>
+    <div class="xp-row">
+      <span class="small">끝 (이 시각까지 거슬러)</span>
+      <input class="input" type="datetime-local" id="xpTo">
+      <label class="xw-check"><input type="checkbox" id="xpAll"> 끝까지 (계정의 첫 글까지)</label>
     </div>
     <div class="xp-kinds">
       <label class="xw-check"><input type="checkbox" value="post" checked> 게시물</label>
@@ -142,12 +222,12 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php endif ?>
     <?php if ($purges): ?>
       <table class="xp-log small">
-        <thead><tr><th>실행</th><th>기간</th><th>종류</th><th>결과</th></tr></thead>
+        <thead><tr><th>실행</th><th>기간 (시작 이전 ~ 끝)</th><th>종류</th><th>결과</th></tr></thead>
         <tbody>
         <?php $kn = ['post' => '게시물', 'reply' => '답글', 'quote' => '인용']; foreach ($purges as $p): ?>
           <tr>
             <td><?= esc(XWatch::kst(strtotime($p['created_at'] . ' UTC'), 'm-d H:i')) ?> <?= $p['mode'] === 'scan' ? '세기' : '삭제' ?></td>
-            <td><?= esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d H:i')) ?> ~ <?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d H:i')) ?></td>
+            <td><?= esc(XWatch::kst(strtotime($p['to_at'] . ' UTC'), 'Y-m-d H:i')) ?> 이전 ~ <?= strtotime($p['from_at'] . ' UTC') > 86400 ? esc(XWatch::kst(strtotime($p['from_at'] . ' UTC'), 'Y-m-d H:i')) : '첫 글까지' ?></td>
             <td><?= esc(implode(', ', array_map(static fn ($k) => $kn[$k] ?? $k, explode(',', $p['kinds'])))) ?></td>
             <td><?= ['running' => '진행 중', 'done' => '완료', 'stopped' => '중지', 'error' => '오류'][$p['status']] ?? esc($p['status']) ?> · 대상 <?= (int) $p['found'] ?><?= $p['mode'] === 'delete' ? ' · 삭제 ' . (int) $p['deleted'] . ($p['failed'] ? ' · 실패 ' . (int) $p['failed'] : '') : '' ?><?= $p['error'] ? ' · ' . esc($p['error']) : '' ?></td>
           </tr>
@@ -165,7 +245,17 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     const kinds = () => Array.from(document.querySelectorAll('.xp-kinds input:checked')).map((i) => i.value);
     const pad = (n) => String(n).padStart(2, '0');
     const local = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-    const now = new Date(); to.value = local(now); from.value = local(new Date(now.getTime() - 7 * 86400000));
+    const all = $('xpAll');
+    const monthsAgo = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() - n); return x; };
+    const setStart = (d) => { from.value = local(d); to.value = local(monthsAgo(d, 1)); };   // the end: a month further back
+    setStart(monthsAgo(new Date(), 3));
+    document.querySelectorAll('.xp-preset button').forEach((b) => { b.onclick = () => {
+      setStart(monthsAgo(new Date(), Number(b.dataset.months)));
+      document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.toggle('on', x === b));
+    }; });
+    document.querySelector('.xp-preset button').classList.add('on');
+    from.addEventListener('change', () => { document.querySelectorAll('.xp-preset button').forEach((x) => x.classList.remove('on')); if (from.value && !all.checked) to.value = local(monthsAgo(new Date(from.value), 1)); });
+    all.onchange = () => { to.disabled = all.checked; };
     setTimeout(() => { if (document.documentElement.dataset.mvcutX !== '1') { document.querySelector('.xp-ext').hidden = false; $('xpScan').disabled = $('xpDelete').disabled = true; } }, 800);
     let job = null, mode = '', items = [], lastSent = 0;
     const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
@@ -181,10 +271,11 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       if (mode === 'delete' && n) { bar.hidden = false; bar.firstElementChild.style.width = Math.round(((d.deleted || 0) + (d.failed || 0)) * 100 / n) + '%'; }
     };
     const start = async (m) => {
-      const f = Math.floor(new Date(from.value).getTime() / 1000), t = Math.floor(new Date(to.value).getTime() / 1000), k = kinds();
-      if (!f || !t || t <= f) { alert('기간을 확인하세요.'); return; }
+      // "시작" is the newer bound (where the walk down the timeline begins), "끝" the older one; 끝까지 = no older bound
+      const t = Math.floor(new Date(from.value).getTime() / 1000), f = all.checked ? 0 : Math.floor(new Date(to.value).getTime() / 1000), k = kinds();
+      if (!t || (!all.checked && (!f || f >= t))) { alert('기간을 확인하세요. "끝"은 "시작"보다 이전 시각이어야 합니다.'); return; }
       if (!k.length) { alert('종류를 하나는 골라야 합니다.'); return; }
-      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' ~ ' + to.value.replace('T', ' ') + ' 사이의 ' + k.map((x) => ({ post: '게시물', reply: '답글', quote: '인용' })[x]).join(', ') + '을 X에서 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+      if (m === 'delete' && !confirm(from.value.replace('T', ' ') + ' 이전 ~ ' + (all.checked ? '첫 글까지' : to.value.replace('T', ' ')) + ' 사이의 ' + k.map((x) => ({ post: '게시물', reply: '답글', quote: '인용' })[x]).join(', ') + '을 X에서 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
       const fd = new FormData(); fd.append('mode', m); fd.append('from', f); fd.append('to', t); k.forEach((x) => fd.append('kinds[]', x));
       const c = MV.csrf(); if (c) fd.append(c.name, c.hash);
       const r = await fetch('<?= site_url('xwatch/purge') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
@@ -219,68 +310,23 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     });
   })();
   </script>
-
-  <section class="set-card">
-    <h2>검사 이력</h2>
-    <p><a class="btn sm secondary" href="<?= site_url('xwatch/checks') ?>">전체 검사 기록 보기</a></p>
-    <?php if (! $history): ?>
-      <p class="muted small">없음</p>
-    <?php else: ?>
-      <dl class="list">
-        <?php foreach ($history as $h): $cls = ['ok' => 'ok', 'banned' => 'bad', 'error' => 'warn'][$h['status']] ?? 'none'; ?>
-          <div class="row"><dt><?= esc(XWatch::kst($h['ts'])) ?></dt><dd><span class="ck-badge <?= $cls ?>"><?= esc($h['summary']) ?></span></dd></div>
-        <?php endforeach ?>
-      </dl>
-    <?php endif ?>
-  </section>
-
-  <section class="set-card">
-    <h2>설정</h2>
-    <form method="post" action="<?= site_url('xwatch/settings') ?>">
-      <?= csrf_field() ?>
-      <div class="field"><label for="handle">감시할 X 아이디</label>
-        <input class="input" id="handle" name="handle" value="<?= esc($w['handle']) ?>" placeholder="blackout_kr" maxlength="16" required></div>
-      <div class="xw-grid">
-        <div class="field"><label for="gap_min">권장 간격 (분, 미만이면 주황)</label><input class="input" type="number" id="gap_min" name="gap_min" min="0" max="720" value="<?= (int) $w['gap_min'] ?>"></div>
-        <div class="field"><label for="gap_warn">경고 간격 (분, 미만이면 빨강)</label><input class="input" type="number" id="gap_warn" name="gap_warn" min="0" max="720" value="<?= (int) ($w['gap_warn'] ?? 10) ?>"></div>
-        <div class="field"><label for="hour_max">1시간 경고 개수</label><input class="input" type="number" id="hour_max" name="hour_max" min="1" max="100" value="<?= (int) $w['hour_max'] ?>"></div>
-        <div class="field"><label for="day_max">하루 경고 개수 (09시 리셋)</label><input class="input" type="number" id="day_max" name="day_max" min="1" max="500" value="<?= (int) $w['day_max'] ?>"></div>
-      </div>
-      <label class="xw-check"><input type="checkbox" name="enabled" value="1" <?= $w['enabled'] ? 'checked' : '' ?>> 10분마다 자동 검사 (:00·:30 부계정, :10·:40 yuzurisa, :20·:50 banchecker)</label>
-      <p class="muted small">제한이 감지되면 풀릴 때까지 매시 정각에 부계정으로만 검사하고, 부계정 검사에서 정상이 나오면 10분 주기로 돌아갑니다.</p>
-      <label class="xw-check"><input type="checkbox" name="count_replies" value="1" <?= ! empty($w['count_replies']) ? 'checked' : '' ?>> 답글도 간격/개수 계산에 포함</label>
-      <p class="muted small">기본은 게시물과 인용만 계산합니다. 재게시(리포스트)는 목록에만 표시합니다.</p>
-      <button class="btn" type="submit">저장</button>
-    </form>
-  </section>
-
-  <section class="set-card">
-    <h2>크롬 확장 연결</h2>
-    <?php if ($token): ?>
-      <p class="small">아래 토큰을 확장 설정에 붙여 넣으세요. 이 화면을 벗어나면 다시 볼 수 없습니다.</p>
-      <input class="input" readonly value="<?= esc($token) ?>" onclick="this.select()" style="font-family:ui-monospace,monospace;margin-bottom:12px">
-    <?php else: ?>
-      <p class="muted small"><?= $w['token_hash'] ? '토큰이 발급되어 있습니다. 잃어버렸으면 새로 발급하세요.' : '확장이 이 서버에 게시 기록을 보내고 상태를 받으려면 토큰이 필요합니다.' ?></p>
-    <?php endif ?>
-    <form method="post" action="<?= site_url('xwatch/token') ?>"><?= csrf_field() ?><button class="btn sm secondary" type="submit"><?= $w['token_hash'] ? '토큰 재발급' : '토큰 발급' ?></button></form>
-    <p class="muted small" style="margin-top:14px">서버 주소: <code><?= esc(rtrim(base_url(), '/')) ?></code></p>
-  </section>
-
-  <section class="set-card">
-    <h2>검사용 부계정</h2>
-    <p class="muted small" style="margin-bottom:14px">검사는 이 부계정 세션으로만 합니다. 감시하는 본 계정의 쿠키는 절대 등록하지 마세요(같은 계정이면 검사가 거부됩니다). 부계정이 감시 계정을 차단/뮤트하지 않은 상태여야 합니다.</p>
-    <?php $c = $probe; $state = ! $c['exists'] ? ['none', '미등록'] : ($c['expired'] ? ['bad', '만료됨'] : ($c['failure'] ? ['bad', '오류'] : ($c['soon'] ? ['warn', '곧 만료'] : ['ok', '정상']))); ?>
-    <div class="ck">
-      <div class="ck-head"><b>X 부계정 cookies.txt</b><span class="ck-badge <?= $state[0] ?>"><?= $state[1] ?></span></div>
-      <?php if ($c['failure']): ?><p class="ck-alert"><?= esc($c['failure']['message']) ?></p><?php endif ?>
-      <div class="ck-actions">
-        <form method="post" action="<?= site_url('settings/cookies/' . XWatch::PROBE) ?>" enctype="multipart/form-data">
-          <?= csrf_field() ?><input type="hidden" name="back" value="xwatch">
-          <input class="input" type="file" name="cookies" accept=".txt,text/plain" required>
-          <button class="btn sm" type="submit"><?= $c['exists'] ? '교체' : '등록' ?></button>
-        </form>
-      </div>
-    </div>
-  </section>
+  </div>
+  <script>
+  (() => {
+    // three tabs, the hash picks one (#telegram and #purge belong to the settings tab)
+    const own = { gaps: 'gaps', checks: 'checks', settings: 'settings', telegram: 'settings', purge: 'settings' };
+    const show = (name) => {
+      document.querySelectorAll('.xw-tab').forEach((t) => { t.hidden = t.dataset.tab !== name; });
+      document.querySelectorAll('.xw-tabs .seg-item').forEach((a) => a.classList.toggle('on', a.dataset.tab === name));
+    };
+    const pick = () => {
+      const h = location.hash.replace('#', '');
+      show(own[h] || 'gaps');
+      if (own[h] && h !== own[h]) { const el = document.getElementById(h); if (el) setTimeout(() => el.scrollIntoView(), 50); }
+    };
+    window.addEventListener('hashchange', pick);
+    pick();
+  })();
+  </script>
 </main>
 <?= $this->endSection() ?>

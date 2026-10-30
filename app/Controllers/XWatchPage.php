@@ -38,12 +38,12 @@ class XWatchPage extends BaseController
         $from = (int) $this->request->getPost('from');
         $to   = (int) $this->request->getPost('to');
         $kinds = array_values(array_intersect((array) $this->request->getPost('kinds'), ['post', 'reply', 'quote']));
-        if ($from <= 0 || $to <= $from) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '기간이 잘못됐습니다.']);
+        // from = older bound (0 = down to the account's first post), to = newer bound
+        if ($to <= 0 || $to > time() || ($from && $to <= $from)) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '기간이 잘못됐습니다.']);
         if ($kinds === []) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '종류를 하나는 골라야 합니다.']);
-        if ($to - $from > 366 * 86400) return $this->response->setStatusCode(422)->setJSON(['ok' => false, 'error' => '한 번에 1년까지만 지정할 수 있습니다.']);
         $db = db_connect();
         $db->table('x_purges')->insert(['user_id' => $this->uid(), 'mode' => $this->request->getPost('mode') === 'scan' ? 'scan' : 'delete',
-            'from_at' => gmdate('Y-m-d H:i:s', $from), 'to_at' => gmdate('Y-m-d H:i:s', $to), 'kinds' => implode(',', $kinds),
+            'from_at' => gmdate('Y-m-d H:i:s', $from ?: 0), 'to_at' => gmdate('Y-m-d H:i:s', $to), 'kinds' => implode(',', $kinds),
             'status' => 'running', 'created_at' => gmdate('Y-m-d H:i:s')]);
         return $this->response->setJSON(['ok' => true, 'id' => (int) $db->insertID()]);
     }
@@ -97,7 +97,7 @@ class XWatchPage extends BaseController
     public function save()
     {
         $handle = XWatch::cleanHandle((string) $this->request->getPost('handle'));
-        if ($handle === '') return redirect()->to('/xwatch')->with('errors', ['handle' => 'X 아이디(영문/숫자/_ 15자 이하)를 입력하세요.']);
+        if ($handle === '') return redirect()->to('/xwatch#settings')->with('errors', ['handle' => 'X 아이디(영문/숫자/_ 15자 이하)를 입력하세요.']);
         $int = fn (string $k, int $lo, int $hi, int $def) => max($lo, min($hi, (int) ($this->request->getPost($k) ?? $def)));
         $old = XWatch::forUser($this->uid());
         $data = [
@@ -111,22 +111,22 @@ class XWatchPage extends BaseController
         ];
         if (strcasecmp($old['handle'], $handle) !== 0) $data['next_check_at'] = null; // check the new handle right away
         XWatch::update($this->uid(), $data);
-        return redirect()->to('/xwatch')->with('flash', '설정을 저장했습니다.');
+        return redirect()->to('/xwatch#settings')->with('flash', '설정을 저장했습니다.');
     }
 
     public function token()
     {
         $issued = XWatch::issueToken($this->uid());
-        return redirect()->to('/xwatch')->with('xtoken', $issued)->with('flash', '확장용 토큰을 새로 발급했습니다. 이전 토큰은 더 이상 동작하지 않습니다.');
+        return redirect()->to('/xwatch#settings')->with('xtoken', $issued)->with('flash', '확장용 토큰을 새로 발급했습니다. 이전 토큰은 더 이상 동작하지 않습니다.');
     }
 
     /** Queues a check; the worker picks it up within a few seconds. */
     public function checkNow()
     {
         $w = XWatch::forUser($this->uid());
-        if ($w['handle'] === '') return redirect()->to('/xwatch')->with('errors', ['handle' => '먼저 X 아이디를 저장하세요.']);
+        if ($w['handle'] === '') return redirect()->to('/xwatch#settings')->with('errors', ['handle' => '먼저 X 아이디를 저장하세요.']);
         XWatch::update($this->uid(), ['next_check_at' => gmdate('Y-m-d H:i:s', time() - 1)]);
-        return redirect()->to('/xwatch')->with('flash', '검사를 예약했습니다. 1~2분 뒤 새로고침하세요.');
+        return redirect()->to('/xwatch#checks')->with('flash', '검사를 예약했습니다. 1~2분 뒤 새로고침하세요.');
     }
 
     /** POST /xwatch/telegram  action=token (token=...) | link | test | off */

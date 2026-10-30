@@ -103,7 +103,7 @@ class Settings extends BaseController
     {
         if ($this->request->getPost('back') === 'xwatch') {
             $r = $this->storeCookie($platform);
-            return redirect()->to('/xwatch')->with($r[0] ? 'flash' : 'errors', $r[0] ? $r[1] : ['cookie' => $r[1]]);
+            return redirect()->to('/xwatch#settings')->with($r[0] ? 'flash' : 'errors', $r[0] ? $r[1] : ['cookie' => $r[1]]);
         }
         if (! Cookies::known($platform)) return redirect()->to('/settings')->with('errors', ['cookie' => '알 수 없는 플랫폼입니다.']);
         $file = $this->request->getFile('cookies');

@@ -1,6 +1,8 @@
 // Deletes the signed-in account's own posts / replies / quotes of a date range from the profile
-// timeline, through X's own UI (the "..." menu > 삭제 > confirm), one by one with a pause. Nothing goes
-// through X's API directly: direct GraphQL calls got the account flagged as automated (2026-10-27).
+// timeline, through X's own UI (the "..." menu > 삭제 > confirm), the way a person would: scrolling down
+// a screen at a time with uneven pauses, a longer breather now and then, deleting one post at a time.
+// Nothing goes through X's API directly: direct GraphQL calls got the account flagged as automated (2026-10-27).
+// job.to = the newer bound (the walk starts there), job.from = the older bound (0: down to the first post).
 // Started from MV Cut's X 관리 page (background.js hands the job over on 'x-ready'); progress goes back
 // to that page. Mode 'scan' only counts and lists what would be deleted.
 
@@ -11,6 +13,15 @@
   const STATUS = /^\/([A-Za-z0-9_]{1,15})\/status\/(\d+)/;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const jitter = (a, b) => a + Math.random() * (b - a);
+  // a person's pace: most pauses short, some long; about one in ten actions gets a breather
+  const pause = async (a, b) => { await sleep(jitter(a, b)); if (Math.random() < 0.1) await sleep(jitter(3000, 7000)); };
+  // scroll like a wheel / trackpad: a screen or so, in a few steps, sometimes a little back up first
+  const scrollDown = async () => {
+    if (Math.random() < 0.15) { window.scrollBy({ top: -jitter(80, 240), behavior: 'smooth' }); await sleep(jitter(400, 900)); }
+    const total = window.innerHeight * jitter(0.6, 1.3);
+    const steps = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < steps; i++) { window.scrollBy({ top: total / steps, behavior: 'smooth' }); await sleep(jitter(90, 220)); }
+  };
   let stopped = false;
   chrome.runtime.onMessage.addListener((m) => { if (m && m.type === 'x-purge-stop') stopped = true; });
 
@@ -60,13 +71,13 @@
 
   // deletes the article's post through its menu; true when the confirm sheet was clicked
   const remove = async (r) => {
-    r.el.scrollIntoView({ block: 'center' });
-    await sleep(300);
+    r.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    await sleep(jitter(700, 1400));   // a glance at the post before the menu
     const caret = r.el.querySelector('button[data-testid="caret"]');
     if (!caret) throw new Error('메뉴 버튼 없음');
     caret.click();
     await waitFor('div[role="menu"] [role="menuitem"]', 8000);
-    await sleep(250);
+    await sleep(jitter(400, 900));
     const item = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).find((x) => /^(삭제|Delete)(\b|$)/.test((x.innerText || '').trim()));
     if (!item) {
       document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -75,7 +86,7 @@
     }
     item.click();
     const ok = await waitFor('[data-testid="confirmationSheetConfirm"]', 8000);
-    await sleep(200);
+    await sleep(jitter(500, 1100));
     ok.click();
     // the article leaves the timeline; wait for it (or give it 4 s)
     for (let i = 0; i < 20 && document.contains(r.el); i++) await sleep(200);
@@ -83,7 +94,7 @@
   };
 
   const kinds = new Set(job.kinds || ['post', 'reply']);
-  const seen = new Set();    // every post id of mine looked at
+  const seen = new Set();    // every post id that has been on screen
   const done = new Map();    // id -> item reported
   const items = [];
   let found = 0, deleted = 0, failed = 0, oldest = Infinity, idle = 0;
@@ -104,15 +115,15 @@
         const r = read(a);
         const before = prev;
         prev = r;
+        if (r && !seen.has(r.id)) { seen.add(r.id); fresh++; }   // anything new on screen, mine or not: the page is still loading more
         if (!r || r.handle.toLowerCase() !== me || r.repost) continue;
         // in a conversation the post right above (someone else's) is the parent: this one is a reply
         if (r.kind === 'post' && before && before.handle.toLowerCase() !== me) {
           const cell = a.closest('[data-testid="cellInnerDiv"]'), pcell = before.el.closest('[data-testid="cellInnerDiv"]');
           if (cell && pcell && cell.previousElementSibling === pcell) r.kind = 'reply';
         }
-        if (!seen.has(r.id)) { seen.add(r.id); fresh++; }
         if (!r.pinned && r.time < oldest) oldest = r.time;
-        if (done.has(r.id) || r.pinned || r.time < job.from || r.time > job.to || !kinds.has(r.kind)) continue;
+        if (done.has(r.id) || r.pinned || (job.from && r.time < job.from) || r.time > job.to || !kinds.has(r.kind)) continue;
         const it = { id: r.id, time: r.time, kind: r.kind, text: r.text, ok: null };
         done.set(r.id, it);
         items.push(it);
@@ -130,16 +141,16 @@
         say('삭제 ' + deleted + '건' + (failed ? ', 실패 ' + failed : '') + ' ...');
         report({ found, deleted, failed, last: r.text, done: false, item: it });
         acted = true;
-        await sleep(jitter(1500, 3200));
+        await pause(1800, 4500);
         break;   // the timeline shifted: read it again
       }
       if (acted) continue;
       // nothing left on screen: older posts are further down, unless the range is already behind us
-      if (oldest < job.from - 86400 * 3) break;   // 3 days past the start of the range (threads can be out of order)
+      if (job.from && oldest < job.from - 86400 * 3) break;   // 3 days past the end of the range (threads can be out of order)
       idle = fresh ? 0 : idle + 1;
-      if (idle >= 6) break;                       // the end of the timeline
-      window.scrollTo(0, document.documentElement.scrollHeight);
-      await sleep(jitter(1200, 2000));
+      if (idle >= 10) break;                                  // the end of the timeline (10 screens without anything new)
+      await scrollDown();
+      await pause(900, 2400);
     }
     const status = stopped ? 'stopped' : 'done';
     say(status === 'stopped' ? '중지됨' : (job.mode === 'scan' ? '대상 ' + found + '건' : '끝: 삭제 ' + deleted + '건, 실패 ' + failed + '건'));
