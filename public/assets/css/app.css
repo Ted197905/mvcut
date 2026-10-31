@@ -841,3 +841,20 @@ body.has-ops { padding-bottom: 46px; }
 .sw input:checked + span { background: var(--green); }
 .sw input:checked + span::after { transform: translateX(20px); }
 .sw input:focus-visible + span { outline: 2px solid var(--blue); }
+
+/* ---------- site log (/admin/logs) ---------- */
+.nav-badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: 1px; margin-left: 3px; }
+.lg-bar { align-items: center; }
+.lg-box { max-height: calc(100vh - 260px); }
+.lg-row { align-items: baseline; }
+.lg-row .m { min-width: 0; overflow-wrap: anywhere; }
+.lg-row.lv-error { background: color-mix(in srgb, var(--red) 7%, transparent); }
+.lg-row.lv-warn { background: color-mix(in srgb, #ff9f0a 8%, transparent); }
+.lg-lv { flex: 0 0 38px; font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--label3); }
+.lg-lv.error { color: var(--red); }
+.lg-lv.warn { color: #b26a00; }
+.lg-area { flex: 0 0 60px; color: var(--label2); overflow: hidden; text-overflow: ellipsis; }
+.lg-act { flex: 0 0 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-user { flex: 0 0 34px; color: var(--label2); }
+.lg-req { color: var(--label3); font-size: 11px; }
+@media (max-width: 720px) { .lg-act { flex-basis: 120px; } .lg-area { flex-basis: 48px; } }

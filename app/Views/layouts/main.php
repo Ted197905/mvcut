@@ -22,6 +22,8 @@
       <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
       <a href="<?= site_url('collect') ?>" class="<?= str_starts_with(uri_string(), 'collect') ? 'active' : '' ?>">수집</a>
       <a href="<?= site_url('drafts') ?>" class="<?= str_starts_with(uri_string(), 'drafts') ? 'active' : '' ?>">초안</a>
+      <?php $errs = \App\Libraries\AppLog::recentErrors() ?>
+      <a href="<?= site_url('admin/logs') ?>" class="<?= str_starts_with(uri_string(), 'admin/logs') ? 'active' : '' ?>">로그<?= $errs ? ' <span class="nav-badge" title="24시간 안의 오류">' . $errs . '</span>' : '' ?></a>
     <?php endif ?>
     <a href="<?= site_url('keywords') ?>" class="<?= str_starts_with(uri_string(), 'keywords') ? 'active' : '' ?>">키워드</a>
     <a href="<?= site_url('xwatch') ?>" class="<?= str_starts_with(uri_string(), 'xwatch') ? 'active' : '' ?>">X 관리</a>
@@ -35,6 +37,28 @@
   </div>
 </div></nav>
 <?= $this->renderSection('content') ?>
+<?php if (session()->get('user_id')): ?>
+<script>
+(function () {
+  var n = 0, u = <?= json_encode(site_url('log/js')) ?>;
+  function send(msg, detail) {
+    if (n++ > 4) return;
+    var c = document.querySelector('meta[name="csrf"]'), b = new FormData();
+    b.append('msg', msg); b.append('detail', detail || ''); b.append('url', location.href);
+    if (c) b.append(c.dataset.name, c.content);
+    try { fetch(u, { method: 'POST', body: b, keepalive: true, credentials: 'same-origin' }).catch(function () {}); } catch (e) {}
+  }
+  window.addEventListener('error', function (e) {
+    if (!e.message) return;   // resource load failures carry no message
+    send(e.message, (e.filename || '') + ':' + (e.lineno || 0) + ':' + (e.colno || 0) + '\n' + (e.error && e.error.stack || ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    send('unhandledrejection: ' + (r && r.message || String(r)), (r && r.stack) || '');
+  });
+})();
+</script>
+<?php endif ?>
 <script src="<?= asset_url('assets/js/app.js') ?>"></script>
 <?php if (session()->get('role') === 'admin'): ?><?= view('partials/opsbar') ?><?php endif ?>
 <?= $this->renderSection('scripts') ?>

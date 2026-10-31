@@ -29,6 +29,7 @@ class Filters extends BaseFilters
         'auth'          => \App\Filters\AuthFilter::class,
         'admin'         => \App\Filters\AdminFilter::class,
         'toast'         => \App\Filters\ToastFilter::class,
+        'actionlog'     => \App\Filters\ActionLogFilter::class,
         'toolbar'       => DebugToolbar::class,
         'honeypot'      => Honeypot::class,
         'invalidchars'  => InvalidChars::class,
@@ -83,6 +84,7 @@ class Filters extends BaseFilters
             // 'honeypot',
             // 'secureheaders',
             'toast',
+            'actionlog',
         ],
     ];
 

@@ -23,7 +23,10 @@ class WorkerRun extends BaseCommand
         $once   = array_key_exists('once', $params);
         $sleep  = (int) ($params['sleep'] ?? 2) ?: 2;
         $runner = new JobRunner();
-        $log    = static fn (string $m) => CLI::write('[' . date('H:i:s') . '] ' . $m);
+        $log    = static function (string $m): void {
+            CLI::write('[' . date('H:i:s') . '] ' . $m);
+            \App\Libraries\AppLog::worker($m);
+        };
         $log('worker started (pid ' . getmypid() . ')');
         // only one worker runs: anything still 'running' was cut off when the previous one stopped
         $db = db_connect();
@@ -61,7 +64,7 @@ class WorkerRun extends BaseCommand
                     // switched off in 설정 > 자동 기능: nothing removed
                     $r = \App\Libraries\Ops::on('mvcut_cleanup') ? Cleanup::run() : [];
                     if (array_sum($r) > 0) {
-                        $log(sprintf('cleanup: stale %d, orphans %d, chunks %d, jobs %d', $r['stale'], $r['orphans'], $r['chunks'], $r['jobs']));
+                        $log(sprintf('cleanup: stale %d, orphans %d, chunks %d, jobs %d, logs %d', $r['stale'], $r['orphans'], $r['chunks'], $r['jobs'], $r['logs']));
                     }
                 } catch (\Throwable $e) {
                     $log('cleanup failed: ' . $e->getMessage());

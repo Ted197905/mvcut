@@ -150,5 +150,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('categories/(:num)', 'Admin::category/$1');
         $routes->post('bgm', 'Admin::addBgm');
         $routes->post('bgm/(:num)', 'Admin::bgm/$1');
+        $routes->get('logs', 'Logs::index');
+        $routes->get('logs/data', 'Logs::data');
     });
+    $routes->post('log/js', 'Logs::js');
 });

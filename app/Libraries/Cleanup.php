@@ -12,7 +12,7 @@ class Cleanup
     {
         $media = new MediaModel();
         $jobs  = new JobModel();
-        $out   = ['stale' => 0, 'orphans' => 0, 'chunks' => 0, 'jobs' => 0];
+        $out   = ['stale' => 0, 'orphans' => 0, 'chunks' => 0, 'jobs' => 0, 'logs' => 0];
 
         foreach ($media->where('status', 'processing')->where('created_at <', date('Y-m-d H:i:s', time() - 86400))->findAll() as $m) {
             MediaIntake::removeDir(MediaModel::dir($m));
@@ -34,6 +34,7 @@ class Cleanup
 
         $jobs->whereIn('status', ['done', 'failed'])->where('updated_at <', date('Y-m-d H:i:s', time() - 30 * 86400))->delete();
         $out['jobs'] = $jobs->db->affectedRows();
+        $out['logs'] = AppLog::cleanup();
 
         return $out;
     }

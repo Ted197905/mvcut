@@ -18,6 +18,8 @@
 
         <p class="lead"><?= lang('Errors.weHitASnag') ?></p>
 
+        <p class="lead" style="font-size:14px;color:#888">오류 코드: <?= esc(\App\Libraries\AppLog::reqId()) ?> (관리자 로그에서 이 코드로 찾을 수 있습니다)</p>
+
     </div>
 
 </body>

@@ -99,8 +99,10 @@ class Telegram
         try {
             self::api($c['token'], 'sendMessage', ['chat_id' => $c['chat_id'], 'text' => $text, 'disable_web_page_preview' => 'true']);
         } catch (\RuntimeException $e) {
+            AppLog::error('telegram', 'send', $e->getMessage(), $text, $userId);
             return $e->getMessage();
         }
+        AppLog::info('telegram', 'send', strtok($text, "\n") ?: $text, $text, $userId);
         return null;
     }
 }

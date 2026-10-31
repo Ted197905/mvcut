@@ -77,6 +77,10 @@ class Logger extends BaseConfig
      * @var array<class-string<HandlerInterface>, array<string, int|list<string>|string>>
      */
     public array $handlers = [
+        // warnings and uncaught exceptions also go to app_log (admin page /admin/logs)
+        \App\Log\DbHandler::class => [
+            'handles' => ['critical', 'alert', 'emergency', 'error', 'warning', 'notice'],
+        ],
         /*
          * --------------------------------------------------------------------
          * File Handler
