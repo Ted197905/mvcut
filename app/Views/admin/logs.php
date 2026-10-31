@@ -1,6 +1,6 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
-<main class="wide settings">
+<main class="wide settings logs">
   <h1>로그</h1>
   <p class="muted small" style="margin-top:-6px">웹 요청(변경/실패/8초 이상), 워커(작업, X 검사, 초안 알림), PHP 경고/예외, 텔레그램, 브라우저 오류. <?= \App\Libraries\AppLog::KEEP_DAYS ?>일 보관. 수집기 로그는 <a href="<?= site_url('collect') ?>">수집</a> 페이지의 진행 사항.</p>
 

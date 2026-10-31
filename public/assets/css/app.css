@@ -844,6 +844,7 @@ body.has-ops { padding-bottom: 46px; }
 
 /* ---------- site log (/admin/logs) ---------- */
 .nav-badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: 1px; margin-left: 3px; }
+main.wide.settings.logs { max-width: 1500px; }
 .lg-bar { align-items: center; }
 .lg-box { max-height: calc(100vh - 260px); }
 .lg-row { align-items: baseline; }
