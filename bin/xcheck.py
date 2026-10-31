@@ -13,7 +13,9 @@ Reads the rendered page (DOM), so it does not depend on X's private API formats.
 import argparse
 import json
 import random
+import datetime
 import re
+import time
 import sys
 import urllib.parse
 
@@ -29,6 +31,17 @@ HIDDEN_REPLIES = re.compile(r"show (probable spam|more replies|additional replie
 
 # tombstone shown in place of a parent the viewer cannot see
 UNAVAILABLE = r"This post is unavailable|This Post is unavailable|이 게시물을 볼 수 없습니다|게시물을 사용할 수 없습니다"
+MIN_AGE = 10 * 60   # seconds a reply should exist before other viewers are expected to see it under its parent
+
+
+def post_age(a: dict, now: float) -> float:
+    """Seconds since the post's <time datetime>; very old when unknown."""
+    t = a.get("time") or ""
+    try:
+        return now - datetime.datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 10 ** 9
+
 
 
 def load_cookies(path: str) -> list[dict]:
@@ -186,8 +199,18 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             page.goto(f"https://x.com/search?q={q}&src=typed_query&f=live", wait_until="domcontentloaded", timeout=ms)
             wait_timeline(page, ms)
             found = [a for a in articles(page) if a["handle"].lower() == me]
+            retried = False
+            if not found and prof["has_tweets"]:
+                # X sometimes answers an empty first page (just-deleted posts, index lag); one more try
+                retried = True
+                pause(page, 4000, 6000)
+                page.goto(f"https://x.com/search?q={q}&src=typed_query&f=live", wait_until="domcontentloaded", timeout=ms)
+                wait_timeline(page, ms)
+                found = [a for a in articles(page) if a["handle"].lower() == me]
             note_posts(found)
             res["search"] = {"ban": (not found) if prof["has_tweets"] else None, "count": len(found)}
+            if retried:
+                res["search"]["retried"] = True
 
             # 3. search suggestion ban: does @handle come up in the search box typeahead?
             try:
@@ -215,72 +238,92 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
                 res["deboost"] = {"ban": None, "stage": "no reply found"}
                 res["ok"] = True
                 return res
-            # The newest reply's parent is often not viewable (deleted, author blocked the probe,
-            # limited audience): X then shows "This post is unavailable" above it. Try the next
-            # replies until one has a parent we can open.
-            reply = parent = None
-            skipped = []
-            for cand in replies[:5]:
-                pause(page)
+            # A reply posted a minute ago is often not yet shown to other viewers under its parent
+            # (conversation index lag): prefer replies at least MIN_AGE old, newest first.
+            now = time.time()
+            aged = [a for a in replies if post_age(a, now) >= MIN_AGE]
+            order = aged + [a for a in replies if a not in aged]
+
+            def find_parent(cand: dict) -> dict | None:
+                """Opens the reply's page and returns the post right above it, if any."""
                 page.goto(f"https://x.com/{handle}/status/{cand['id']}", wait_until="domcontentloaded", timeout=ms)
                 wait_timeline(page, ms)
                 thread = articles(page)
                 for i, a in enumerate(thread):
                     if a["id"] == cand["id"] and i > 0:
-                        parent = thread[i - 1]
-                        break
-                if parent:
-                    reply = cand
-                    break
-                gone = re.search(UNAVAILABLE, body_text(page))
-                skipped.append({"reply": cand["id"], "why": "parent unavailable" if gone else "parent not found"})
-            if not parent:
-                stage = {"ban": None, "stage": "no reply with a viewable parent", "tried": skipped}
-                res["ghost"] = dict(stage)
-                res["deboost"] = dict(stage)
-                res["ok"] = True
-                return res
+                        return thread[i - 1]
+                return None
 
-            pause(page)
-            page.goto(f"https://x.com/{parent['handle']}/status/{parent['id']}", wait_until="domcontentloaded", timeout=ms)
-            wait_timeline(page, ms)
-            seen = False
-            for _ in range(8):
-                if any(a["id"] == reply["id"] for a in articles(page)):
-                    seen = True
-                    break
-                page.mouse.wheel(0, 1400)
-                page.wait_for_timeout(1300)
-            info = {"reply": reply["id"], "parent": parent["id"], "parent_handle": parent["handle"]}
-            if skipped:
-                info["skipped"] = skipped
-            if seen:
-                res["ghost"] = {"ban": False, **info}
-                res["deboost"] = {"ban": False, **info}
-            else:
+            def look_under(parent: dict, reply: dict) -> tuple[bool, bool, int]:
+                """(seen, seen_only_behind_hidden_button, articles_loaded) for the reply under its parent."""
+                page.goto(f"https://x.com/{parent['handle']}/status/{parent['id']}", wait_until="domcontentloaded", timeout=ms)
+                wait_timeline(page, ms)
+                for _ in range(8):
+                    if any(a["id"] == reply["id"] for a in articles(page)):
+                        return True, False, len(articles(page))
+                    page.mouse.wheel(0, 1400)
+                    page.wait_for_timeout(1300)
                 # replies X ranks low sit behind "Show probable spam" / "Show more replies"
-                opened = 0
                 for _ in range(3):
                     btn = page.get_by_role("button", name=HIDDEN_REPLIES)
                     if btn.count() == 0:
                         break
                     try:
                         btn.first.click(timeout=5000)
-                        opened += 1
                         page.wait_for_timeout(2500)
                     except Exception:  # noqa: BLE001
                         break
                     if any(a["id"] == reply["id"] for a in articles(page)):
-                        seen = True
-                        break
+                        return True, True, len(articles(page))
+                return False, False, len(articles(page))
+
+            skipped = []
+            tested = []        # one entry per reply actually looked for under its parent
+            verdict = None     # "ok" | "deboost" | "ghost"
+            for cand in order[:6]:
+                if len(tested) >= 2:
+                    break
+                pause(page)
+                parent = find_parent(cand)
+                if not parent:
+                    gone = re.search(UNAVAILABLE, body_text(page))
+                    skipped.append({"reply": cand["id"], "why": "parent unavailable" if gone else "parent not found"})
+                    continue
+                pause(page)
+                seen, hidden, loaded = look_under(parent, cand)
+                tested.append({"reply": cand["id"], "parent": parent["id"], "parent_handle": parent["handle"],
+                               "age_min": round(post_age(cand, now) / 60), "seen": seen, "hidden": hidden, "loaded": loaded})
                 if seen:
-                    res["ghost"] = {"ban": False, **info}
-                    res["deboost"] = {"ban": True, **info}
-                else:
-                    many = len(articles(page)) >= 40
-                    # in a very long thread the reply may simply be further down
-                    res["ghost"] = {"ban": None if many else True, "uncertain": many, **info}
-                    res["deboost"] = {"ban": None, **info}
+                    verdict = "deboost" if hidden else "ok"
+                    break
+                # not found once: only a second missing reply makes it a ghost ban
+                if len(tested) >= 2:
+                    verdict = "ghost"
+            if not tested:
+                stage = {"ban": None, "stage": "no reply with a viewable parent", "tried": skipped}
+                res["ghost"] = dict(stage)
+                res["deboost"] = dict(stage)
+                res["ok"] = True
+                return res
+            last = tested[-1]
+            info = {"reply": last["reply"], "parent": last["parent"], "parent_handle": last["parent_handle"], "tested": tested}
+            if skipped:
+                info["skipped"] = skipped
+            if verdict == "ok":
+                res["ghost"] = {"ban": False, **info}
+                res["deboost"] = {"ban": False, **info}
+            elif verdict == "deboost":
+                res["ghost"] = {"ban": False, **info}
+                res["deboost"] = {"ban": True, **info}
+            elif verdict == "ghost":
+                # in a very long thread the reply may simply be further down
+                many = any(t["loaded"] >= 40 for t in tested)
+                res["ghost"] = {"ban": None if many else True, "uncertain": many, **info}
+                res["deboost"] = {"ban": None, **info}
+            else:
+                # only one reply could be tested and it was missing: not conclusive
+                res["ghost"] = {"ban": None, "stage": "one reply missing, no second reply to confirm", **info}
+                res["deboost"] = {"ban": None, **info}
             res["ok"] = True
             return res
         except Exception as e:  # noqa: BLE001
