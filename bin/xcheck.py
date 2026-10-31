@@ -215,14 +215,24 @@ def run(handle: str, cookies: str, timeout: int) -> dict:
             # 3. search suggestion ban: does @handle come up in the search box typeahead?
             try:
                 box = page.locator('[data-testid="SearchBox_Search_Input"]').first
-                box.click(timeout=8000)
-                box.fill("")
-                box.type(f"@{handle}", delay=90)
-                page.wait_for_timeout(3500)
-                hits = page.evaluate("""() => [...document.querySelectorAll('[data-testid="typeaheadResult"]')]
-                                              .map(e => e.innerText || '')""")
+                hits: list[str] = []
+                for attempt in range(2):
+                    box.click(timeout=8000)
+                    box.fill("")
+                    box.type(f"@{handle}", delay=90)
+                    page.wait_for_timeout(3500 if attempt == 0 else 6000)
+                    hits = page.evaluate("""() => [...document.querySelectorAll('[data-testid="typeaheadResult"]')]
+                                                  .map(e => e.innerText || '')""")
+                    if hits:
+                        break
+                    page.keyboard.press("Escape")
+                    pause(page, 3000, 5000)
                 ok = any(re.search(r"@" + re.escape(handle) + r"\b", h, re.I) for h in hits)
-                res["typeahead"] = {"ban": not ok, "results": len(hits)}
+                # an empty dropdown (no account at all, not even look-alikes) is the probe's page or a
+                # rate limit, not a verdict on the watched account
+                res["typeahead"] = {"ban": (not ok) if hits else None, "results": len(hits)}
+                if not hits:
+                    res["typeahead"]["stage"] = "no typeahead results"
             except Exception as e:  # noqa: BLE001
                 res["typeahead"] = {"ban": None, "error": type(e).__name__}
 
