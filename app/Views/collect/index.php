@@ -93,7 +93,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
   </details>
 <script>
 (() => {
-  const url = <?= json_encode(site_url('collect/idols')) ?>, csrf = MV.csrf();
+  const url = <?= json_encode(site_url('collect/idols')) ?>;
   const rows = document.getElementById('idRows'), q = document.getElementById('idQ'), pf = document.getElementById('idPf'), st = document.getElementById('idSt'),
         count = document.getElementById('idCount'), info = document.getElementById('idRosterInfo');
   let all = [];
@@ -134,12 +134,12 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     } catch (e) { rows.innerHTML = '<tr><td colspan="10" class="muted">불러오지 못했습니다.</td></tr>'; }
   };
   const post = async (data) => {
-    const b = new FormData();
+    const b = new FormData(), csrf = window.MV && MV.csrf();
     Object.entries(data).forEach(([k, v]) => b.append(k, v));
     if (csrf) b.append(csrf.name, csrf.hash);
     const r = await fetch(url, { method: 'POST', body: b, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || MV.httpError(r.status));
+    if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
     return j;
   };
   rows.addEventListener('click', async (e) => {
