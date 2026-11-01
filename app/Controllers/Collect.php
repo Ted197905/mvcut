@@ -18,6 +18,8 @@ class Collect extends BaseController
     public const COUNTRIES  = ['KR' => '한국', 'JP' => '일본', 'GLOBAL' => '글로벌', 'TH' => '태국', 'TW' => '대만', 'CN' => '중국'];
     /** Daily X search sources (hallyuwire xsearch.py): posts past 1M views in the last 24 hours. */
     public const X_SOURCES  = ['x_viral_kr', 'x_viral_kpop'];
+    /** Idol accounts on Instagram / TikTok (hallyuwire idols.py): their own posts, shown under the "아이돌" tab only. */
+    public const IDOL_SOURCES = ['ig_idols', 'tt_idols'];
 
     private function t(string $table): string
     {
@@ -86,12 +88,13 @@ class Collect extends BaseController
         $get = fn (string $k) => trim((string) $this->request->getGet($k));
         $f = ['src' => $get('src'), 'cc' => $get('cc'), 'q' => $get('q'), 'sort' => $get('sort'),
               'all' => $get('all') === '1', 'media' => $get('media') === '1', 'unused' => $get('unused') === '1',
-              'scope' => in_array($get('scope'), ['issue', 'all', 'x'], true) ? $get('scope') : 'k',   // k = K-entertainment, issue = popular boards whatever the topic, x = X 1M+
+              'scope' => in_array($get('scope'), ['issue', 'all', 'x', 'idol'], true) ? $get('scope') : 'k',   // k = K-entertainment, issue = popular boards whatever the topic, x = X 1M+, idol = idols' own posts
+              'grp' => $get('grp'),
               'day' => preg_match('/^\d{4}-\d{2}-\d{2}$/', $get('day')) ? $get('day') : ''];
         if (! isset(self::SORTS[$f['sort']])) $f['sort'] = $f['scope'] === 'x' ? 'likes' : 'new';   // X 1M+: most liked first
 
         $b = $db->table($this->t('items') . ' i')
-            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.issue, i.news, i.news_why, i.title_ko, i.used_at')
+            ->select('i.id, i.source_id, i.title, i.url, i.posted_at, i.first_seen, i.views, i.comments, i.likes, i.rank_pos, i.heat, i.thumb_url, i.country, i.event, i.entities, i.breaking, i.relevant, i.issue, i.news, i.news_why, i.title_ko, i.used_at, i.author, i.category')
             ->where('i.deleted_at', null);
         if ($f['unused']) $b->where('i.used_at', null);
         $days = [];   // X 1M+: KST day of the daily run => posts
@@ -107,15 +110,19 @@ class Collect extends BaseController
                 $from = (new \DateTimeImmutable($f['day'], new \DateTimeZone('Asia/Seoul')))->getTimestamp();
                 $b->where('i.first_seen >=', gmdate('Y-m-d H:i:s', $from))->where('i.first_seen <', gmdate('Y-m-d H:i:s', $from + 86400));
             }
+        } elseif ($f['scope'] === 'idol') {
+            $b->whereIn('i.source_id', self::IDOL_SOURCES);
+            if ($f['grp'] !== '') $b->where('i.category', $f['grp']);
         } elseif ($f['scope'] === 'issue') {
-            $b->where('i.issue', 1);   // the latest from the popular/issue boards, any topic
-        } elseif ($f['scope'] === 'k' && ! $f['all']) {
+            $b->where('i.issue', 1)->whereNotIn('i.source_id', self::IDOL_SOURCES);   // the latest from the popular/issue boards, any topic
+        } elseif ($f['scope'] === 'k') {
+            $b->whereNotIn('i.source_id', self::IDOL_SOURCES);
             // posts with nothing to show and nothing to report (judge.py in the collector) are hidden with the irrelevant ones
-            $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
+            if (! $f['all']) $b->where('i.relevant', 1)->groupStart()->where('i.news', null)->orWhere('i.news', 1)->groupEnd();
         }
         if ($f['src'] !== '') $b->where('i.source_id', $f['src']);
         if (isset(self::COUNTRIES[$f['cc']])) $b->where('i.country', $f['cc']);
-        if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.title_ko', $f['q'])->orLike('i.entities', $f['q'])->groupEnd();
+        if ($f['q'] !== '') $b->groupStart()->like('i.title', $f['q'])->orLike('i.title_ko', $f['q'])->orLike('i.entities', $f['q'])->orLike('i.author', $f['q'])->groupEnd();
         if ($f['media']) {
             $b->where("EXISTS (SELECT 1 FROM {$this->t('media')} m WHERE m.item_id = i.id AND m.status IN ('done','embed'))", null, false);
         }
@@ -138,6 +145,18 @@ class Collect extends BaseController
         }
 
         $sources = $db->query("SELECT * FROM {$this->t('sources')} ORDER BY FIELD(country, 'KR','JP','GLOBAL','TH','TW','CN'), id")->getResultArray();
+        $groups = $idolStat = [];
+        if ($f['scope'] === 'idol') {
+            // groups / solo names with posts in the last 14 days, most posts first
+            foreach ($db->table($this->t('items'))->select('category, COUNT(*) AS n')->whereIn('source_id', self::IDOL_SOURCES)->where('deleted_at', null)
+                    ->where('category IS NOT NULL')->groupBy('category')->orderBy('n', 'DESC')->get(300)->getResultArray() as $r) {
+                $groups[$r['category']] = (int) $r['n'];
+            }
+            foreach ($db->table($this->t('idol_accounts'))->select('platform, COUNT(*) AS n, SUM(enabled) AS enabled, SUM(last_status = \'ok\') AS ok, MAX(last_check_at) AS last_check')
+                    ->groupBy('platform')->get()->getResultArray() as $r) {
+                $idolStat[$r['platform']] = $r;
+            }
+        }
         $counts = [];
         foreach ($db->query("SELECT source_id, COUNT(*) AS n, SUM(relevant) AS rel,
                 SUM(first_seen > UTC_TIMESTAMP() - INTERVAL 1 DAY) AS d1, SUM(relevant = 1 AND news = 0) AS noise FROM {$this->t('items')} GROUP BY source_id")->getResultArray() as $r) {
@@ -151,9 +170,72 @@ class Collect extends BaseController
         return view('collect/index', [
             'title' => '수집', 'items' => $items, 'media' => $media, 'f' => $f, 'page' => $page, 'pages' => $pages,
             'matched' => $matched, 'sources' => $sources, 'counts' => $counts, 'names' => array_column($sources, 'name', 'id'),
-            'days' => $days,
+            'days' => $days, 'groups' => $groups, 'idolStat' => $idolStat,
             'cookies' => $this->cookieFiles(),
         ]);
+    }
+
+    /** GET /collect/idols - every idol account (JSON) for the accounts panel of the "아이돌" tab. */
+    public function idols()
+    {
+        $rows = db_connect()->table($this->t('idol_accounts'))
+            ->select('id, platform, handle, name, group_name, kind, sites, debut, enabled, source, last_check_at, last_status, last_error, posts')
+            ->orderBy('sites', 'DESC')->orderBy('name')->get()->getResultArray();
+        foreach ($rows as &$r) {
+            $r['id'] = (int) $r['id']; $r['enabled'] = (int) $r['enabled']; $r['posts'] = (int) $r['posts']; $r['sites'] = (int) $r['sites'];
+            $r['checked'] = self::when($r['last_check_at']);
+        }
+        $roster = db_connect()->table($this->t('sources'))->select('last_run_at, next_run_at, last_status, last_new')->where('id', 'idol_roster')->get()->getRowArray();
+        return $this->response->setJSON(['items' => $rows, 'roster' => $roster ? ['last' => self::when($roster['last_run_at']), 'status' => $roster['last_status'],
+            'new' => (int) $roster['last_new'], 'next' => self::when($roster['next_run_at'])] : null]);
+    }
+
+    /**
+     * POST /collect/idols  action=add (platform, handle, name, group) | toggle (id, on) | delete (id, manual rows only)
+     *                      | roster (run the Wikidata roster now) | check (id: read the account now)
+     */
+    public function idolSave()
+    {
+        $db = db_connect();
+        $t  = $this->t('idol_accounts');
+        $act = (string) $this->request->getPost('action');
+        $id  = (int) $this->request->getPost('id');
+        if ($act === 'add') {
+            $platform = (string) $this->request->getPost('platform');
+            $handle   = ltrim(trim((string) $this->request->getPost('handle')), '@');
+            $name     = trim((string) $this->request->getPost('name'));
+            $group    = trim((string) $this->request->getPost('group'));
+            if (! in_array($platform, ['ig', 'tt'], true) || ! preg_match('/^[A-Za-z0-9._]{1,60}$/', $handle) || $name === '') {
+                return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => '플랫폼, 계정 아이디(영문/숫자/._), 이름이 필요합니다.']);
+            }
+            if ($db->table($t)->where('platform', $platform)->where('handle', $handle)->countAllResults()) {
+                return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => '이미 있는 계정입니다.']);
+            }
+            $db->table($t)->insert(['platform' => $platform, 'handle' => $handle, 'name' => mb_substr($name, 0, 100), 'group_name' => $group !== '' ? mb_substr($group, 0, 100) : null,
+                'kind' => $group !== '' ? 'member' : 'related', 'sites' => 0, 'enabled' => 1, 'source' => 'manual', 'added_at' => gmdate('Y-m-d H:i:s'), 'next_check_at' => gmdate('Y-m-d H:i:s')]);
+            \App\Libraries\AppLog::info('collect', 'idol add', $platform . ' @' . $handle . ' ' . $name);
+            return $this->response->setJSON(['ok' => true, 'id' => $db->insertID()]);
+        }
+        if ($act === 'roster') {
+            $db->table($this->t('sources'))->where('id', 'idol_roster')->update(['next_run_at' => gmdate('Y-m-d H:i:s')]);
+            return $this->response->setJSON(['ok' => true]);
+        }
+        $row = $id ? $db->table($t)->where('id', $id)->get()->getRowArray() : null;
+        if (! $row) return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => '없는 계정입니다.']);
+        if ($act === 'toggle') {
+            $on = $this->request->getPost('on') === '1';
+            $db->table($t)->where('id', $id)->update(['enabled' => $on ? 1 : 0, 'last_error' => null] + ($on ? ['next_check_at' => gmdate('Y-m-d H:i:s'), 'last_status' => null] : []));
+            \App\Libraries\AppLog::info('collect', 'idol ' . ($on ? 'on' : 'off'), $row['platform'] . ' @' . $row['handle']);
+        } elseif ($act === 'check') {
+            $db->table($t)->where('id', $id)->update(['next_check_at' => gmdate('Y-m-d H:i:s')]);
+        } elseif ($act === 'delete') {
+            if ($row['source'] !== 'manual') return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'Wikidata에서 온 계정은 지우지 말고 끄세요 (다음 갱신 때 다시 들어옵니다).']);
+            $db->table($t)->where('id', $id)->delete();
+            \App\Libraries\AppLog::info('collect', 'idol delete', $row['platform'] . ' @' . $row['handle']);
+        } else {
+            return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'unknown action']);
+        }
+        return $this->response->setJSON(['ok' => true]);
     }
 
     /**

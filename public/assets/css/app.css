@@ -859,3 +859,13 @@ main.wide.settings.logs { max-width: 1500px; }
 .lg-user { flex: 0 0 34px; color: var(--label2); }
 .lg-req { color: var(--label3); font-size: 11px; }
 @media (max-width: 720px) { .lg-act { flex-basis: 120px; } .lg-area { flex-basis: 48px; } }
+
+/* ---------- idol accounts panel (/collect?scope=idol) ---------- */
+.cl-idol-add { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 12px; }
+.cl-idol-add .input { min-width: 140px; }
+.cl-idol-wrap { max-height: 480px; overflow: auto; }
+.cl-idol-table tr.off td { opacity: .55; }
+.cl-idol-acts { white-space: nowrap; }
+.cl-idol-acts .btn { padding: 0 8px; min-height: 28px; font-size: 12px; }
+.cl-pf { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 5px; color: #fff; background: #000; }
+.cl-pf.ig { background: linear-gradient(45deg, #f58529, #dd2a7b, #8134af); }
