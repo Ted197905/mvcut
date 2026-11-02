@@ -44,7 +44,11 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
   <?php $sc = $xw['scheduled'] ?? ['items' => [], 'synced' => null]; ?>
   <div class="xw-box xw-sched">
     <div class="xw-row"><a href="https://x.com/compose/post/unsent/scheduled" target="_blank" rel="noopener">예약 게시</a>
-      <span class="ck-badge <?= $sc['items'] ? 'ok' : 'none' ?>"><?= count($sc['items']) ?>개</span>
+      <span class="xw-sched-days">
+        <?php $byDay = []; foreach ($sc['items'] as $p) { $k = XWatch::kst($p['at'], 'n/j'); $byDay[$k] = ($byDay[$k] ?? 0) + 1; } ?>
+        <?php if (count($byDay) > 1): foreach ($byDay as $d => $n): ?><span class="ck-badge" title="<?= esc($d) ?> 예약"><?= esc($d) ?> <b><?= $n ?></b></span><?php endforeach; endif ?>
+        <span class="ck-badge <?= $sc['items'] ? 'ok' : 'none' ?>"><?= count($sc['items']) ?>개</span>
+      </span>
     </div>
     <?php if ($sc['synced'] === null): ?>
       <p class="muted small" style="margin:0">x.com을 열면 확장이 예약 목록을 가져옵니다.</p>
@@ -52,7 +56,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       <p class="muted small" style="margin:0">예약된 게시물 없음 · <?= $ago($sc['synced']) ?> 전 확인</p>
     <?php else: ?>
       <div class="xw-list">
-        <?php foreach ($sc['items'] as $p): ?>
+        <?php $prevDay = null; foreach ($sc['items'] as $p): $day = XWatch::kst($p['at'], 'n/j'); ?>
+          <?php if (count($byDay) > 1 && $day !== $prevDay): $prevDay = $day; ?><div class="xw-day"><?= esc($day) ?> <?= ['일', '월', '화', '수', '목', '금', '토'][(int) XWatch::kst($p['at'], 'w')] ?> <span class="muted"><?= (int) $byDay[$day] ?>개</span></div><?php endif ?>
           <div class="xw-item<?= $p['danger'] ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>">
             <span class="t"><b><?= esc(XWatch::kst($p['at'], 'h:i A')) ?></b><i><?= esc(XWatch::kst($p['at'], 'n/j')) ?></i></span>
             <span class="b">

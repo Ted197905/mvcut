@@ -875,3 +875,9 @@ main.wide.settings.logs { max-width: 1500px; }
 .xpost-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
 .xpost textarea { width: 100%; resize: vertical; min-height: 96px; font-size: 14px; line-height: 1.5; }
 .xpost-foot { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+
+/* ---------- scheduled posts: per-day counts ---------- */
+.xw-sched-days { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.xw-sched-days .ck-badge b { font-weight: 700; }
+.xw-day { font-size: 12px; font-weight: 600; color: var(--label2); padding: 8px 0 2px; border-bottom: 1px solid var(--sep, rgba(0,0,0,.08)); margin-bottom: 4px; }
+.xw-item + .xw-day { margin-top: 6px; }
