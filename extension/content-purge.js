@@ -41,9 +41,16 @@
     console.log('[MV Cut purge]', line);
     logBuf.push(line);
   };
+  // the extension was reloaded/updated under this tab: every chrome.* call now throws "Extension context invalidated"
+  const dead = (e) => !(chrome.runtime && chrome.runtime.id) || /context invalidated/i.test((e && e.message) || '');
   const report = (data) => {
     const lines = logBuf; logBuf = [];
-    return chrome.runtime.sendMessage({ type: 'x-purge-progress', job: job.id, log: lines, ...data }).catch(() => {});
+    try {
+      return chrome.runtime.sendMessage({ type: 'x-purge-progress', job: job.id, log: lines, ...data }).catch(() => {});
+    } catch (e) {
+      if (dead(e)) throw new Error('Extension context invalidated');
+      return Promise.resolve();
+    }
   };
 
   const banner = document.createElement('div');
@@ -296,6 +303,13 @@
     say(status === 'stopped' ? '중지됨' : (job.mode === 'scan' ? '대상 ' + found + '건' : '끝: 삭제 ' + deleted + '건, 실패 ' + failed + '건'));
     report({ found, deleted, failed, done: true, status, items });
   } catch (e) {
+    if (dead(e)) {
+      // the job record lives in chrome.storage: a fresh page load asks x-purge-ready and carries on from the resume data
+      console.log('[MV Cut purge] extension reloaded, reloading the page to continue');
+      say('확장이 새로고침되어 연결이 끊겼습니다. 4초 뒤 페이지를 다시 열어 이어서 합니다.');
+      setTimeout(() => location.reload(), 4000);
+      return;
+    }
     log('fatal: ' + e.message);
     say('오류: ' + e.message);
     report({ found, deleted, failed, done: true, status: 'error', error: e.message, items });
