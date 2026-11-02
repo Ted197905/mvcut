@@ -194,6 +194,9 @@
   };
 
   const kinds = new Set(job.kinds || ['post', 'reply']);
+  // a filter:replies search returns replies only; X drops the "Replying to" header (and the parent cell) when the
+  // parent post or its author is gone, so such replies looked like plain posts and were skipped (seen 2026-11-02)
+  const allReplies = /filter:replies/i.test(String(job.query || ''));
   const seen = new Set();    // every post id that has been on screen
   const done = new Map();    // id -> item reported
   const items = [];
@@ -247,6 +250,7 @@
           const cell = a.closest('[data-testid="cellInnerDiv"]'), pcell = before.el.closest('[data-testid="cellInnerDiv"]');
           if (cell && pcell && cell.previousElementSibling === pcell) r.kind = 'reply';
         }
+        if (allReplies && r.kind === 'post') { r.kind = 'reply'; r.orphan = true; }
         if (!r.pinned && r.time < oldest) oldest = r.time;
         const earlier = done.get(r.id);
         if (earlier && earlier.ok === true && job.mode !== 'scan') {   // deleted a moment ago, back on screen: the deletion did not take
@@ -259,7 +263,7 @@
         done.set(r.id, it);
         items.push(it);
         found++;
-        log('target #' + found + ' ' + r.id + ' ' + fmtUntil(r.time) + ' ' + r.kind + ' "' + (r.text || '').slice(0, 40).replace(/\s+/g, ' ') + '"');
+        log('target #' + found + ' ' + r.id + ' ' + fmtUntil(r.time) + ' ' + r.kind + (r.orphan ? ' (no parent shown)' : '') + ' "' + (r.text || '').slice(0, 40).replace(/\s+/g, ' ') + '"');
         if (job.mode === 'scan') {
           report({ found, deleted, failed, last: r.text, done: false, oldest: isFinite(oldest) ? oldest : 0 });
           continue;
