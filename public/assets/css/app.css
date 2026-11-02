@@ -884,7 +884,6 @@ main.wide.settings.logs { max-width: 1500px; }
 
 /* ---------- X side panel: when the window is short, the scheduled list and the post history scroll inside ---------- */
 .xw-side:not(.compact) > * { flex: 0 0 auto; }
-.xw-side:not(.compact) > .xw-sched { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.xw-side:not(.compact) .xw-sched .xw-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
-.xw-side:not(.compact) > .xw-box.xw-list { flex: 1 1 auto; min-height: 120px; overflow: auto; }
+.xw-side:not(.compact) .xw-sched .xw-list { max-height: calc(35vh - 60px); overflow: auto; }   /* the scheduled list keeps about a third of the window */
+.xw-side:not(.compact) > .xw-box.xw-list { flex: 1 1 auto; min-height: 160px; overflow: auto; }   /* the post history takes the rest */
 .xw-side:not(.compact) .xw-day { position: sticky; top: 0; background: var(--bg-elev); z-index: 1; }
