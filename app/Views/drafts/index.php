@@ -142,7 +142,8 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <select class="input sm" name="style" title="다시 쓸 스타일">
               <?php foreach (D::STYLES as $k => $v): ?><option value="<?= $k ?>"<?= $k === $d['style'] ? ' selected' : '' ?>><?= $v ?></option><?php endforeach ?>
             </select>
-            <?php if ($d['status'] !== 'rejected'): ?><button class="btn sm ghost danger-text" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/reject') ?>" formnovalidate>제외</button><?php endif ?>
+            <?php if ($d['status'] !== 'rejected'): ?><button class="btn sm ghost danger-text" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/reject') ?>" formnovalidate>제외</button>
+            <?php else: ?><button class="btn sm ghost" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/unapprove') ?>" formnovalidate title="검토 대기로 되돌립니다">제외 취소</button><?php endif ?>
           <?php elseif (in_array($d['status'], ['approved', 'error'], true)): ?>
             <?php if ($mode === 'semi'): ?><button class="btn sm dr-fill" type="button" data-id="<?= (int) $d['id'] ?>">X 작성창 채우기</button><?php endif ?>
             <button class="btn sm secondary" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/unapprove') ?>" formnovalidate>승인 취소</button>
@@ -225,7 +226,7 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       if (kind === 'unapprove') {
         // back to editing: the slot is freed, the text and photo choice open up again
         card.dataset.status = 'new';
-        card.classList.remove('dr-ok');
+        card.classList.remove('dr-ok', 'dr-out');
         const b = card.querySelector('.dr-src-head .ck-badge');
         b.textContent = j.label; b.className = 'ck-badge';
         f.querySelectorAll('textarea').forEach((t) => { t.readOnly = false; });
@@ -244,10 +245,12 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       card.querySelectorAll('.dr-add').forEach((x) => x.remove());
       acts.innerHTML = '<span class="muted small"></span>';
       acts.firstChild.textContent = kind === 'approve' ? j.msg : '제외했습니다. 새로고침하면 목록에서 빠집니다.';
+      const id = card.dataset.id || f.id.slice(1), base = f.action.replace(/\/approve$/, '');
       if (kind === 'approve') {
-        const id = card.dataset.id || f.id.slice(1), base = f.action.replace(/\/approve$/, '');
         acts.insertAdjacentHTML('beforeend', (j.fill && !drMobile ? '<button class="btn sm dr-fill" type="button" data-id="' + id + '">X 작성창 채우기</button>' : '')
           + '<button class="btn sm secondary" type="submit" formaction="' + base + '/unapprove" formnovalidate title="슬롯에서 빼고 다시 고칠 수 있게 합니다">승인 취소</button>');
+      } else {
+        acts.insertAdjacentHTML('beforeend', '<button class="btn sm secondary" type="submit" formaction="' + base + '/unapprove" formnovalidate title="검토 대기로 되돌립니다">제외 취소</button>');
       }
       if (j.fill && window.drFill && !drMobile) window.drFill(j.fill);
     } catch (err) {

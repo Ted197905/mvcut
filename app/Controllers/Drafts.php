@@ -155,11 +155,13 @@ class Drafts extends BaseController
     public function unapprove(int $id)
     {
         $d = $this->draft($id);
-        if (! in_array($d['status'], ['approved', 'error'], true)) return $this->answer($id, '이미 X에 예약되어 여기서는 뺄 수 없습니다. X의 예약 목록에서 지우세요.');
+        if (! in_array($d['status'], ['approved', 'error', 'rejected'], true)) return $this->answer($id, '이미 X에 예약되어 여기서는 뺄 수 없습니다. X의 예약 목록에서 지우세요.');
+        $was = $d['status'];
         D::update($id, ['status' => 'new', 'slot_at' => null, 'error' => null, 'tries' => 0]);
-        \App\Libraries\AppLog::info('drafts', 'unapprove', 'draft ' . $id);
-        if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => true, 'msg' => '승인을 취소했습니다. 고친 뒤 다시 승인하세요.', 'label' => '검토 대기']);
-        return $this->back($id)->with('flash', '승인을 취소했습니다.');
+        \App\Libraries\AppLog::info('drafts', $was === 'rejected' ? 'unreject' : 'unapprove', 'draft ' . $id);
+        $msg = $was === 'rejected' ? '제외를 취소했습니다.' : '승인을 취소했습니다. 고친 뒤 다시 승인하세요.';
+        if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => true, 'msg' => $msg, 'label' => '검토 대기']);
+        return $this->back($id)->with('flash', $msg);
     }
 
     /**
