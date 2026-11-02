@@ -881,3 +881,10 @@ main.wide.settings.logs { max-width: 1500px; }
 .xw-sched-days .ck-badge b { font-weight: 700; }
 .xw-day { font-size: 12px; font-weight: 600; color: var(--label2); padding: 8px 0 2px; border-bottom: 1px solid var(--sep, rgba(0,0,0,.08)); margin-bottom: 4px; }
 .xw-item + .xw-day { margin-top: 6px; }
+
+/* ---------- X side panel: when the window is short, the scheduled list and the post history scroll inside ---------- */
+.xw-side:not(.compact) > * { flex: 0 0 auto; }
+.xw-side:not(.compact) > .xw-sched { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.xw-side:not(.compact) .xw-sched .xw-list { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.xw-side:not(.compact) > .xw-box.xw-list { flex: 1 1 auto; min-height: 120px; overflow: auto; }
+.xw-side:not(.compact) .xw-day { position: sticky; top: 0; background: var(--bg-elev); z-index: 1; }
