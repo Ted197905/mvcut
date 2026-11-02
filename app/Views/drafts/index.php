@@ -213,8 +213,8 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const f = e.target.closest('form.dr-edit'), btn = e.submitter;
     if (!f || !btn) return;
     const fa = btn.getAttribute('formaction') || '';
-    const kind = !fa ? 'approve' : (fa.endsWith('/reject') ? 'reject' : '');
-    if (!kind) return;   // save, rewrite, unapprove: as before (page reload)
+    const kind = !fa ? 'approve' : (fa.endsWith('/reject') ? 'reject' : (fa.endsWith('/unapprove') ? 'unapprove' : ''));
+    if (!kind) return;   // save, rewrite: as before (page reload)
     e.preventDefault();
     const card = f.closest('.dr-card'), acts = f.querySelector('.dr-acts');
     acts.querySelectorAll('button, select').forEach((b) => { b.disabled = true; });
@@ -222,6 +222,19 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       const r = await fetch(fa || f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
+      if (kind === 'unapprove') {
+        // back to editing: the slot is freed, the text and photo choice open up again
+        card.dataset.status = 'new';
+        card.classList.remove('dr-ok');
+        const b = card.querySelector('.dr-src-head .ck-badge');
+        b.textContent = j.label; b.className = 'ck-badge';
+        f.querySelectorAll('textarea').forEach((t) => { t.readOnly = false; });
+        card.querySelectorAll('.dr-m input').forEach((i) => { i.disabled = false; });
+        acts.innerHTML = acts.dataset.orig || '';
+        if (!acts.dataset.orig) location.reload();
+        return;
+      }
+      if (!acts.dataset.orig) acts.dataset.orig = acts.innerHTML;
       card.dataset.status = kind === 'approve' ? 'approved' : 'rejected';
       card.classList.add(kind === 'approve' ? 'dr-ok' : 'dr-out');
       const b = card.querySelector('.dr-src-head .ck-badge');
@@ -231,6 +244,11 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       card.querySelectorAll('.dr-add').forEach((x) => x.remove());
       acts.innerHTML = '<span class="muted small"></span>';
       acts.firstChild.textContent = kind === 'approve' ? j.msg : '제외했습니다. 새로고침하면 목록에서 빠집니다.';
+      if (kind === 'approve') {
+        const id = card.dataset.id || f.id.slice(1), base = f.action.replace(/\/approve$/, '');
+        acts.insertAdjacentHTML('beforeend', (j.fill && !drMobile ? '<button class="btn sm dr-fill" type="button" data-id="' + id + '">X 작성창 채우기</button>' : '')
+          + '<button class="btn sm secondary" type="submit" formaction="' + base + '/unapprove" formnovalidate title="슬롯에서 빼고 다시 고칠 수 있게 합니다">승인 취소</button>');
+      }
       if (j.fill && window.drFill && !drMobile) window.drFill(j.fill);
     } catch (err) {
       acts.querySelectorAll('button, select').forEach((b) => { b.disabled = false; });
