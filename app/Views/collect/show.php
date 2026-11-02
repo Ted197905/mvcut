@@ -167,8 +167,7 @@ $body = $tr ? trim((string) $item['body_ko']) : $orig;
       const j = await res.json().catch(() => ({}));
       if (MV.expired(res.status, j)) return;
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
-      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: j.files[0].url, filename: j.files[0].filename, mime: j.files[0].mime,
-                           files: j.files, text: j.text }, location.origin);
+      await window.mvSendToX({ url: j.files[0].url, filename: j.files[0].filename, mime: j.files[0].mime, files: j.files, text: j.text });
     } catch (e) {
       if (e && e.name === 'AbortError') { shareFiles = null; label(); return; }
       if (shareFiles && e && e.name === 'NotAllowedError') { btn.firstChild.textContent = 'X로 공유 (한 번 더 누르세요) '; return; }

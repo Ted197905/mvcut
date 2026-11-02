@@ -383,6 +383,10 @@ async function injectOpenTabs() {
       await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content.js'] });
     } catch (e) { /* discarded or restricted tab */ }
   }
+  // MV Cut pages: Send to X / 게시물 정리 go through content-mvcut.js; the orphaned copy stays silent (2026-11-02)
+  for (const t of await chrome.tabs.query({ url: ['https://mvcut.blackout.kr/*'] })) {
+    try { await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content-mvcut.js'] }); } catch (e) { /* ignore */ }
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => {

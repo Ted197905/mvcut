@@ -38,6 +38,31 @@ window.MV = (function () {
   return { csrf, fmtDur, fmtSize, httpError, expired };
 })();
 
+/**
+ * Hands a "send to X" request to the MV Cut extension (content-mvcut.js) and waits for its ack.
+ * No ack within 2.5 s means the extension is not there or its copy on this page died after an
+ * extension reload: the user is told to reload the page instead of nothing happening.
+ */
+window.mvSendToX = (data) => new Promise((resolve, reject) => {
+  if (document.documentElement.dataset.mvcutX !== '1') { reject(new Error('MV Cut 확장이 필요합니다.')); return; }
+  const req = String(Date.now()) + Math.random().toString(36).slice(2, 8);
+  const v = (document.documentElement.dataset.mvcutXVersion || '0').split('.').map(Number);
+  if ((v[0] || 0) * 10000 + (v[1] || 0) * 100 + (v[2] || 0) < 11000) {   // before 1.10.0 the extension sent no ack
+    window.postMessage({ source: 'mvcut', type: 'send-to-x', req, ...data }, location.origin);
+    resolve(true);
+    return;
+  }
+  const timer = setTimeout(() => { window.removeEventListener('message', onAck); reject(new Error('확장이 응답하지 않습니다. 확장을 새로고침했다면 이 페이지를 새로고침한 뒤 다시 누르세요.')); }, 2500);
+  const onAck = (e) => {
+    const d = e.data;
+    if (e.source !== window || !d || d.source !== 'mvcut-ext' || d.type !== 'send-to-x-ack' || d.req !== req) return;
+    clearTimeout(timer); window.removeEventListener('message', onAck);
+    if (d.ok) resolve(true); else reject(new Error(d.error || '확장 오류'));
+  };
+  window.addEventListener('message', onAck);
+  window.postMessage({ source: 'mvcut', type: 'send-to-x', req, ...data }, location.origin);
+});
+
 // top nav: hamburger on narrow screens
 (function () {
   const btn = document.getElementById('navToggle'), links = document.getElementById('navLinks');

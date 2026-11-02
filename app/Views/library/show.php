@@ -356,8 +356,7 @@ $srcSum = $isImg
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       $('xSaved').textContent = '저장됨';
       if (j.at) $('xSlot').textContent = '예약 슬롯 ' + j.at + ' 로 작성창을 열었습니다. "예약하기"만 누르세요.';
-      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: j.url, filename: j.filename,
-                           mime: j.mime, text: xTextNow(), at: j.ts || 0, note: j.note || '' }, location.origin);
+      await window.mvSendToX({ url: j.url, filename: j.filename, mime: j.mime, text: xTextNow(), at: j.ts || 0, note: j.note || '' });
     } catch (e) { alert(e.message); }
     setTimeout(() => { b.disabled = false; }, 1500);
   });

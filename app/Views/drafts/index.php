@@ -183,7 +183,7 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       const r = await fetch('<?= site_url('drafts') ?>/' + id + '/xfill', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' } });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
-      window.postMessage({ source: 'mvcut', type: 'send-to-x', url: '', text: j.text, files: j.files, note: j.note, at: j.ts }, location.origin);
+      await window.mvSendToX({ url: '', text: j.text, files: j.files, note: j.note, at: j.ts });
     } catch (e) { alert('X 작성창 채우기 실패: ' + e.message); }
   };
   if (drMobile && document.documentElement.dataset.mvcutX !== '1') {
