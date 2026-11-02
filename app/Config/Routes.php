@@ -106,6 +106,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/media/(:num)/rename', 'Media::rename/$1');
     $routes->post('api/media/(:num)/category', 'Media::category/$1');
     $routes->post('api/media/(:num)/sharelink', 'Media::shareLink/$1');
+    $routes->post('api/media/(:num)/xtext', 'Media::xText/$1');
     $routes->post('api/convert/(:num)', 'Convert::submit/$1');
     $routes->post('api/import/inspect', 'Import::inspect');
     $routes->post('api/import/duplicates', 'Import::duplicates');

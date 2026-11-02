@@ -869,3 +869,9 @@ main.wide.settings.logs { max-width: 1500px; }
 .cl-idol-acts .btn { padding: 0 8px; min-height: 28px; font-size: 12px; }
 .cl-pf { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 5px; color: #fff; background: #000; }
 .cl-pf.ig { background: linear-gradient(45deg, #f58529, #dd2a7b, #8134af); }
+
+/* ---------- library: X post text (Send to X) ---------- */
+.xpost { align-self: stretch; background: var(--bg-grouped); border-radius: 16px; padding: 14px 16px; margin: 0 0 18px; }
+.xpost-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+.xpost textarea { width: 100%; resize: vertical; min-height: 96px; font-size: 14px; line-height: 1.5; }
+.xpost-foot { display: flex; gap: 8px; align-items: center; margin-top: 8px; }

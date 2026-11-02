@@ -46,18 +46,52 @@ class Media extends BaseController
         return hash_hmac('sha256', $id . '|' . $userId . '|' . $exp, (string) config('Encryption')->key);
     }
 
-    /** POST /api/media/{id}/sharelink - mints that link for the page. */
+    /**
+     * POST /api/media/{id}/sharelink {text?} - mints that link for the page, saves the edited post text,
+     * and names the next free posting slot (the drafts' slot rule) so the composer opens with it set.
+     */
     public function shareLink(int $id)
     {
         $item = $this->owned($id);
+        $text = (string) (($this->request->getJSON(true) ?: [])['text'] ?? '');
+        if ($text !== '') $this->saveXText($item, $text);
         $exp  = time() + 1800;
+        $slot = null;
+        try {
+            $slot = \App\Libraries\Drafts::nextSlot((int) $item['user_id']);
+        } catch (\Throwable $e) {
+            \App\Libraries\AppLog::warn('library', 'send-to-x slot', $e->getMessage());
+        }
+        $at = $slot ? \App\Libraries\XWatch::kst($slot, 'n/j H:i') : '';
+        \App\Libraries\AppLog::info('library', 'send-to-x', 'media ' . $id . ($at ? ' slot ' . $at : ' (no slot)'));
         return $this->response->setJSON([
             'ok'       => true,
             'url'      => site_url('share/' . $id . '/' . $exp . '/' . self::shareSig($id, (int) $item['user_id'], $exp)),
             'filename' => 'download.' . strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)),
             'mime'     => $item['mime'] ?: 'application/octet-stream',
             'expires'  => $exp,
+            'ts'       => $slot ?: 0,
+            'at'       => $at,
+            'note'     => $at ? '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).' : '',
         ]);
+    }
+
+    /** POST /api/media/{id}/xtext {text} - the X post text edited on the library page (empty = back to title + description). */
+    public function xText(int $id)
+    {
+        $item = $this->owned($id);
+        $text = $this->saveXText($item, (string) (($this->request->getJSON(true) ?: [])['text'] ?? ''));
+        return $this->response->setJSON(['ok' => true, 'text' => $text !== '' ? $text : \App\Libraries\MediaSupport::shareText(['x_text' => null] + $item)]);
+    }
+
+    private function saveXText(array $item, string $text): string
+    {
+        $text = mb_substr(str_replace("\r", '', trim($text)), 0, 4000);
+        if ($text === \App\Libraries\MediaSupport::shareText(['x_text' => null] + $item)) $text = '';   // unchanged default: keep following the metadata
+        if ($text !== (string) ($item['x_text'] ?? '')) {
+            (new MediaModel())->update($item['id'], ['x_text' => $text !== '' ? $text : null]);
+        }
+        return $text;
     }
 
     /** GET /share/{id}/{exp}/{sig} - the file itself, readable from x.com by the extension. */

@@ -57,7 +57,13 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     </select>
     <div class="seg" role="tablist">
       <?php foreach ($filters as $k => $v): ?>
-        <a class="seg-item<?= $filter === $k ? ' on' : '' ?>" href="<?= $qs(['f' => $k === 'new' ? '' : $k]) ?>"><?= $v ?><?php if ($k === 'new' && $pending): ?> <b><?= $pending ?></b><?php elseif ($k === 'done' && ($n = (int) ($counts['approved'] ?? 0) + (int) ($counts['sending'] ?? 0) + (int) ($counts['scheduled'] ?? 0) + (int) ($counts['posted'] ?? 0))): ?> <b><?= $n ?></b><?php endif ?></a>
+        <?php $n = match ($k) {
+            'new'  => $pending,
+            'done' => (int) ($counts['approved'] ?? 0) + (int) ($counts['sending'] ?? 0) + (int) ($counts['scheduled'] ?? 0) + (int) ($counts['posted'] ?? 0),
+            'out'  => (int) ($counts['rejected'] ?? 0) + (int) ($counts['skipped'] ?? 0),
+            default => array_sum($counts),
+        }; ?>
+        <a class="seg-item<?= $filter === $k ? ' on' : '' ?>" href="<?= $qs(['f' => $k === 'new' ? '' : $k]) ?>"><?= $v ?><?php if ($n): ?> <b><?= $n ?></b><?php endif ?></a>
       <?php endforeach ?>
     </div>
     <span class="spacer"></span>

@@ -203,6 +203,7 @@ class MediaSupport
     /** Text for a new X post: the title on top, then the post body (once, never twice). */
     public static function shareText(array $item): string
     {
+        if (trim((string) ($item['x_text'] ?? '')) !== '') return trim((string) $item['x_text']);   // edited on the library page
         $body  = self::shareBody($item);
         $title = self::shareTitle($item);
         if ($title === '' || $body === '') return $body !== '' ? $body : $title;

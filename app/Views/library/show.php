@@ -64,6 +64,20 @@ $srcSum = $isImg
     <?php if ($noX): ?>
       <p class="codec-warn"><?= esc($noX) ?> 영상은 X(트위터)에 업로드할 수 없습니다. 아래 "변환해서 받기"에서 MP4(H.264)로 변환한 파일을 올려 주세요.</p>
     <?php endif ?>
+    <section class="xpost" id="xPost">
+      <div class="xpost-head">
+        <b>X 본문</b>
+        <span class="muted small" id="xSlot"><?= $nextSlot ? '다음 예약 슬롯 ' . esc(\App\Libraries\XWatch::kst($nextSlot, 'n/j H:i')) . ' (초안 설정의 간격 규칙, Send to X 때 작성창에 넣음)' : '예약 슬롯 없음 (X 관리에서 계정을 연결하면 초안 규칙대로 예약 시각을 넣습니다)' ?></span>
+      </div>
+      <textarea class="input" id="xText" rows="5" placeholder="X에 올릴 본문"><?= esc(\App\Libraries\MediaSupport::shareText($item)) ?></textarea>
+      <div class="xpost-foot">
+        <span class="muted small"><span id="xCount">0</span> / 280</span>
+        <span class="spacer"></span>
+        <button class="btn sm ghost" type="button" id="xReset" title="제목 + 설명으로 만든 기본 본문으로 되돌립니다">기본 본문</button>
+        <button class="btn sm secondary" type="button" id="xSave">저장</button>
+        <span class="muted small" id="xSaved"></span>
+      </div>
+    </section>
     <figure class="viewer<?= $cls ?>">
       <?php if ($isVid && $playable): ?>
         <video controls playsinline preload="metadata" src="<?= site_url('media/' . $item['id'] . '/proxy') ?>" <?= $item['has_thumb'] ? 'poster="' . site_url('media/' . $item['id'] . '/thumb') . '"' : '' ?>></video>
@@ -276,7 +290,21 @@ $srcSum = $isImg
   $('titleInput').addEventListener('keydown', e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') $('btnRenameCancel').click(); });
   $('btnRenameSave').addEventListener('click', save);
   /* ---------- Send to X ---------- */
-  const xText = <?= json_encode(\App\Libraries\MediaSupport::shareText($item), JSON_UNESCAPED_UNICODE) ?>;
+  // the X post text: edited on the page (saved with 저장 or when sending), default = title + description
+  const xBox = $('xText'), xDefault = <?= json_encode(\App\Libraries\MediaSupport::shareText(['x_text' => null] + $item), JSON_UNESCAPED_UNICODE) ?>;
+  const xTextNow = () => xBox.value.replace(/\r/g, '').trim();
+  const xCount = () => { $('xCount').textContent = Array.from(xTextNow()).length; };
+  xBox.addEventListener('input', () => { xCount(); $('xSaved').textContent = ''; });
+  xCount();
+  const xSave = async () => {
+    const res = await fetch(base + 'api/media/' + id + '/xtext', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow() }) });
+    let j = {}; try { j = await res.json(); } catch (e) {}
+    if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
+    if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+    $('xSaved').textContent = '저장됨';
+  };
+  $('xSave').addEventListener('click', async () => { try { await xSave(); } catch (e) { alert('저장 실패: ' + e.message); } });
+  $('xReset').addEventListener('click', async () => { xBox.value = xDefault; xCount(); try { await xSave(); } catch (e) { alert('저장 실패: ' + e.message); } });
   // Phones (iOS Safari, Android Chrome) have no extension but can hand a file to the X app
   // through the system share sheet. The file is fetched first; iOS only allows share() inside
   // a tap, so when the fetch outlasts the tap the button asks for one more tap.
@@ -287,7 +315,7 @@ $srcSum = $isImg
     const b = $('btnSendX');
     try {
       if (!shareFile) {
-        if (navigator.clipboard) navigator.clipboard.writeText(xText).catch(() => {});   // in case the app drops the text
+        if (navigator.clipboard) navigator.clipboard.writeText(xTextNow()).catch(() => {});   // in case the app drops the text
         b.textContent = '파일 준비 중...';
         const res = await fetch(base + 'media/' + id + '/file?dl=1', { credentials: 'same-origin' });
         if (!res.ok) throw new Error(MV.httpError(res.status));
@@ -295,7 +323,7 @@ $srcSum = $isImg
         const name = ($('mediaTitle').textContent.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'video') + '.' + (<?= json_encode(strtolower(pathinfo($item['filename'], PATHINFO_EXTENSION)) ?: 'mp4') ?>);
         shareFile = new File([blob], name, { type: blob.type || <?= json_encode($item['mime'] ?: 'video/mp4') ?> });
       }
-      await navigator.share({ files: [shareFile], text: xText });
+      await navigator.share({ files: [shareFile], text: xTextNow() });
       b.textContent = 'Send to X'; shareFile = null;
     } catch (e) {
       if (e && e.name === 'AbortError') { b.textContent = 'Send to X'; return; }   // share sheet closed
@@ -316,17 +344,20 @@ $srcSum = $isImg
     try {
       // the extension announces itself on the page; without it, fall back to text-only intent
       if (document.documentElement.dataset.mvcutX !== '1') {
-        window.open('https://x.com/intent/post?text=' + encodeURIComponent(xText), '_blank', 'noopener');
+        window.open('https://x.com/intent/post?text=' + encodeURIComponent(xTextNow()), '_blank', 'noopener');
         location.href = base + 'media/' + id + '/file?dl=1';
         alert('X 확장이 설치되어 있지 않아 본문만 채운 작성 창을 열고 파일을 내려받습니다.\n작성 창에 파일을 끌어다 놓으세요.');
         return;
       }
-      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr });
+      // the edited text is saved on the way; the composer opens with the next free slot as the schedule time
+      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow() }) });
       let j = {}; try { j = await res.json(); } catch (e) {}
       if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
+      $('xSaved').textContent = '저장됨';
+      if (j.at) $('xSlot').textContent = '예약 슬롯 ' + j.at + ' 로 작성창을 열었습니다. "예약하기"만 누르세요.';
       window.postMessage({ source: 'mvcut', type: 'send-to-x', url: j.url, filename: j.filename,
-                           mime: j.mime, text: xText }, location.origin);
+                           mime: j.mime, text: xTextNow(), at: j.ts || 0, note: j.note || '' }, location.origin);
     } catch (e) { alert(e.message); }
     setTimeout(() => { b.disabled = false; }, 1500);
   });
