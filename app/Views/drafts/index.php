@@ -89,6 +89,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
           <span class="ck-badge <?= $cls ?>"><?= esc($label) ?></span>
           <span class="ck-badge"><?= esc(D::STYLES[$d['style']] ?? $d['style']) ?></span>
           <span class="muted small">점수 <?= number_format((float) $d['score'], 1) ?></span>
+          <button class="linkbtn dr-srcbtn small" type="button" data-id="<?= (int) $d['id'] ?>" title="수집한 원문 글을 그대로 봅니다">원문 보기</button>
         </div>
         <a class="dr-title" href="<?= site_url('collect/' . (int) $d['item_id']) ?>" target="_blank" rel="noopener"><?= esc($d['title_ko'] ?: $d['title']) ?></a>
         <div class="meta"><?= esc($names[$d['source_id']] ?? $d['source_id']) ?> · <?= esc(Collect::when($d['posted_at'] ?: $d['first_seen'])) ?><?= $stat ? ' · ' . esc(implode(' · ', array_keys($stat))) : '' ?> · <a href="<?= esc($d['url'], 'attr') ?>" target="_blank" rel="noopener noreferrer">원문</a></div>
@@ -171,6 +172,75 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <button class="dr-modal-x" type="button" aria-label="닫기">&times;</button>
   <div class="dr-modal-body"></div>
 </div>
+<div class="dr-modal" id="drSrc" hidden>
+  <div class="dr-modal-box" role="dialog" aria-modal="true" aria-labelledby="drSrcTitle">
+    <div class="dr-modal-head">
+      <b id="drSrcTitle">원문</b>
+      <span class="muted small" id="drSrcMeta"></span>
+      <span class="spacer"></span>
+      <button class="linkbtn small" type="button" id="drSrcToggle" hidden>원어 원문 보기</button>
+      <button class="btn sm ghost" type="button" id="drSrcClose">닫기</button>
+    </div>
+    <pre class="dr-modal-text" id="drSrcText"></pre>
+    <details class="dr-modal-comments" id="drSrcCm" hidden><summary>댓글</summary><pre class="dr-modal-text" id="drSrcCmText"></pre></details>
+    <div class="dr-modal-foot">
+      <span class="muted small">"원문 적용"은 지금 보이는 글을 이 초안의 본문 아래에 덧붙입니다.</span>
+      <span class="spacer"></span>
+      <button class="btn sm" type="button" id="drSrcApply">원문 적용</button>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  // "원문 보기": the collected post in a layer; "원문 적용" appends it under the draft text
+  const m = document.getElementById('drSrc'), text = document.getElementById('drSrcText'), meta = document.getElementById('drSrcMeta'),
+        title = document.getElementById('drSrcTitle'), toggle = document.getElementById('drSrcToggle'), cm = document.getElementById('drSrcCm');
+  let cur = null, showKo = true;
+  const render = () => {
+    const ko = showKo && cur.body_ko;
+    text.textContent = (ko ? cur.body_ko : cur.body) || '(본문이 수집되지 않은 글입니다. 제목만 있습니다.)';
+    toggle.textContent = ko ? '원어 원문 보기' : '번역 보기';
+  };
+  const open = async (id) => {
+    cur = null; showKo = true;
+    title.textContent = '원문'; meta.textContent = ''; text.textContent = '불러오는 중...'; toggle.hidden = true; cm.hidden = true;
+    m.hidden = false; m.dataset.id = id; document.body.style.overflow = 'hidden';
+    try {
+      const r = await fetch('<?= site_url('drafts') ?>/' + id + '/source', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
+      cur = j;
+      title.textContent = j.title_ko || j.title || '원문';
+      meta.textContent = j.source + (j.lang && j.lang !== 'ko' ? ' · ' + j.lang : '');
+      toggle.hidden = !j.body_ko;
+      if (j.comments) { cm.hidden = false; cm.open = false; document.getElementById('drSrcCmText').textContent = j.comments; }
+      render();
+    } catch (e) { text.textContent = '불러오지 못했습니다: ' + e.message; }
+  };
+  const close = () => { m.hidden = true; document.body.style.overflow = ''; };
+  document.addEventListener('click', (e) => { const b = e.target.closest('.dr-srcbtn'); if (b) open(b.dataset.id); });
+  document.getElementById('drSrcClose').addEventListener('click', close);
+  m.addEventListener('click', (e) => { if (e.target === m) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) close(); });
+  toggle.addEventListener('click', () => { showKo = !showKo; render(); });
+  document.getElementById('drSrcApply').addEventListener('click', () => {
+    if (!cur) return;
+    const form = document.getElementById('f' + m.dataset.id);
+    const areas = form ? Array.from(form.querySelectorAll('textarea.dr-text')) : [];
+    const ta = areas[areas.length - 1];   // story drafts: the body box, not the headline
+    if (!ta) return;
+    if (ta.readOnly) { alert('승인/제외된 초안은 고칠 수 없습니다. 먼저 취소하세요.'); return; }
+    const add = ((showKo && cur.body_ko) ? cur.body_ko : cur.body) || '';
+    if (!add) return;
+    const v = ta.value.replace(/\s+$/, '');
+    ta.value = (v ? v + '\n\n' : '') + add.trim();
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    close();
+    ta.focus();
+    ta.scrollTop = ta.scrollHeight;
+  });
+})();
+</script>
 <script>
 // phones and tablets have no extension: review and approve here, X scheduling happens from the PC's Chrome
 const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform));

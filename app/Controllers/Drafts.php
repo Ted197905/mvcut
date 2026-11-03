@@ -151,6 +151,18 @@ class Drafts extends BaseController
             'note' => '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).']);
     }
 
+    /** GET /drafts/{id}/source - the collected post behind a draft (title, body, Korean translation, comments) for the "원문 보기" layer. */
+    public function source(int $id)
+    {
+        $d = $this->draft($id);
+        $i = db_connect()->table(D::t('items'))->select('title, title_ko, body, body_ko, excerpt, comment_text, lang, url, source_id')
+            ->where('id', (int) $d['item_id'])->get()->getRowArray();
+        if (! $i) return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => '수집 글이 없습니다.']);
+        $names = array_column(db_connect()->table(D::t('sources'))->select('id, name')->where('id', $i['source_id'])->get()->getResultArray(), 'name', 'id');
+        return $this->response->setJSON(['ok' => true, 'title' => $i['title'], 'title_ko' => $i['title_ko'], 'body' => $i['body'] ?: $i['excerpt'],
+            'body_ko' => $i['body_ko'], 'comments' => $i['comment_text'], 'lang' => $i['lang'], 'url' => $i['url'], 'source' => $names[$i['source_id']] ?? $i['source_id']]);
+    }
+
     /** POST /drafts/{id}/unapprove - back to review while the extension has not scheduled it yet */
     public function unapprove(int $id)
     {
