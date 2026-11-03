@@ -50,7 +50,9 @@ class Drafts extends BaseController
             'out'  => $b->whereIn('d.status', ['rejected', 'skipped']),
             default => null,
         };
-        $rows = $b->orderBy($filter === 'done' ? 'd.slot_at' : 'd.score', $filter === 'done' ? 'ASC' : 'DESC')->orderBy('d.id')->get()->getResultArray();
+        // a copy sits right after its original (same score, then the original's id)
+        $rows = $b->orderBy($filter === 'done' ? 'd.slot_at' : 'd.score', $filter === 'done' ? 'ASC' : 'DESC')
+                  ->orderBy('COALESCE(d.copy_of, d.id)', '', false)->orderBy('d.id')->get()->getResultArray();
         foreach ($rows as &$d) { $d['files'] = D::media($d); $d['yt'] = D::youtube($d); }
         unset($d);
 
@@ -149,6 +151,27 @@ class Drafts extends BaseController
         $at = \App\Libraries\XWatch::kst(strtotime($d['slot_at'] . ' UTC'), 'n/j H:i');
         return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'files' => D::files($d), 'at' => $at, 'ts' => strtotime($d['slot_at'] . ' UTC'),
             'note' => '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).']);
+    }
+
+    /**
+     * POST /drafts/{id}/copy - a second draft of the same post (same text, photos and research; the media
+     * files are the post's, so nothing is copied but the row), so one post with several stories or more
+     * than 4 photos can go out as several X posts, each reviewed and approved on its own.
+     */
+    public function copy(int $id)
+    {
+        $d = $this->draft($id);
+        if (in_array($d['status'], ['gen', 'regen'], true)) return $this->back($id)->with('error', '모델이 쓰는 중인 초안은 복사할 수 없습니다.');
+        $db  = db_connect();
+        $now = gmdate('Y-m-d H:i:s');
+        $db->table(D::t('drafts'))->insert([
+            'item_id' => $d['item_id'], 'copy_of' => $d['copy_of'] ?: $d['id'], 'batch' => $d['batch'], 'style' => $d['style'],
+            'text' => $d['text'], 'thread' => $d['thread'], 'research' => $d['research'], 'media' => $d['media'], 'score' => $d['score'],
+            'status' => 'new', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $new = (int) $db->insertID();
+        \App\Libraries\AppLog::info('drafts', 'copy', 'draft ' . $id . ' -> ' . $new);
+        return $this->back($new)->with('flash', '초안을 복사했습니다. 복사본은 원본 바로 아래에 있습니다.');
     }
 
     /** GET /drafts/{id}/source - the collected post behind a draft (title, body, Korean translation, comments) for the "원문 보기" layer. */

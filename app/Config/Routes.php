@@ -145,6 +145,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/regen', 'Drafts::regen/$1');
         $routes->post('(:num)/photos', 'Drafts::photos/$1');
         $routes->get('(:num)/source', 'Drafts::source/$1');
+        $routes->post('(:num)/copy', 'Drafts::copy/$1');
     });
 
     $routes->group('admin', ['filter' => 'admin'], static function (RouteCollection $routes) {
