@@ -389,6 +389,13 @@ async function injectOpenTabs() {
   }
 }
 
+// A MV Cut page that finished loading without the manifest's content-mvcut.js (seen 2026-11-05: "확장이 필요합니다"
+// on every other post until the extension was reloaded) gets it injected here; a copy already running steps aside.
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== 'complete' || !tab.url || !tab.url.startsWith('https://mvcut.blackout.kr/')) return;
+  chrome.scripting.executeScript({ target: { tabId }, files: ['content-mvcut.js'] }).catch(() => {});
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   injectOpenTabs();
   chrome.alarms.create('poll', { periodInMinutes: 5 });

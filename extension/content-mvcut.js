@@ -1,13 +1,16 @@
 // Tells the page the extension is here, and forwards its "send to X" requests.
+// Injected by the manifest at document_start and again by bg.js when a MV Cut tab finishes loading
+// (a belt-and-braces for tabs where the manifest injection did not happen); the second run stops here.
+if (window.__mvcutLive) throw new Error('content-mvcut.js already running');
+window.__mvcutLive = true;
 document.documentElement.dataset.mvcutX = '1';
 document.documentElement.dataset.mvcutXMulti = '1';   // send-to-x takes files[] (up to 4 photos)
 document.documentElement.dataset.mvcutXVersion = chrome.runtime.getManifest().version;
 
-// After an extension reload this copy of the script is orphaned: chrome.* throws "Extension context invalidated".
-// The page is told (ack with ok:false), and the flag goes away so its buttons stop pretending.
-const gone = () => {
-  try { document.documentElement.dataset.mvcutX = '0'; } catch (e) { /* ignore */ }
-};
+// After an extension reload this copy of the script is orphaned (no chrome.runtime.id, chrome.* throws
+// "Extension context invalidated"): it stays quiet, the live copy bg.js re-injects answers instead, and a page
+// that gets no ack at all tells the user to reload it.
+const orphan = () => !(chrome.runtime && chrome.runtime.id);
 const ack = (d, ok, error) => window.postMessage({ source: 'mvcut-ext', type: 'send-to-x-ack', ok, error: error || '', req: d.req || '' }, location.origin);
 
 // 게시물 정리: the page asks (start / stop), progress comes back from the X tab through the service worker
@@ -16,7 +19,7 @@ chrome.runtime.onMessage.addListener((m) => {
 });
 
 window.addEventListener('message', (e) => {
-  if (e.source !== window || e.origin !== location.origin) return;
+  if (e.source !== window || e.origin !== location.origin || orphan()) return;
   const d = e.data;
   if (d && d.source === 'mvcut' && d.type === 'x-purge') {
     try {
@@ -26,7 +29,6 @@ window.addEventListener('message', (e) => {
         .then((r) => { if (r && !r.ok) window.postMessage({ source: 'mvcut-ext', type: 'x-purge-progress', job: String(d.job || ''), done: true, status: 'error', error: r.error }, location.origin); })
         .catch(() => {});
     } catch (err) {
-      gone();
       window.postMessage({ source: 'mvcut-ext', type: 'x-purge-progress', job: String(d.job || ''), done: true, status: 'error',
                            error: '확장이 새로고침되어 이 페이지와 연결이 끊겼습니다. 페이지를 새로고침하세요.' }, location.origin);
     }
@@ -47,7 +49,6 @@ window.addEventListener('message', (e) => {
     }).catch(() => {});
     ack(d, true);
   } catch (err) {
-    gone();
     ack(d, false, '확장이 새로고침되어 이 페이지와 연결이 끊겼습니다. 페이지를 새로고침한 뒤 다시 누르세요.');
   }
 });

@@ -252,7 +252,6 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
 (() => {
   // semi-automatic scheduling: X's composer filled with the draft (Send to X); the time is set by hand
   const fill = async (id) => {
-    if (document.documentElement.dataset.mvcutX !== '1') { alert('MV Cut 확장이 필요합니다.'); return; }
     const c = MV.csrf();
     try {
       const r = await fetch('<?= site_url('drafts') ?>/' + id + '/xfill', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' } });
