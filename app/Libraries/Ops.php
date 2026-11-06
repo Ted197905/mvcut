@@ -50,6 +50,13 @@ class Ops
         foreach ($db->table(self::t('activity'))->get()->getResultArray() as $a) $act[$a['name']] = $a;
         $now = time();
         $parts = [];
+        // the model worker's phase (hallyuwire phases.py): collect | select | drafts, with what it is on
+        $ph = $act['_phase'] ?? null;
+        $phase = ['name' => 'collect', 'detail' => '', 'since' => null];
+        if ($ph && $ph['updated_at'] && $now - strtotime($ph['updated_at'] . ' UTC') < 90 * 60) {
+            [$pn, $pd] = array_pad(explode(' ', (string) $ph['detail'], 2), 2, '');
+            $phase = ['name' => $pn ?: 'collect', 'detail' => $pd, 'since' => $ph['started_at'] ? strtotime($ph['started_at'] . ' UTC') : null];
+        }
         foreach (self::PARTS as $name => [$group, $label, $about]) {
             $a  = $act[$name] ?? null;
             $up = $a ? strtotime($a['updated_at'] . ' UTC') : null;
@@ -71,7 +78,7 @@ class Ops
             $jobs[] = ['id' => (int) $j['id'], 'type' => $j['type'], 'progress' => (int) $j['progress'], 'mine' => (int) $j['user_id'] === $userId,
                        'since' => $j['started_at'] ? $now - strtotime($j['started_at']) : null];
         }
-        return ['parts' => $parts, 'models' => $models, 'jobs' => $jobs, 'paused' => self::paused()];
+        return ['parts' => $parts, 'models' => $models, 'jobs' => $jobs, 'paused' => self::paused(), 'phase' => $phase];
     }
 
     /** ['since' => unix] while 일시 정지 is on, null otherwise. */
