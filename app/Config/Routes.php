@@ -130,6 +130,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('status', 'Ops::status');
         $routes->post('switch', 'Ops::switch');
         $routes->post('unload', 'Ops::unload');
+        $routes->post('pause', 'Ops::pause');
     });
 
     $routes->group('drafts', ['filter' => 'admin'], static function (RouteCollection $routes) {

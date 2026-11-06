@@ -3,6 +3,7 @@
   <div class="ops-line">
     <span class="ops-dot" title="실행 중인 작업이 있으면 초록"></span>
     <div class="ops-chips" id="opsChips"><span class="muted">불러오는 중...</span></div>
+    <button class="ops-pause" type="button" id="opsPause" title="모든 자동 작업을 멈추고 모델을 메모리에서 내립니다. 다시 누르면 멈춘 곳부터 이어서 합니다">일시 정지</button>
     <button class="ops-more" type="button" id="opsMore" aria-expanded="false">자동 작업 &#9662;</button>
   </div>
   <div class="ops-panel" id="opsPanel" hidden></div>
@@ -10,7 +11,8 @@
 <script>
 (() => {
   const bar = document.getElementById('opsBar'), chips = document.getElementById('opsChips'), panel = document.getElementById('opsPanel'),
-        more = document.getElementById('opsMore'), dot = bar.querySelector('.ops-dot');
+        more = document.getElementById('opsMore'), dot = bar.querySelector('.ops-dot'), pauseBtn = document.getElementById('opsPause');
+  const hhmm = (ts) => { const d = new Date(ts * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
   const base = <?= json_encode(rtrim(site_url(), '/') . '/') ?>;
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const dur = (s) => s == null ? '' : s < 60 ? s + '초' : s < 3600 ? Math.floor(s / 60) + '분 ' + (s % 60) + '초' : Math.floor(s / 3600) + '시간 ' + Math.floor(s % 3600 / 60) + '분';
@@ -39,7 +41,11 @@
       j.jobs.forEach((x) => html.push('<span class="ops-chip"><b>작업</b> #' + x.id + ' ' + esc(x.type) + ' ' + x.progress + '%'
         + (x.mine ? ' <button data-job="' + x.id + '" title="작업 취소">&times;</button>' : '') + '</span>'));
       const off = j.parts.filter((p) => !p.on).map((p) => p.label);
-      if (off.length) html.push('<span class="ops-chip off">꺼짐: ' + esc(off.join(', ')) + '</span>');
+      if (j.paused) html.unshift('<span class="ops-chip off"><b>일시 정지 중</b> ' + hhmm(j.paused.since) + '부터 · 재개하면 멈춘 곳부터 이어서 합니다</span>');
+      else if (off.length) html.push('<span class="ops-chip off">꺼짐: ' + esc(off.join(', ')) + '</span>');
+      pauseBtn.textContent = j.paused ? '재개' : '일시 정지';
+      pauseBtn.classList.toggle('on', !!j.paused);
+      bar.classList.toggle('paused', !!j.paused);
       chips.innerHTML = html.join('') || '<span class="muted">실행 중인 자동 작업 없음</span>';
       dot.classList.toggle('on', run.length > 0 || j.jobs.length > 0);
       panel.innerHTML = '<div class="ops-grid">' + j.parts.map((p) => '<label class="ops-row' + (p.on ? '' : ' is-off') + '"><input type="checkbox" data-sw="' + p.name + '"' + (p.on ? ' checked' : '') + '>'
@@ -66,6 +72,12 @@
     load();
   });
   more.addEventListener('click', () => { panel.hidden = !panel.hidden; more.setAttribute('aria-expanded', String(!panel.hidden)); });
+  pauseBtn.addEventListener('click', async () => {
+    const on = !pauseBtn.classList.contains('on');
+    pauseBtn.disabled = true;
+    try { await post('ops/pause', { on: on ? '1' : '0' }); await load(); } catch (err) { alert(err.message); }
+    pauseBtn.disabled = false;
+  });
   document.body.classList.add('has-ops');
   load();
   setInterval(load, 3000);

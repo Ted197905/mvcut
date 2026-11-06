@@ -22,6 +22,13 @@ class Ops extends BaseController
         return $this->response->setJSON(['ok' => true]);
     }
 
+    /** POST /ops/pause  on=1|0 - everything paused / resumed (Ops::pause, Ops::resume) */
+    public function pause()
+    {
+        if ($this->request->getPost('on') === '1') O::pause(); else O::resume();
+        return $this->response->setJSON(['ok' => true, 'paused' => O::paused()]);
+    }
+
     /** POST /ops/unload  model */
     public function unload()
     {

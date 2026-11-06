@@ -20,7 +20,10 @@ class Ops
         'xviral'    => ['X', 'X 100만+ 수집', '매일 06:40, 24시간 안에 조회 100만 넘은 X 게시물'],
         'cleanup'   => ['수집', '오래된 수집 글 정리', '1시간마다, 14일 지난 글과 파일 삭제 (사용한 글은 보존)'],
         'mvcut_cleanup' => ['MV Cut', '미디어 정리', '6시간마다, 지운 항목의 남은 파일, 업로드 조각, 오래된 작업 기록 정리'],
+        'worker'    => ['MV Cut', '미디어 작업', '편집/변환/가져오기 작업 처리 (꺼지면 새 작업을 받지 않고 대기열에 둠)'],
     ];
+    /** switches row that marks "everything paused" (updated_at = since when). */
+    private const PAUSE = '_pause';
 
     /** A switch read by MV Cut itself (worker housekeeping); on unless switched off. */
     public static function on(string $name): bool
@@ -68,7 +71,54 @@ class Ops
             $jobs[] = ['id' => (int) $j['id'], 'type' => $j['type'], 'progress' => (int) $j['progress'], 'mine' => (int) $j['user_id'] === $userId,
                        'since' => $j['started_at'] ? $now - strtotime($j['started_at']) : null];
         }
-        return ['parts' => $parts, 'models' => $models, 'jobs' => $jobs];
+        return ['parts' => $parts, 'models' => $models, 'jobs' => $jobs, 'paused' => self::paused()];
+    }
+
+    /** ['since' => unix] while 일시 정지 is on, null otherwise. */
+    public static function paused(): ?array
+    {
+        try {
+            $row = db_connect()->table(self::t('switches'))->where('name', self::PAUSE)->get()->getRowArray();
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return $row && (int) $row['enabled'] ? ['since' => strtotime($row['updated_at'] . ' UTC')] : null;
+    }
+
+    /**
+     * 일시 정지: every part off (each switch remembers its value in `saved`), the media worker stops taking jobs,
+     * every model is unloaded from Ollama. The loops stop at their next step (the draft writer within ~15 s) and
+     * leave their state in the DB, so 재개 continues where they stopped.
+     */
+    public static function pause(): void
+    {
+        $db = db_connect();
+        foreach (array_keys(self::PARTS) as $name) {
+            $db->query('INSERT INTO ' . self::t('switches') . ' (name, enabled, saved, updated_at) VALUES (?, 0, 1, UTC_TIMESTAMP()) '
+                       . 'ON DUPLICATE KEY UPDATE saved = IF(saved IS NULL, enabled, saved), enabled = 0, updated_at = UTC_TIMESTAMP()', [$name]);
+        }
+        $db->query('INSERT INTO ' . self::t('switches') . ' (name, enabled, updated_at) VALUES (?, 1, UTC_TIMESTAMP()) '
+                   . 'ON DUPLICATE KEY UPDATE enabled = 1, updated_at = UTC_TIMESTAMP()', [self::PAUSE]);
+        self::unloadAll();
+        \App\Libraries\AppLog::info('ops', 'pause', 'all parts paused, models unloaded');
+    }
+
+    /** 재개: every switch back to what it was before the pause. */
+    public static function resume(): void
+    {
+        $db = db_connect();
+        $db->query('UPDATE ' . self::t('switches') . ' SET enabled = COALESCE(saved, 1), saved = NULL, updated_at = UTC_TIMESTAMP() '
+                   . 'WHERE saved IS NOT NULL AND name IN (' . implode(',', array_fill(0, count(self::PARTS), '?')) . ')', array_keys(self::PARTS));
+        $db->query('UPDATE ' . self::t('switches') . ' SET enabled = 0, updated_at = UTC_TIMESTAMP() WHERE name = ?', [self::PAUSE]);
+        \App\Libraries\AppLog::info('ops', 'resume', 'switches restored');
+    }
+
+    /** Unloads every model Ollama has in memory. */
+    public static function unloadAll(): void
+    {
+        $url = rtrim(getenv('OLLAMA_URL') ?: 'http://localhost:11434', '/');
+        $ps  = json_decode((string) @file_get_contents($url . '/api/ps', false, stream_context_create(['http' => ['timeout' => 2]])), true);
+        foreach ($ps['models'] ?? [] as $m) self::unload((string) $m['name']);
     }
 
     public static function setSwitch(string $name, bool $on): void

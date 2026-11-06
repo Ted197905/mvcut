@@ -38,7 +38,8 @@ class WorkerRun extends BaseCommand
         $nextDrafts  = time() + 30;
         $lastImport  = ['platform' => '', 'at' => 0];
         while (true) {
-            $job = $runner->claim();
+            // 일시 정지(설정/상태 바) 중에는 새 작업을 받지 않는다; 돌던 작업은 끝까지 간다
+            $job = \App\Libraries\Ops::on('worker') ? $runner->claim() : null;
             if ($job) {
                 $log("job {$job['id']} ({$job['type']}) media {$job['media_id']}");
                 // consecutive downloads from the same site are spaced out a little (rate limits)
