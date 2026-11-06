@@ -43,7 +43,7 @@
       const off = j.parts.filter((p) => !p.on).map((p) => p.label);
       if (j.phase && j.phase.name !== 'collect') {
         const label = j.phase.name === 'select' ? '선정' : '초안 작성';
-        html.unshift('<span class="ops-chip phase"><b>단계 ' + esc(label) + '</b> ' + esc(j.phase.detail) + (j.phase.since ? ' · ' + dur(Math.max(0, Math.round(Date.now() / 1000 - j.phase.since))) : '') + ' · 수집은 끝날 때까지 대기</span>');
+        html.unshift('<span class="ops-chip phase"><b>단계 ' + esc(label) + '</b> ' + esc(j.phase.detail) + ' · 수집은 끝날 때까지 대기</span>');
       }
       if (j.paused) html.unshift('<span class="ops-chip off"><b>일시 정지 중</b> ' + hhmm(j.paused.since) + '부터 · 재개하면 멈춘 곳부터 이어서 합니다</span>');
       else if (off.length) html.push('<span class="ops-chip off">꺼짐: ' + esc(off.join(', ')) + '</span>');
