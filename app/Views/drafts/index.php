@@ -175,6 +175,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 </main>
 <div class="dr-modal" id="drModal" hidden>
   <button class="dr-modal-x" type="button" aria-label="닫기">&times;</button>
+  <div class="dr-modal-tools" id="drModalTools" hidden>
+    <button class="btn sm" type="button" id="drOcr" title="사진에 적힌 글자를 읽어 이 초안의 본문 아래에 덧붙입니다 (비전 모델, 10~30초)">글자 추출</button>
+    <span class="dr-modal-note" id="drOcrNote"></span>
+  </div>
   <div class="dr-modal-body"></div>
 </div>
 <div class="dr-modal" id="drSrc" hidden>
@@ -380,11 +384,17 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
 (() => {
   // photo / video viewer: a layer over the page, closed by the backdrop, the X or Esc
   const modal = document.getElementById('drModal'), body = modal.querySelector('.dr-modal-body');
-  const close = () => { modal.hidden = true; body.innerHTML = ''; document.body.style.overflow = ''; };
+  const tools = document.getElementById('drModalTools'), ocrBtn = document.getElementById('drOcr'), note = document.getElementById('drOcrNote');
+  let cur = null;   // {draft, media} of the photo on show
+  const close = () => { modal.hidden = true; body.innerHTML = ''; tools.hidden = true; cur = null; document.body.style.overflow = ''; };
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a.dr-view');
     if (!a) return;
     e.preventDefault();
+    // a photo of a draft (not the YouTube tile, not a video): the 추출 button reads its text
+    const box = a.closest('.dr-media'), mm = /collect\/media\/(\d+)/.exec(a.getAttribute('href') || '');
+    cur = (a.dataset.kind === 'image' && box && mm) ? { draft: box.dataset.id, media: mm[1] } : null;
+    tools.hidden = !cur; note.textContent = ''; ocrBtn.disabled = false;
     body.innerHTML = a.dataset.kind === 'youtube'
       ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(a.dataset.yt) + '?autoplay=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'
       : a.dataset.kind === 'video'
@@ -397,6 +407,27 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
   });
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('.dr-modal-x')) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });
+  ocrBtn.addEventListener('click', async () => {
+    if (!cur) return;
+    const form = document.getElementById('f' + cur.draft), areas = form ? Array.from(form.querySelectorAll('textarea.dr-text')) : [], ta = areas[areas.length - 1];
+    if (!ta) return;
+    if (ta.readOnly) { note.textContent = '승인/제외된 초안은 고칠 수 없습니다. 먼저 취소하세요.'; return; }
+    ocrBtn.disabled = true; note.textContent = '읽는 중... (모델 로딩에 10~30초)';
+    try {
+      const c = MV.csrf(), b = new FormData();
+      b.append('media', cur.media); if (c) b.append(c.name, c.hash);
+      const r = await fetch('<?= site_url('drafts') ?>/' + cur.draft + '/ocr', { method: 'POST', body: b, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || MV.httpError(r.status));
+      const add = (j.text || '').trim();
+      if (!add || add === '(글자 없음)') { note.textContent = '글자를 찾지 못했습니다.'; ocrBtn.disabled = false; return; }
+      const v = ta.value.replace(/\s+$/, '');
+      ta.value = (v ? v + '\n\n' : '') + add;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      close();
+      ta.focus(); ta.scrollTop = ta.scrollHeight;
+    } catch (err) { note.textContent = '실패: ' + err.message; ocrBtn.disabled = false; }
+  });
 })();
 (() => {
   // X's weighted length (twitter-text v3): Latin/digits/punctuation 1, Hangul/CJK/emoji 2, a URL 23.

@@ -174,6 +174,30 @@ class Drafts extends BaseController
         return $this->back($new)->with('flash', '초안을 복사했습니다. 복사본은 원본 바로 아래에 있습니다.');
     }
 
+    /** POST /drafts/{id}/ocr {media} - the text written in one of the draft's photos (vision model), for the "추출" button of the viewer. */
+    public function ocr(int $id)
+    {
+        $d   = $this->draft($id);
+        $mid = (int) $this->request->getPost('media');
+        $m   = null;
+        foreach (D::media($d) as $row) if ((int) $row['id'] === $mid && $row['kind'] === 'image') $m = $row;
+        if (! $m) return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => '이 초안의 사진이 아닙니다.']);
+        $path = rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/') . '/' . $m['path'];
+        if (! preg_match('#^[\w./-]+$#', (string) $m['path']) || str_contains($m['path'], '..') || ! is_file($path)) {
+            return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => '사진 파일이 없습니다.']);
+        }
+        set_time_limit(300);
+        $t0 = microtime(true);
+        try {
+            $text = \App\Libraries\Ollama::readImage($path);
+        } catch (\Throwable $e) {
+            \App\Libraries\AppLog::error('drafts', 'ocr', $e->getMessage(), ['draft' => $id, 'media' => $mid]);
+            return $this->response->setStatusCode(502)->setJSON(['ok' => false, 'error' => '추출 실패: ' . $e->getMessage()]);
+        }
+        \App\Libraries\AppLog::info('drafts', 'ocr', 'draft ' . $id . ' media ' . $mid . ' ' . round(microtime(true) - $t0, 1) . 's ' . mb_strlen($text) . ' chars', $text);
+        return $this->response->setJSON(['ok' => true, 'text' => $text]);
+    }
+
     /** GET /drafts/{id}/source - the collected post behind a draft (title, body, Korean translation, comments) for the "원문 보기" layer. */
     public function source(int $id)
     {

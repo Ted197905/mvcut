@@ -890,7 +890,7 @@ main.wide.settings.logs { max-width: 1500px; }
 
 /* ---------- drafts: original post layer ---------- */
 .dr-srcbtn { color: var(--blue); }
-.dr-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
+#drSrc.dr-modal { background: rgba(0,0,0,.45); padding: 20px; }
 .dr-modal[hidden] { display: none; }
 .dr-modal-box { background: var(--bg-elev); border-radius: 18px; width: min(760px, 100%); max-height: min(86vh, 900px); display: flex; flex-direction: column; box-shadow: var(--shadow-md); }
 .dr-modal-head { display: flex; gap: 10px; align-items: center; padding: 14px 18px 10px; border-bottom: 1px solid var(--separator); }
@@ -900,7 +900,12 @@ main.wide.settings.logs { max-width: 1500px; }
 .dr-modal-comments summary { cursor: pointer; padding: 8px 18px; color: var(--blue); }
 .dr-modal-comments .dr-modal-text { max-height: 30vh; padding-top: 0; }
 .dr-modal-foot { display: flex; gap: 10px; align-items: center; padding: 10px 18px 14px; border-top: 1px solid var(--separator); }
-@media (max-width: 640px) { .dr-modal { padding: 0; align-items: stretch; } .dr-modal-box { border-radius: 0; max-height: none; width: 100%; } }
+@media (max-width: 640px) { #drSrc.dr-modal { padding: 0; align-items: stretch; } .dr-modal-box { border-radius: 0; max-height: none; width: 100%; } }
 
 .dr-copy { display: inline; margin: 0; }
 .dr-copy .linkbtn { color: var(--blue); }
+
+/* ---------- drafts photo viewer: text extraction ---------- */
+.dr-modal-tools { position: absolute; top: 14px; left: 16px; display: flex; gap: 10px; align-items: center; z-index: 1; }
+.dr-modal-tools[hidden] { display: none; }
+.dr-modal-note { color: #fff; font-size: 13px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
