@@ -156,11 +156,12 @@
     return true;
   };
 
-  // X throttles a run of deletions (replies above all): RATE_N deletions, then a full RATE_REST break (user, 2026-10-30)
-  const RATE_N = 50, RATE_REST = 15 * 60 * 1000;
-  let batch = 0;   // deletions since the last break
+  // No fixed batch any more: delete until X stops taking deletions, then wait RATE_REST and carry on (user, 2026-11-10;
+  // before: 50 deletions, then 15 minutes)
+  const RATE_REST = 11 * 60 * 1000;
+  let batch = 0;   // deletions since the last break (log only)
   const rest = async (why) => {
-    log('rest 15 min: ' + why);
+    log('rest 11 min after ' + batch + ' deletions: ' + why);
     const end = Date.now() + RATE_REST;
     while (!stopped && Date.now() < end) {
       const wait = end - Date.now();
@@ -171,9 +172,8 @@
     }
     batch = 0;
   };
-  const throttle = async () => { if (batch >= RATE_N) await rest(RATE_N + '건 지웠으니 15분 휴식'); };
   // a post that was "deleted" but is on screen again, or one that does not leave the screen: X is refusing deletions
-  // (the limit) -> 15 minutes off at once, then the post is tried again (twice at most) (user, 2026-10-31)
+  // (the limit) -> 11 minutes off at once, then the post is tried again (twice at most) (user, 2026-10-31)
   const retried = new Map();
   const limited = async (r, it, why) => {
     log('limit? ' + r.id + ': ' + why);
@@ -190,7 +190,7 @@
       log('give up ' + r.id);
       return;
     }
-    await rest('삭제가 안 먹힘(제한 추정), 15분 휴식');
+    await rest('삭제가 안 먹힘(제한), 11분 대기');
   };
 
   const kinds = new Set(job.kinds || ['post', 'reply']);
@@ -268,7 +268,6 @@
           report({ found, deleted, failed, last: r.text, done: false, oldest: isFinite(oldest) ? oldest : 0 });
           continue;
         }
-        await throttle();
         if (stopped) { done.delete(r.id); items.pop(); found--; break; }
         batch++;
         try {

@@ -192,7 +192,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
 
   <section class="set-card" id="purge">
     <div class="xw-head"><h2>게시물 정리</h2><span class="ck-badge none xp-ext" hidden>확장 필요</span></div>
-    <p class="muted small" style="margin:0 0 14px">아래 검색어로 X 검색(최신순)을 열고, 결과 중 "시작" 시각 이전 ~ "끝" 시각 사이의 내 글을 크롬 확장이 X 화면에서 하나씩 지웁니다(사람이 스크롤하며 메뉴 &gt; 삭제를 누르는 속도로, 50건 지우면 15분 쉬고, 지운 글이 다시 보이면 제한으로 보고 바로 15분 쉰 뒤 다시 시도합니다). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
+    <p class="muted small" style="margin:0 0 14px">아래 검색어로 X 검색(최신순)을 열고, 결과 중 "시작" 시각 이전 ~ "끝" 시각 사이의 내 글을 크롬 확장이 X 화면에서 하나씩 지웁니다(사람이 스크롤하며 메뉴 &gt; 삭제를 누르는 속도로, 쉬지 않고 지우다가 삭제가 안 먹히거나 지운 글이 다시 보이면 제한으로 보고 11분 기다린 뒤 이어서 합니다). 먼저 "대상 세기"로 몇 건인지 보고 지우세요. 고정 글과 재게시는 건드리지 않습니다. 지운 글은 되돌릴 수 없습니다.</p>
     <?php if ($w['handle'] === ''): ?>
       <p class="ck-alert">먼저 설정에서 X 아이디를 넣어야 합니다.</p>
     <?php else: ?>
@@ -317,7 +317,7 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
       const n = (d.found || 0);
       status.textContent = (mode === 'scan' ? '대상 ' + n + '건' : '대상 ' + n + '건 · 삭제 ' + (d.deleted || 0) + '건' + (d.failed ? ' · 실패 ' + d.failed + '건' : ''))
         + (d.done ? (d.status === 'stopped' ? ' · 중지됨' : d.status === 'error' ? ' · 오류: ' + (d.error || '') : ' · 완료')
-                  : d.waiting ? ' · 50건 지우고 15분 휴식: ' + Math.ceil(d.waiting / 60) + '분 뒤 계속' : ' · 진행 중 (X 탭에서 작업 중)');
+                  : d.waiting ? ' · 제한 걸림, 11분 대기: ' + Math.ceil(d.waiting / 60) + '분 뒤 계속' : ' · 진행 중 (X 탭에서 작업 중)');
       if (mode === 'delete' && n) { bar.hidden = false; bar.firstElementChild.style.width = Math.round(((d.deleted || 0) + (d.failed || 0)) * 100 / n) + '%'; }
     };
     const finish = (d) => {
