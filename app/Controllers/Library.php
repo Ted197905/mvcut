@@ -33,8 +33,18 @@ class Library extends BaseController
             if (! in_array($cat, $cats, true) && $cat !== CategoryModel::NONE) $cat = CategoryModel::ALL;
         }
 
+        // posts saved from X are hidden unless the toggle is on; remembered per account, ?x= changes it
+        $x = $this->request->getGet('x');
+        if ($x !== null) {
+            $showX = $x === '1';
+            $users->savePref($userId, 'library_show_x', $showX ? 1 : null);
+        } else {
+            $showX = ! empty($users->prefs($userId)['library_show_x']);
+        }
+
         $media   = new MediaModel();
         $builder = $media->where('user_id', $userId);
+        if (! $showX) $builder->where('source !=', 'x');
         if ($q !== '') {
             $builder->groupStart()->like('title', $q)->orLike('source_url', $q)->groupEnd();
         }
@@ -108,6 +118,7 @@ class Library extends BaseController
             'sort'    => $sort ?: 'newest',
             'kind'    => $kind ?: 'all',
             'cat'     => $cat,
+            'showX'   => $showX,
             'perPage' => $perPage,
             'mobile'  => $mobile,
             'cats'    => $cats,

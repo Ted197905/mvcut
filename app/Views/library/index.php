@@ -61,6 +61,8 @@
       <option value="largest"<?= $sort === 'largest' ? ' selected' : '' ?>>용량순</option>
       <option value="longest"<?= $sort === 'longest' ? ' selected' : '' ?>>길이순</option>
     </select>
+    <input type="hidden" name="x" value="0">
+    <label class="per-page small muted"><input type="checkbox" name="x" value="1"<?= ! empty($showX) ? ' checked' : '' ?> onchange="filterForm.submit()"> X 수집</label>
     <?php if (empty($mobile)): ?>
     <label class="per-page small muted">표시 <input class="input" type="number" name="per" min="1" max="500" step="1" value="<?= (int) $perPage ?>" onchange="filterForm.submit()" aria-label="페이지당 표시 개수">개</label>
     <?php endif ?>
