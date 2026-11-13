@@ -59,11 +59,15 @@
     // and the item's profile link gives the author
     const wrap = best.closest('[id^="xgwrapper-"]');
     const vid = wrap && (wrap.id.match(/-(\d{15,25})$/) || [])[1];
-    const item = best.closest('article, [data-e2e="recommend-list-item-container"], section');
-    const user = item && item.querySelector('a[href^="/@"]');
+    const item = best.closest('article, [data-e2e="recommend-list-item-container"]') || best.closest('section');
+    // 2026-11 layout: the feed item holds only the player; the author and caption of the video on show sit in one
+    // overlay next to the list ([data-e2e=anchoring-chrome-host])
+    const chrome_ = document.querySelector('[data-e2e="anchoring-chrome-host"]');
+    const user = (item && item.querySelector('a[href^="/@"]')) || (chrome_ && chrome_.querySelector('a[href^="/@"]'));
     if (vid && user) {
       const handle = user.getAttribute('href').split(/[/?]/)[1];
-      const desc = item.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]');
+      const desc = (item && item.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]'))
+        || (chrome_ && chrome_.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]'));
       return { url: 'https://www.tiktok.com/' + handle + '/video/' + vid, title: desc ? desc.innerText.trim().slice(0, 200) : '' };
     }
     let el = best;
