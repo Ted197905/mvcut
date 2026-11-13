@@ -92,7 +92,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
           <button class="linkbtn dr-srcbtn small" type="button" data-id="<?= (int) $d['id'] ?>" title="수집한 원문 글을 그대로 봅니다">원문 보기</button>
           <?php if (! in_array($d['status'], ['gen', 'regen'], true)): ?>
             <form method="post" action="<?= site_url('drafts/' . (int) $d['id'] . '/copy') ?>" class="dr-copy"><?= csrf_field() ?><input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
-              <button class="linkbtn small" type="submit" title="같은 글로 초안을 하나 더 만듭니다 (사진/본문은 복사, 파일은 공유). 글이 여러 소식이거나 사진이 4장을 넘을 때 나눠 올리는 용도">복사</button></form>
+              <button class="linkbtn small" type="submit" title="같은 글로 초안을 하나 더 만듭니다 (사진/본문은 복사, 파일은 공유). 글이 여러 소식이거나 사진이 20장을 넘을 때 나눠 올리는 용도">복사</button></form>
           <?php endif ?>
           <?php if (! empty($d['copy_of'])): ?><span class="ck-badge" title="원본 초안 #<?= (int) $d['copy_of'] ?>">복사본</span><?php endif ?>
         </div>

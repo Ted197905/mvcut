@@ -44,7 +44,7 @@ window.addEventListener('message', (e) => {
       filename: String(d.filename || 'video.mp4'),
       mime: String(d.mime || 'application/octet-stream'),
       text: String(d.text || ''),
-      files: Array.isArray(d.files) ? d.files.slice(0, 4).filter((f) => f && typeof f.url === 'string')
+      files: Array.isArray(d.files) ? d.files.slice(0, 20).filter((f) => f && typeof f.url === 'string')
         .map((f) => ({ url: f.url, filename: String(f.filename || 'file'), mime: String(f.mime || 'application/octet-stream') })) : null,
     }).catch(() => {});
     ack(d, true);

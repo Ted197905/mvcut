@@ -226,7 +226,7 @@ class Drafts extends BaseController
     /**
      * POST /drafts/{id}/photos  photo[] - photos added by hand: stored as media rows of the post
      * (hallyuwire media dir, manual/YYYY/MM/<sha1>.<ext>) and chosen for the draft while it has room
-     * (4 photos, no video). JSON for the page, a redirect otherwise.
+     * (20 photos, 4 files with a video). JSON for the page, a redirect otherwise.
      */
     public function photos(int $id)
     {
@@ -260,9 +260,8 @@ class Drafts extends BaseController
                 $mid = (int) $db->insertID();
                 $kinds[$mid] = 'image';
             }
-            $imgs = array_filter($chosen, static fn ($c) => ($kinds[$c] ?? '') === 'image');
             $vid  = array_filter($chosen, static fn ($c) => ($kinds[$c] ?? '') === 'video');
-            $on   = in_array($mid, $chosen, true) || (! $vid && count($imgs) < 4);
+            $on   = in_array($mid, $chosen, true) || count($chosen) < ($vid ? D::MAX_WITH_VIDEO : D::MAX_IMAGES);
             if ($on && ! in_array($mid, $chosen, true)) $chosen[] = $mid;
             $added[] = ['id' => $mid, 'chosen' => $on, 'url' => site_url('collect/media/' . $mid)];
         }

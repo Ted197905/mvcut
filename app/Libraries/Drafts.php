@@ -252,14 +252,18 @@ class Drafts
         return array_values($out);
     }
 
-    /** Validates a media choice for X: up to 4 images or one video. Returns an error or null. */
+    public const MAX_WITH_VIDEO = 4;    // files in a post that holds a video
+    public const MAX_IMAGES     = 20;   // files in a post of photos only
+
+    /** Validates a media choice for X: up to 4 files when a video is among them, up to 20 photos otherwise. Returns an error or null. */
     public static function checkMedia(array $rows, array $pick): ?string
     {
         $kinds = [];
         foreach ($rows as $m) if (in_array((int) $m['id'], $pick, true)) $kinds[] = $m['kind'];
         if (count($kinds) !== count($pick)) return '없는 파일이 골라졌습니다.';
-        if (in_array('video', $kinds, true) && count($kinds) > 1) return 'X는 영상과 사진을 함께 올릴 수 없습니다 (영상은 1개).';
-        if (count($kinds) > 4) return 'X 사진은 4장까지입니다.';
+        if (in_array('video', $kinds, true)) {
+            if (count($kinds) > self::MAX_WITH_VIDEO) return '영상이 포함되면 첨부는 ' . self::MAX_WITH_VIDEO . '개까지입니다.';
+        } elseif (count($kinds) > self::MAX_IMAGES) return '사진만 올릴 때는 ' . self::MAX_IMAGES . '장까지입니다.';
         return null;
     }
 

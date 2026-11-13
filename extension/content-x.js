@@ -1,4 +1,4 @@
-// Fills the compose modal with the post text and attaches the files (one video or up to 4 photos). Posting stays manual.
+// Fills the compose modal with the post text and attaches the files (up to 4 with a video, up to 20 photos). Posting stays manual.
 
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
