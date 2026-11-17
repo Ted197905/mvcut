@@ -175,7 +175,11 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
 </main>
 <div class="dr-modal" id="drModal" hidden>
   <button class="dr-modal-x" type="button" aria-label="닫기">&times;</button>
+  <button class="dr-modal-nav prev" type="button" id="drPrev" aria-label="이전">&#8249;</button>
+  <button class="dr-modal-nav next" type="button" id="drNext" aria-label="다음">&#8250;</button>
   <div class="dr-modal-tools" id="drModalTools" hidden>
+    <label class="dr-modal-pick" id="drPickWrap"><input type="checkbox" id="drPick"> 선택</label>
+    <span class="dr-modal-note" id="drPos"></span>
     <button class="btn sm" type="button" id="drOcr" title="사진에 적힌 글자를 읽어 이 초안의 본문 아래에 덧붙입니다 (비전 모델, 10~30초)">글자 추출</button>
     <span class="dr-modal-note" id="drOcrNote"></span>
   </div>
@@ -385,25 +389,54 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
   // photo / video viewer: a layer over the page, closed by the backdrop, the X or Esc
   const modal = document.getElementById('drModal'), body = modal.querySelector('.dr-modal-body');
   const tools = document.getElementById('drModalTools'), ocrBtn = document.getElementById('drOcr'), note = document.getElementById('drOcrNote');
+  const prev = document.getElementById('drPrev'), next = document.getElementById('drNext');
+  const pick = document.getElementById('drPick'), pickWrap = document.getElementById('drPickWrap'), pos = document.getElementById('drPos');
   let cur = null;   // {draft, media} of the photo on show
-  const close = () => { modal.hidden = true; body.innerHTML = ''; tools.hidden = true; cur = null; document.body.style.overflow = ''; };
-  document.addEventListener('click', (e) => {
-    const a = e.target.closest('a.dr-view');
-    if (!a) return;
-    e.preventDefault();
+  let list = [], at = 0;   // the tiles of the draft on show and the one open
+  const close = () => { modal.hidden = true; body.innerHTML = ''; tools.hidden = true; cur = null; list = []; document.body.style.overflow = ''; };
+  const tileBox = (a) => { const cb = a.parentNode.querySelector('input[type=checkbox]'); return cb && !cb.disabled ? cb : null; };
+  const show = (i) => {
+    at = (i + list.length) % list.length;
+    const a = list[at];
     // a photo of a draft (not the YouTube tile, not a video): the 추출 button reads its text
     const box = a.closest('.dr-media'), mm = /collect\/media\/(\d+)/.exec(a.getAttribute('href') || '');
     cur = (a.dataset.kind === 'image' && box && mm) ? { draft: box.dataset.id, media: mm[1] } : null;
-    tools.hidden = !cur; note.textContent = ''; ocrBtn.disabled = false;
+    const cb = tileBox(a);
+    tools.hidden = false; ocrBtn.hidden = !cur; note.textContent = ''; ocrBtn.disabled = false;
+    pickWrap.hidden = !cb; pick.checked = !!(cb && cb.checked);
+    pos.textContent = list.length > 1 ? (at + 1) + ' / ' + list.length : '';
+    prev.hidden = next.hidden = list.length < 2;
     body.innerHTML = a.dataset.kind === 'youtube'
       ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(a.dataset.yt) + '?autoplay=1" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>'
       : a.dataset.kind === 'video'
       ? '<video src="' + a.href + '" controls autoplay playsinline></video>'
       : '<img src="' + a.href + '" alt="">';
-    modal.hidden = false;
-    document.body.style.overflow = 'hidden';
     const v = body.querySelector('video');
     if (v) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });   // browsers may refuse sound without a gesture
+  };
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a.dr-view');
+    if (!a) return;
+    e.preventDefault();
+    const box = a.closest('.dr-media');
+    list = box ? Array.from(box.querySelectorAll('a.dr-view')) : [a];
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    show(Math.max(0, list.indexOf(a)));
+  });
+  prev.addEventListener('click', () => show(at - 1));
+  next.addEventListener('click', () => show(at + 1));
+  pick.addEventListener('change', () => {
+    const cb = list[at] && tileBox(list[at]);
+    if (!cb) return;
+    cb.checked = pick.checked;
+    cb.parentNode.classList.toggle('on', cb.checked);
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (modal.hidden || list.length < 2) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); show(at - 1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); show(at + 1); }
   });
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('.dr-modal-x')) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) close(); });

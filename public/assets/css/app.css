@@ -915,3 +915,10 @@ main.wide.settings.logs { max-width: 1500px; }
 .ops-pause.on { background: var(--green); color: #fff; }
 .ops-bar.paused { box-shadow: inset 0 3px 0 var(--red), 0 -4px 16px rgba(0,0,0,.06); }
 .ops-chip.phase { background: color-mix(in srgb, #ff9f0a 18%, transparent); }
+
+.dr-modal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 72px; border: 0; border-radius: 10px; background: rgba(255,255,255,.15); color: #fff; font-size: 40px; line-height: 1; cursor: pointer; z-index: 1; }
+.dr-modal-nav:hover { background: rgba(255,255,255,.3); }
+.dr-modal-nav.prev { left: 12px; } .dr-modal-nav.next { right: 12px; }
+.dr-modal-nav[hidden], .dr-modal-pick[hidden] { display: none; }
+.dr-modal-pick { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-size: 14px; background: rgba(255,255,255,.15); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.dr-modal-pick input { width: 18px; height: 18px; margin: 0; }
