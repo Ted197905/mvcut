@@ -107,7 +107,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <?php foreach ($rs['background'] ?? [] as $b): ?><p><b>위키백과 <?= esc($b['title']) ?></b> <?= esc($b['text']) ?></p><?php endforeach ?>
           </details>
         <?php endif ?>
-        <?php if ($d['files'] || $d['yt'] || $editable): ?>
+        <?php if ($d['files'] || $d['yt'] || $d['held'] || $editable): ?>
           <div class="dr-media" data-id="<?= (int) $d['id'] ?>">
             <?php foreach ($d['files'] as $m): ?>
               <div class="dr-m<?= $m['chosen'] ? ' on' : '' ?>" title="<?= esc(($m['kind'] === 'video' ? '영상' : '사진') . ' ' . ($m['width'] ? $m['width'] . 'x' . $m['height'] : '') . ' - 누르면 크게 보기', 'attr') ?>">
@@ -116,6 +116,11 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
                   <?php if ($m['kind'] === 'image'): ?><img src="<?= site_url('collect/media/' . (int) $m['id']) ?>" alt="" loading="lazy">
                   <?php else: ?><video src="<?= site_url('collect/media/' . (int) $m['id']) ?>#t=0.5" preload="metadata" muted playsinline></video><span class="dr-play">&#9654;</span><?php endif ?>
                 </a>
+              </div>
+            <?php endforeach ?>
+            <?php foreach ($d['held'] as $h): ?>
+              <div class="dr-m dr-hold<?= $h['status'] === 'pending' ? ' busy' : '' ?>" data-media="<?= (int) $h['id'] ?>" title="원문의 영상 (아직 받지 않음). 누르면 수집기가 내려받습니다">
+                <button type="button"><span class="dr-play">&#9654;</span><span class="dr-hold-t"><?= $h['status'] === 'pending' ? '받는 중...' : '영상 다운로드' ?></span></button>
               </div>
             <?php endforeach ?>
             <?php foreach ($d['yt'] as $y): ?>
@@ -383,6 +388,42 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const box = e.target.closest('.dr-media');
     if (!box || !box.querySelector('.dr-add')) return;
     e.preventDefault(); box.classList.remove('drop'); upload(box, e.dataTransfer.files);
+  });
+})();
+(() => {
+  // a held video: the click asks the collector for it, the tile polls until the file is in and becomes a normal tile
+  const base = '<?= site_url('drafts') ?>/';
+  const watch = (el) => {
+    const id = el.closest('.dr-media').dataset.id, t = el.querySelector('.dr-hold-t');
+    const tick = async () => {
+      if (!el.isConnected) return;
+      let j = null;
+      try { j = await (await fetch(base + id + '/video?media=' + el.dataset.media, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json(); } catch (e) { /* retried */ }
+      if (j && j.status === 'done') {
+        el.className = 'dr-m'; el.title = '영상 - 누르면 크게 보기';
+        el.innerHTML = '<input type="checkbox" name="media[]" title="게시물에 넣기"><a class="dr-view" data-kind="video"><video preload="metadata" muted playsinline></video><span class="dr-play">&#9654;</span></a>';
+        const cb = el.querySelector('input');
+        cb.value = el.dataset.media; cb.setAttribute('form', 'f' + id); cb.disabled = !j.editable;
+        el.querySelector('a').href = j.url; el.querySelector('video').src = j.url + '#t=0.5';
+        return;
+      }
+      if (j && j.status !== 'pending') { el.classList.remove('busy'); t.textContent = '실패: ' + (j.error || j.status).slice(0, 40); return; }
+      setTimeout(tick, 4000);
+    };
+    setTimeout(tick, 4000);
+  };
+  document.querySelectorAll('.dr-hold.busy').forEach(watch);
+  document.addEventListener('click', async (e) => {
+    const el = e.target.closest('.dr-hold');
+    if (!el || el.classList.contains('busy')) return;
+    const c = MV.csrf(), b = new FormData();
+    b.append('media', el.dataset.media); if (c) b.append(c.name, c.hash);
+    el.classList.add('busy'); el.querySelector('.dr-hold-t').textContent = '받는 중...';
+    try {
+      const r = await fetch(base + el.closest('.dr-media').dataset.id + '/video', { method: 'POST', body: b, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!r.ok) throw new Error(MV.httpError(r.status));
+      watch(el);
+    } catch (err) { el.classList.remove('busy'); el.querySelector('.dr-hold-t').textContent = '실패: ' + err.message; }
   });
 })();
 (() => {

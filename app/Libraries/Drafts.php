@@ -239,6 +239,13 @@ class Drafts
         return $rows;
     }
 
+    /** Videos of a draft's post that are not downloaded: 'hold' (waiting for a click) or 'pending' (asked for). */
+    public static function heldVideos(array $d): array
+    {
+        return self::db()->table(self::t('media'))->select('id, status')->where('item_id', (int) $d['item_id'])->where('kind', 'video')
+            ->whereIn('status', ['hold', 'pending'])->orderBy('id')->get()->getResultArray();
+    }
+
     /** YouTube videos linked in the post: [['id' => video id, 'url' => watch url]]. Shown on the card; X takes no YouTube file. */
     public static function youtube(array $d): array
     {

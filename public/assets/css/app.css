@@ -922,3 +922,8 @@ main.wide.settings.logs { max-width: 1500px; }
 .dr-modal-nav[hidden], .dr-modal-pick[hidden] { display: none; }
 .dr-modal-pick { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-size: 14px; background: rgba(255,255,255,.15); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
 .dr-modal-pick input { width: 18px; height: 18px; margin: 0; }
+
+.dr-m.dr-hold { opacity: 1; background: #1c1c1e; }
+.dr-hold button { width: 100%; height: 100%; border: 0; background: none; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+.dr-hold .dr-play { position: static; font-size: 30px; }
+.dr-hold.busy button { cursor: default; opacity: .7; }

@@ -53,7 +53,7 @@ class Drafts extends BaseController
         // a copy sits right after its original (same score, then the original's id)
         $rows = $b->orderBy($filter === 'done' ? 'd.slot_at' : 'd.score', $filter === 'done' ? 'ASC' : 'DESC')
                   ->orderBy('COALESCE(d.copy_of, d.id)', '', false)->orderBy('d.id')->get()->getResultArray();
-        foreach ($rows as &$d) { $d['files'] = D::media($d); $d['yt'] = D::youtube($d); }
+        foreach ($rows as &$d) { $d['files'] = D::media($d); $d['yt'] = D::youtube($d); $d['held'] = D::heldVideos($d); }
         unset($d);
 
         $counts = [];
@@ -269,6 +269,25 @@ class Drafts extends BaseController
         D::update($id, ['media' => json_encode(array_values($chosen))]);
         if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => true, 'items' => $added]);
         return $this->back($id)->with('flash', '사진 ' . count($added) . '장을 추가했습니다.');
+    }
+
+    /**
+     * /drafts/{id}/video  media=<id>  POST: asks the collector to download a held video (status hold -> pending);
+     * GET: its state now, for the tile's poll. JSON {ok, status, url}.
+     */
+    public function video(int $id)
+    {
+        $d   = $this->draft($id);
+        $mid = (int) ($this->request->getPost('media') ?? $this->request->getGet('media'));
+        $db  = db_connect();
+        $row = $db->table(D::t('media'))->where('id', $mid)->where('item_id', (int) $d['item_id'])->where('kind', 'video')->get()->getRowArray();
+        if (! $row) return $this->response->setStatusCode(404)->setJSON(['ok' => false, 'error' => '없는 영상입니다.']);
+        if ($this->request->getMethod() === 'POST' && $row['status'] === 'hold') {
+            $db->table(D::t('media'))->where('id', $mid)->where('status', 'hold')->update(['status' => 'pending']);
+            $row['status'] = 'pending';
+        }
+        return $this->response->setJSON(['ok' => true, 'status' => $row['status'], 'error' => (string) ($row['error'] ?? ''),
+                                         'url' => site_url('collect/media/' . $mid), 'editable' => in_array($d['status'], ['new', 'error', 'failed', 'rejected', 'skipped'], true)]);
     }
 
     /** POST /drafts/{id}/reject */
