@@ -83,11 +83,25 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     <?php foreach ($tl['warnings'] as $m): ?><p class="xw-warn"><?= esc($m) ?></p><?php endforeach ?>
   </div>
 
+  <?php
+  // replies get their own tab; the count is today's (since the 09:00 KST reset)
+  $dayStart = $tl['day_reset'] - 86400;
+  $lists = ['posts' => array_values(array_filter($tl['posts'], static fn ($p) => $p['kind'] !== 'reply')),
+            'replies' => array_values(array_filter($tl['posts'], static fn ($p) => $p['kind'] === 'reply'))];
+  $today = static fn (array $l) => count(array_filter($l, static fn ($p) => $p['ts'] >= $dayStart));
+  ?>
+  <div class="xw-tabs">
+    <button type="button" class="p" onclick="document.body.classList.remove('xw-replies')">게시물 <b><?= $today($lists['posts']) ?></b></button>
+    <button type="button" class="r" onclick="document.body.classList.add('xw-replies')" title="오늘 09시 이후 단 댓글 수">댓글 <b><?= $today($lists['replies']) ?></b></button>
+    <span class="muted small">09시 이후</span>
+  </div>
   <div class="xw-box xw-list">
-    <?php if (! $tl['posts']): ?>
+    <?php foreach ($lists as $tab => $list): ?>
+    <div class="xw-tab-<?= $tab ?>">
+    <?php if (! $list): ?>
       <p class="muted small" style="margin:0;padding:10px 12px">최근 48시간 기록 없음</p>
     <?php endif ?>
-    <?php foreach (array_slice($tl['posts'], 0, $compact ? 10 : 40) as $p): ?>
+    <?php foreach (array_slice($list, 0, $compact ? 10 : 40) as $p): ?>
       <a class="xw-item<?= ! empty($p['danger']) ? ' danger' : ($p['short'] ? ' short' : ($p['gap'] !== null ? ' kept' : '')) ?><?= $p['counted'] ? '' : ' dim' ?>" href="https://x.com/<?= esc($xw['handle']) ?>/status/<?= esc($p['id']) ?>" target="_blank" rel="noopener">
         <span class="t"><b><?= esc(XWatch::kst($p['ts'], 'h:i A')) ?></b><i><?= esc(XWatch::kst($p['ts'], 'n/j')) ?></i></span>
         <span class="b">
@@ -95,6 +109,8 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
           <span class="x"><?= $p['reply_to'] && ! str_starts_with($p['text'], '@' . $p['reply_to']) ? '@' . esc($p['reply_to']) . ' · ' : '' ?><?= $p['text'] !== '' ? esc($p['text']) : '(미디어)' ?></span>
         </span>
       </a>
+    <?php endforeach ?>
+    </div>
     <?php endforeach ?>
   </div>
 </aside>

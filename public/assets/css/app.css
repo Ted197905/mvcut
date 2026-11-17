@@ -927,3 +927,9 @@ main.wide.settings.logs { max-width: 1500px; }
 .dr-hold button { width: 100%; height: 100%; border: 0; background: none; color: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
 .dr-hold .dr-play { position: static; font-size: 30px; }
 .dr-hold.busy button { cursor: default; opacity: .7; }
+
+.xw-tabs { display: flex; align-items: center; gap: 6px; }
+.xw-tabs button { border: 0; background: var(--fill3); color: var(--label2); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.xw-tabs span { margin-left: auto; }
+body:not(.xw-replies) .xw-tabs .p, body.xw-replies .xw-tabs .r { background: var(--blue); color: #fff; }
+body:not(.xw-replies) .xw-tab-replies, body.xw-replies .xw-tab-posts { display: none; }
