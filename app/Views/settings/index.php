@@ -44,7 +44,7 @@
         <div class="auto-row"><div class="auto-txt"><b><?= esc($h) ?>시 배치</b></div>
           <input class="input" type="number" name="count[<?= esc($h, 'attr') ?>]" min="1" max="300" step="1" value="<?= (int) $n ?>" style="width:90px;text-align:right" aria-label="<?= esc($h, 'attr') ?>시 후보 수"> 건</div>
       <?php endforeach ?>
-      <div class="auto-group">초안 특징 (여러 개 선택 가능, 선택한 종류가 배치의 60%를 나눠 가짐)</div>
+      <div class="auto-group">초안 특징 (여러 개 선택 가능. 종류별 최소 비율: 1개 선택 60%, 2개 각 40%, 3개 각 30%)</div>
       <?php foreach (\App\Libraries\Ops::DRAFT_FOCUS as $k => $label): ?>
         <div class="auto-row"><div class="auto-txt"><b><?= esc($label) ?></b></div>
           <label class="sw"><input type="checkbox" name="focus[]" value="<?= esc($k, 'attr') ?>"<?= in_array($k, $drafts['focus'], true) ? ' checked' : '' ?>><span></span></label></div>
