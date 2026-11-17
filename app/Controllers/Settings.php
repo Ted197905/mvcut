@@ -15,6 +15,7 @@ class Settings extends BaseController
             'user'    => $users->find(session()->get('user_id')),
             'cookies' => Cookies::all(),
             'auto'    => session()->get('role') === 'admin' ? $this->autoRows() : null,
+            'drafts'  => session()->get('role') === 'admin' ? \App\Libraries\Ops::draftSettings() : null,
         ]);
     }
 
@@ -62,6 +63,14 @@ class Settings extends BaseController
             return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => 'unknown']);
         }
         return $this->response->setJSON(['ok' => true]);
+    }
+
+    /** POST /settings/drafts  count[06|12|18], focus[] (admin) - the next batch uses them */
+    public function drafts()
+    {
+        if (session()->get('role') !== 'admin') return redirect()->to('/settings');
+        \App\Libraries\Ops::saveDraftSettings((array) $this->request->getPost('count'), (array) $this->request->getPost('focus'));
+        return redirect()->to('/settings#drafts')->with('flash', '초안 배치 설정을 저장했습니다. 다음 배치부터 적용됩니다.');
     }
 
     /** POST /settings/account - display name, email, password */

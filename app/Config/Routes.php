@@ -43,6 +43,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('settings', 'Settings::index');
     $routes->post('settings/account', 'Settings::account');
     $routes->post('settings/auto', 'Settings::auto');
+    $routes->post('settings/drafts', 'Settings::drafts');
     $routes->post('settings/cookies/([a-z]+)', 'Settings::uploadCookie/$1');
     $routes->post('settings/cookies/([a-z]+)/delete', 'Settings::deleteCookie/$1');
 

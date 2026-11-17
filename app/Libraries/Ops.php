@@ -16,7 +16,7 @@ class Ops
         'media'     => ['수집', '사진/영상 저장', '초안 글 먼저, 최신 순'],
         'judge'     => ['모델', '뉴스 판정', 'Nemotron 3.5 Bolt (GPU 3GB)'],
         'translate' => ['모델', '번역', 'TranslateGemma 4B (GPU 3GB)'],
-        'drafts'    => ['모델', '초안 작성', 'Qwen3.6 35B (GPU 8GB + RAM 18GB), 06/12/18시 100건씩'],
+        'drafts'    => ['모델', '초안 작성', 'Qwen3.6 35B (GPU 8GB + RAM 18GB), 06/12/18시 배치 (건수는 아래 초안 배치)'],
         'drafts_06' => ['초안', '06시 배치', '아침 06시 초안 배치 (선정 + 조사 + 작성). 끄면 이 시간대 배치만 건너뜀'],
         'drafts_12' => ['초안', '12시 배치', '낮 12시 초안 배치. 끄면 이 시간대 배치만 건너뜀'],
         'drafts_18' => ['초안', '18시 배치', '저녁 18시 초안 배치. 끄면 이 시간대 배치만 건너뜀'],
@@ -129,6 +129,32 @@ class Ops
         $url = rtrim(getenv('OLLAMA_URL') ?: 'http://localhost:11434', '/');
         $ps  = json_decode((string) @file_get_contents($url . '/api/ps', false, stream_context_create(['http' => ['timeout' => 2]])), true);
         foreach ($ps['models'] ?? [] as $m) self::unload((string) $m['name']);
+    }
+
+    public const DRAFT_COUNT = 20;   // drafts per batch when unset (hallyuwire HW_DRAFT_COUNT)
+    public const DRAFT_FOCUS = ['hallyu' => '한류 + 연예 비율 높게', 'story' => '썰 비율 높게', 'media' => '이미지/영상 비율 높게'];
+
+    /** 초안 배치 settings read by the collector: ['count' => ['06' => n, ...], 'focus' => [keys]]. */
+    public static function draftSettings(): array
+    {
+        $v = [];
+        try {
+            $v = array_column(db_connect()->table(self::t('settings'))->get()->getResultArray(), 'value', 'name');
+        } catch (\Throwable $e) {
+        }
+        $count = [];
+        foreach (['06', '12', '18'] as $h) $count[$h] = max(1, min(300, (int) ($v['drafts_count_' . $h] ?? self::DRAFT_COUNT)));
+        return ['count' => $count, 'focus' => array_values(array_intersect(array_keys(self::DRAFT_FOCUS), explode(',', (string) ($v['drafts_focus'] ?? ''))))];
+    }
+
+    public static function saveDraftSettings(array $count, array $focus): void
+    {
+        $set = ['drafts_focus' => implode(',', array_intersect(array_keys(self::DRAFT_FOCUS), $focus))];
+        foreach (['06', '12', '18'] as $h) $set['drafts_count_' . $h] = (string) max(1, min(300, (int) ($count[$h] ?? self::DRAFT_COUNT)));
+        foreach ($set as $k => $val) {
+            db_connect()->query('INSERT INTO ' . self::t('settings') . ' (name, value, updated_at) VALUES (?, ?, UTC_TIMESTAMP()) '
+                                . 'ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)', [$k, $val]);
+        }
     }
 
     public static function setSwitch(string $name, bool $on): void

@@ -34,6 +34,24 @@
     c.disabled = false;
   });
   </script>
+  <section class="set-card" id="drafts">
+    <h2>초안 배치</h2>
+    <p class="muted small" style="margin-bottom:14px">배치 시간별로 고를 초안 후보 수와, 후보를 고를 때 비중을 높일 종류입니다. 다음 배치부터 적용됩니다.</p>
+    <form method="post" action="<?= site_url('settings/drafts') ?>">
+      <?= csrf_field() ?>
+      <div class="auto-group">시간별 후보 수 (1~300)</div>
+      <?php foreach ($drafts['count'] as $h => $n): ?>
+        <div class="auto-row"><div class="auto-txt"><b><?= esc($h) ?>시 배치</b></div>
+          <input class="input" type="number" name="count[<?= esc($h, 'attr') ?>]" min="1" max="300" step="1" value="<?= (int) $n ?>" style="width:90px;text-align:right" aria-label="<?= esc($h, 'attr') ?>시 후보 수"> 건</div>
+      <?php endforeach ?>
+      <div class="auto-group">초안 특징 (여러 개 선택 가능, 선택한 종류가 배치의 60%를 나눠 가짐)</div>
+      <?php foreach (\App\Libraries\Ops::DRAFT_FOCUS as $k => $label): ?>
+        <div class="auto-row"><div class="auto-txt"><b><?= esc($label) ?></b></div>
+          <label class="sw"><input type="checkbox" name="focus[]" value="<?= esc($k, 'attr') ?>"<?= in_array($k, $drafts['focus'], true) ? ' checked' : '' ?>><span></span></label></div>
+      <?php endforeach ?>
+      <button class="btn" type="submit" style="margin-top:10px">저장</button>
+    </form>
+  </section>
   <?php endif ?>
 
   <section class="set-card">
