@@ -221,6 +221,17 @@
     return j;
   }
 
+  // inspect only reads the link, so a request the network dropped (iOS: "Load failed") is sent again, twice at most
+  async function postInspect(url) {
+    for (let i = 0; ; i++) {
+      try { return await post(base + 'api/import/inspect', { url }); }
+      catch (e) {
+        if (!(e instanceof TypeError) || i >= 2) throw e;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  }
+
   function putChunk(fd, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -524,7 +535,7 @@
     istatus('리소스를 확인하는 중... (몇 초 걸립니다)'); il.hidden = ia.hidden = true; il.innerHTML = '';
     $('btnInspect').disabled = true;
     try {
-      const j = await post(base + 'api/import/inspect', { url });
+      const j = await postInspect(url);
       inspected = { url, entries: j.entries, desc: j.desc || '', post: j.post || null };
       if (!j.entries.length) throw new Error('가져올 수 있는 영상/이미지가 없습니다.');
       j.entries.forEach(e => {
@@ -580,7 +591,7 @@
     il.hidden = ia.hidden = true; il.innerHTML = ''; inspected = null;
     istatus('영상을 찾는 중... (몇 초 걸립니다)');
     try {
-      const j = await post(base + 'api/import/inspect', { url });
+      const j = await postInspect(url);
       const ins = { url, entries: j.entries || [], desc: j.desc || '', post: j.post || null };
       const items = ins.entries.filter(e => e.kind !== 'image').map(e => e.index);
       if (!items.length) throw new Error('이 링크에는 가져올 영상이 없습니다.' + (ins.entries.length ? ' (이미지 ' + ins.entries.length + '개는 제외)' : ''));
