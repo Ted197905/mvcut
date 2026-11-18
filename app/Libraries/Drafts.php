@@ -218,15 +218,54 @@ class Drafts
     }
 
     /** Approves a draft: the slot, the item marked used. Returns the slot or an error string. */
-    public static function approve(int $userId, array $d): int|string
+    public static function approve(int $userId, array $d, string $day = ''): int|string
     {
         if (! in_array($d['status'], ['new', 'error', 'rejected'], true)) return '지금 상태에서는 승인할 수 없습니다.';
         if (trim((string) $d['text']) === '') return '본문이 비어 있습니다.';
-        $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
+        if ($day !== '') {   // a day picked on the card (KST): the first free slot of that day, whatever the batch's own day
+            $start = (new \DateTimeImmutable($day, new \DateTimeZone('Asia/Seoul')))->getTimestamp();
+            $slot  = self::nextSlot($userId, $start);
+            if ($slot === null || $slot >= $start + 86400) return XWatch::kst($start, 'n/j') . '에는 빈 슬롯이 없습니다.';
+        } else {
+            $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
+        }
         if ($slot === null) return '빈 슬롯이 없습니다 (4일 치가 찼습니다).';
         self::update((int) $d['id'], ['status' => 'approved', 'slot_at' => gmdate('Y-m-d H:i:s', $slot), 'error' => null, 'tries' => 0]);
         self::db()->table(self::t('items'))->where('id', (int) $d['item_id'])->update(['used_at' => gmdate('Y-m-d H:i:s')]);
         return $slot;
+    }
+
+    /**
+     * The day buttons of a card: 어제 / 오늘 / 내일 (KST) as [date Y-m-d, label, selectable, default]. The default is
+     * the day the next free slot of the batch falls on (what 승인 did before the buttons); a past day cannot be picked.
+     */
+    public static function days(int $userId, ?string $batch): array
+    {
+        $tz    = new \DateTimeZone('Asia/Seoul');
+        $today = new \DateTimeImmutable('today', $tz);
+        $next  = self::nextSlot($userId, $batch ? self::publishFrom($batch) : null);
+        $def   = $next ? (new \DateTimeImmutable('@' . $next))->setTimezone($tz)->format('Y-m-d') : '';
+        $out   = [];
+        foreach ([-1 => '어제', 0 => '오늘', 1 => '내일'] as $off => $name) {
+            $d = $today->modify(($off >= 0 ? '+' : '') . $off . ' day');
+            $out[] = ['date' => $d->format('Y-m-d'), 'label' => $name . '(' . $d->format('n/j') . ')', 'ok' => $off >= 0, 'default' => $d->format('Y-m-d') === $def];
+        }
+        return $out;
+    }
+
+    /**
+     * Deletes a draft row. The post is marked used when no other draft of it is left, so the next batch does not
+     * pick it again. Returns an error or null.
+     */
+    public static function delete(array $d): ?string
+    {
+        if (in_array($d['status'], ['gen', 'regen', 'sending', 'scheduled', 'posted'], true)) return '쓰는 중이거나 이미 X에 등록된 초안은 삭제할 수 없습니다.';
+        $db = self::db();
+        $db->table(self::t('drafts'))->where('id', (int) $d['id'])->delete();
+        if (! $db->table(self::t('drafts'))->where('item_id', (int) $d['item_id'])->countAllResults()) {
+            $db->table(self::t('items'))->where('id', (int) $d['item_id'])->where('used_at', null)->update(['used_at' => gmdate('Y-m-d H:i:s')]);
+        }
+        return null;
     }
 
     /** Media rows (done image/video) of a draft's post, with the chosen ones flagged. */

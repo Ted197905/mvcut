@@ -66,6 +66,7 @@ class Drafts extends BaseController
                                      'filters' => self::FILTERS, 'counts' => $counts, 'names' => $names, 'next' => $next,
                                      'publishFrom' => $batch !== '' ? D::publishFrom($batch) : null,
                                      'usage' => D::usageText($this->uid(), $batch !== '' ? $batch : null),
+                                     'days' => D::days($this->uid(), $batch !== '' ? $batch : null),
                                      'xwatch' => Library::xwatchPanel($this->uid()), 'mode' => D::mode($this->uid()), 'slot' => D::slotType($this->uid()),
                                      'off' => array_keys(array_filter(['drafts' => ! \App\Libraries\Ops::on('drafts'), 'collect' => ! \App\Libraries\Ops::on('collect'), 'judge' => ! \App\Libraries\Ops::on('judge')]))]);
     }
@@ -104,7 +105,8 @@ class Drafts extends BaseController
         if ($e = $this->take($d)) return $this->answer($id, $e);
         $d = $this->draft($id);
         if (in_array($d['status'], ['skipped', 'failed'], true)) D::update($id, ['status' => 'new']);
-        $r = D::approve($this->uid(), $this->draft($id));
+        $day = (string) $this->request->getPost('day');
+        $r = D::approve($this->uid(), $this->draft($id), preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) ? $day : '');
         if (is_string($r)) return $this->answer($id, $r);
         $at = \App\Libraries\XWatch::kst($r, 'n/j H:i');
         $semi = D::mode($this->uid()) !== 'auto';
@@ -288,6 +290,13 @@ class Drafts extends BaseController
         }
         return $this->response->setJSON(['ok' => true, 'status' => $row['status'], 'error' => (string) ($row['error'] ?? ''),
                                          'url' => site_url('collect/media/' . $mid), 'editable' => in_array($d['status'], ['new', 'error', 'failed', 'rejected', 'skipped'], true)]);
+    }
+
+    /** POST /drafts/{id}/delete - removes the draft for good */
+    public function delete(int $id)
+    {
+        $e = D::delete($this->draft($id));
+        return $this->back(0)->with($e ? 'error' : 'flash', $e ?: '초안을 삭제했습니다.');
     }
 
     /** POST /drafts/{id}/reject */

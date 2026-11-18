@@ -933,3 +933,11 @@ main.wide.settings.logs { max-width: 1500px; }
 .xw-tabs span { margin-left: auto; }
 body:not(.xw-replies) .xw-tabs .p, body.xw-replies .xw-tabs .r { background: var(--blue); color: #fff; }
 body:not(.xw-replies) .xw-tab-replies, body.xw-replies .xw-tab-posts { display: none; }
+
+.dr-copy .linkbtn.dr-del { color: var(--red); }
+.dr-day { display: inline-flex; }
+.dr-day .seg-item { cursor: pointer; padding: 0; }
+.dr-day .seg-item input { position: absolute; opacity: 0; pointer-events: none; }
+.dr-day .seg-item span { display: block; padding: 5px 10px; border-radius: inherit; font-size: 13px; }
+.dr-day .seg-item input:checked + span { background: var(--blue); color: #fff; }
+.dr-day .seg-item.off { opacity: .4; cursor: default; }

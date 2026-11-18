@@ -94,6 +94,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <form method="post" action="<?= site_url('drafts/' . (int) $d['id'] . '/copy') ?>" class="dr-copy"><?= csrf_field() ?><input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
               <button class="linkbtn small" type="submit" title="같은 글로 초안을 하나 더 만듭니다 (사진/본문은 복사, 파일은 공유). 글이 여러 소식이거나 사진이 20장을 넘을 때 나눠 올리는 용도">복사</button></form>
           <?php endif ?>
+          <?php if (! in_array($d['status'], ['gen', 'regen', 'sending', 'scheduled', 'posted'], true)): ?>
+            <form method="post" action="<?= site_url('drafts/' . (int) $d['id'] . '/delete') ?>" class="dr-copy" onsubmit="return confirm('이 초안을 삭제할까요? 되돌릴 수 없습니다.')"><?= csrf_field() ?><input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
+              <button class="linkbtn small dr-del" type="submit" title="이 초안을 지웁니다 (원문 글과 파일은 남고, 다음 배치에 다시 뽑히지 않습니다)">삭제</button></form>
+          <?php endif ?>
           <?php if (! empty($d['copy_of'])): ?><span class="ck-badge" title="원본 초안 #<?= (int) $d['copy_of'] ?>">복사본</span><?php endif ?>
         </div>
         <a class="dr-title" href="<?= site_url('collect/' . (int) $d['item_id']) ?>" target="_blank" rel="noopener"><?= esc($d['title_ko'] ?: $d['title']) ?></a>
@@ -153,6 +157,11 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
         <?php endif ?>
         <div class="dr-acts">
           <?php if ($editable): ?>
+            <span class="seg dr-day" title="게시할 날짜. 그 날의 첫 빈 슬롯에 들어갑니다 (시간 규칙은 그대로)">
+              <?php foreach ($days as $dy): ?>
+                <label class="seg-item<?= $dy['ok'] ? '' : ' off' ?>"><input type="radio" name="day" value="<?= esc($dy['date'], 'attr') ?>"<?= $dy['default'] ? ' checked' : '' ?><?= $dy['ok'] ? '' : ' disabled' ?>><span><?= esc($dy['label']) ?></span></label>
+              <?php endforeach ?>
+            </span>
             <button class="btn sm" type="submit">승인</button>
             <button class="btn sm secondary" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/save') ?>">저장</button>
             <button class="btn sm ghost" type="submit" formaction="<?= site_url('drafts/' . (int) $d['id'] . '/regen') ?>" formnovalidate>다시 쓰기</button>
