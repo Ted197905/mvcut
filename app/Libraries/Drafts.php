@@ -236,8 +236,8 @@ class Drafts
     }
 
     /**
-     * The day buttons of a card: 어제 / 오늘 / 내일 (KST) as [date Y-m-d, label, selectable, default]. The default is
-     * the day the next free slot of the batch falls on (what 승인 did before the buttons); a past day cannot be picked.
+     * The day buttons of a card: 오늘 / 내일 (KST) as [date Y-m-d, label, selectable, default]. The default is
+     * the day the next free slot of the batch falls on (what 승인 did before the buttons).
      */
     public static function days(int $userId, ?string $batch): array
     {
@@ -246,9 +246,9 @@ class Drafts
         $next  = self::nextSlot($userId, $batch ? self::publishFrom($batch) : null);
         $def   = $next ? (new \DateTimeImmutable('@' . $next))->setTimezone($tz)->format('Y-m-d') : '';
         $out   = [];
-        foreach ([-1 => '어제', 0 => '오늘', 1 => '내일'] as $off => $name) {
-            $d = $today->modify(($off >= 0 ? '+' : '') . $off . ' day');
-            $out[] = ['date' => $d->format('Y-m-d'), 'label' => $name . '(' . $d->format('n/j') . ')', 'ok' => $off >= 0, 'default' => $d->format('Y-m-d') === $def];
+        foreach ([0 => '오늘', 1 => '내일'] as $off => $name) {
+            $d = $today->modify('+' . $off . ' day');
+            $out[] = ['date' => $d->format('Y-m-d'), 'label' => $name . '(' . $d->format('n/j') . ')', 'ok' => true, 'default' => $d->format('Y-m-d') === $def];
         }
         return $out;
     }
