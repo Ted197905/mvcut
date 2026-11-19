@@ -144,8 +144,12 @@
     const d = new Date(ts * 1000), p = (n) => String(n).padStart(2, '0');
     return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + '_' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + '_UTC';
   };
+  // replies are searched by date only (user, 2026-11-19): until: = the day after `ts` (UTC), so the rest of that day
+  // stays in the results; an empty result then steps back a whole day
+  const byDate = /filter:replies/.test(job.query || '');
+  const fmtDay = (ts) => new Date((ts + 86400) * 1000).toISOString().slice(0, 10);
   const hop = async (ts, why) => {
-    const q = (job.query || '').replace(/\s*until:\S+/g, '') + ' until:' + fmtUntil(ts);
+    const q = (job.query || '').replace(/\s*until:\S+/g, '') + ' until:' + (byDate ? fmtDay(ts) : fmtUntil(ts));
     const r = await chrome.runtime.sendMessage({ type: 'x-purge-hop', query: q, until: ts, why }).catch(() => null);
     if (!r || !r.ok) { log('hop refused: ' + ((r && r.error) || 'no answer')); return false; }
     log('hop -> ' + q + ' (' + why + ')');
@@ -227,7 +231,7 @@
       // empty: when posts were handled already the page is the "deleted first page" case -> page by until:; a fresh run
       // steps the until: back a day up to 3 times before taking the empty result at its word
       const base = isFinite(oldest) ? oldest : (job.to || Math.floor(Date.now() / 1000));
-      const step = isFinite(oldest) ? 1 : 86400;
+      const step = isFinite(oldest) && !byDate ? 1 : 86400;
       if ((job.hop || 0) < 40 && (isFinite(oldest) || (job.hop || 0) < 3) && (!job.from || base - step > job.from)) {
         if (await hop(base - step, 'empty result')) return;
       }
