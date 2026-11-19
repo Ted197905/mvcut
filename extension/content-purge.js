@@ -144,9 +144,9 @@
     const d = new Date(ts * 1000), p = (n) => String(n).padStart(2, '0');
     return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + '_' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + '_UTC';
   };
-  // replies are searched by date only (user, 2026-11-19): until: = the day after `ts` (UTC), so the rest of that day
+  // the search pages by date only (user, 2026-11-19): until: = the day after `ts` (UTC), so the rest of that day
   // stays in the results; an empty result then steps back a whole day
-  const byDate = /filter:replies/.test(job.query || '');
+  const byDate = true;
   const fmtDay = (ts) => new Date((ts + 86400) * 1000).toISOString().slice(0, 10);
   const hop = async (ts, why) => {
     const q = (job.query || '').replace(/\s*until:\S+/g, '') + ' until:' + (byDate ? fmtDay(ts) : fmtUntil(ts));
