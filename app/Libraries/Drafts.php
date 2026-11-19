@@ -217,15 +217,22 @@ class Drafts
         return null;
     }
 
+    /** The first free slot (unix) on the KST day `$day` (Y-m-d), null when that day has none left. */
+    public static function daySlot(int $userId, string $day): ?int
+    {
+        $start = (new \DateTimeImmutable($day, new \DateTimeZone('Asia/Seoul')))->getTimestamp();
+        $slot  = self::nextSlot($userId, $start);
+        return $slot !== null && $slot < $start + 86400 ? $slot : null;
+    }
+
     /** Approves a draft: the slot, the item marked used. Returns the slot or an error string. */
     public static function approve(int $userId, array $d, string $day = ''): int|string
     {
         if (! in_array($d['status'], ['new', 'error', 'rejected'], true)) return '지금 상태에서는 승인할 수 없습니다.';
         if (trim((string) $d['text']) === '') return '본문이 비어 있습니다.';
         if ($day !== '') {   // a day picked on the card (KST): the first free slot of that day, whatever the batch's own day
-            $start = (new \DateTimeImmutable($day, new \DateTimeZone('Asia/Seoul')))->getTimestamp();
-            $slot  = self::nextSlot($userId, $start);
-            if ($slot === null || $slot >= $start + 86400) return XWatch::kst($start, 'n/j') . '에는 빈 슬롯이 없습니다.';
+            $slot = self::daySlot($userId, $day);
+            if ($slot === null) return (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2) . '에는 빈 슬롯이 없습니다.';
         } else {
             $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
         }

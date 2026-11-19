@@ -941,3 +941,5 @@ body:not(.xw-replies) .xw-tab-replies, body.xw-replies .xw-tab-posts { display: 
 .dr-day .seg-item span { display: block; padding: 5px 10px; border-radius: inherit; font-size: 13px; }
 .dr-day .seg-item input:checked + span { background: var(--blue); color: #fff; }
 .dr-day .seg-item.off { opacity: .4; cursor: default; }
+
+.xpost-day { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }

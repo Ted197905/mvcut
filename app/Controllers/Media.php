@@ -53,12 +53,19 @@ class Media extends BaseController
     public function shareLink(int $id)
     {
         $item = $this->owned($id);
-        $text = (string) (($this->request->getJSON(true) ?: [])['text'] ?? '');
+        $in   = $this->request->getJSON(true) ?: [];
+        $text = (string) ($in['text'] ?? '');
         if ($text !== '') $this->saveXText($item, $text);
         $exp  = time() + 1800;
         $slot = null;
+        $day  = (string) ($in['day'] ?? '');   // 오늘 / 내일 picked on the page (Y-m-d, KST): that day's first free slot
         try {
-            $slot = \App\Libraries\Drafts::nextSlot((int) $item['user_id']);
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+                $slot = \App\Libraries\Drafts::daySlot((int) $item['user_id'], $day);
+                if ($slot === null) return $this->response->setJSON(['ok' => false, 'error' => (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2) . '에는 빈 슬롯이 없습니다.']);
+            } else {
+                $slot = \App\Libraries\Drafts::nextSlot((int) $item['user_id']);
+            }
         } catch (\Throwable $e) {
             \App\Libraries\AppLog::warn('library', 'send-to-x slot', $e->getMessage());
         }

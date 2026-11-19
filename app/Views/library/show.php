@@ -69,6 +69,15 @@ $srcSum = $isImg
         <b>X 본문</b>
         <span class="muted small" id="xSlot"><?= $nextSlot ? '다음 예약 슬롯 ' . esc(\App\Libraries\XWatch::kst($nextSlot, 'n/j H:i')) . ' (초안 설정의 간격 규칙, Send to X 때 작성창에 넣음)' : '예약 슬롯 없음 (X 관리에서 계정을 연결하면 초안 규칙대로 예약 시각을 넣습니다)' ?></span>
       </div>
+      <?php if ($days): ?>
+        <div class="xpost-day"><span class="muted small">게시 날짜</span>
+          <span class="seg dr-day" title="Send to X 때 그 날의 첫 빈 슬롯을 예약 시각으로 넣습니다 (초안과 같은 규칙)">
+            <?php foreach ($days as $dy): ?>
+              <label class="seg-item"><input type="radio" name="xDay" value="<?= esc($dy['date'], 'attr') ?>"<?= $dy['default'] ? ' checked' : '' ?>><span><?= esc($dy['label']) ?></span></label>
+            <?php endforeach ?>
+          </span>
+        </div>
+      <?php endif ?>
       <textarea class="input" id="xText" rows="5" placeholder="X에 올릴 본문"><?= esc(\App\Libraries\MediaSupport::shareText($item)) ?></textarea>
       <div class="xpost-foot">
         <span class="muted small"><span id="xCount">0</span> / 280</span>
@@ -350,7 +359,7 @@ $srcSum = $isImg
         return;
       }
       // the edited text is saved on the way; the composer opens with the next free slot as the schedule time
-      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow() }) });
+      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow(), day: (document.querySelector('input[name=xDay]:checked') || {}).value || '' }) });
       let j = {}; try { j = await res.json(); } catch (e) {}
       if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));

@@ -164,6 +164,7 @@ class Library extends BaseController
             $slot = null;
         }
         return view('library/show', ['title' => '라이브러리 상세', 'item' => $item, 'playable' => $playable, 'nextSlot' => $slot,
+                                     'days' => $slot ? \App\Libraries\Drafts::days((int) session()->get('user_id'), null) : [],
                                      'cats' => (new CategoryModel())->names(),
                                      'pending' => $pending, 'siblings' => $media->postItems($item), 'back' => $this->backUrl(),
                                      'xwatch' => self::xwatchPanel((int) session()->get('user_id'))]);
