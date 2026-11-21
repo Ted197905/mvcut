@@ -20,6 +20,7 @@ class XWatch
     private const BANCHECKER = 'https://banchecker.org/api/check-twitter?username=';
     private const XAUTODM    = 'https://xautodm.com/api/shadowban-check';
     private const TAISHIN    = 'https://taishin-miyamoto.com/ShadowBan/api/?screen_name=';
+    private const TAISHIN_CONTROL = 'NASA';   // an account that is certainly not restricted
     private const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
 
@@ -662,6 +663,17 @@ class XWatch
             $res['typeahead'] = ['ban' => (bool) ($j['search_suggestion_ban'] ?? false)];
             $res['ghost']     = ['ban' => (bool) ($j['ghost_ban'] ?? false)];
             $res['deboost']   = ['ban' => (bool) ($j['reply_deboosting'] ?? false)];
+            // a ban flag is checked against a control account: when the site says the same of @NASA its own check is
+            // broken (2026-11-22: search_ban true for elonmusk, NASA, aespa_official alike), so the flag is not a finding
+            $flags = ['search' => 'search_ban', 'typeahead' => 'search_suggestion_ban', 'ghost' => 'ghost_ban', 'deboost' => 'reply_deboosting'];
+            if ($handle !== self::TAISHIN_CONTROL && array_filter(array_column(array_intersect_key($res, $flags), 'ban'))) {
+                [$c2, $ctl] = self::getJson(self::TAISHIN . self::TAISHIN_CONTROL, ['Referer: https://taishin-miyamoto.com/ShadowBan/']);
+                $bad = [];
+                foreach ($flags as $k => $f) {
+                    if ($res[$k]['ban'] && ($c2 !== 200 || ! is_array($ctl) || ! empty($ctl[$f]))) { $res[$k] = ['ban' => null]; $bad[] = $f; }
+                }
+                if ($bad) $res['control'] = '@' . self::TAISHIN_CONTROL . ' 도 같은 판정 (' . implode(', ', $bad) . '): 사이트 오류로 보고 제외';
+            }
         }
         $res['raw'] = $j;
         return $res;
