@@ -75,12 +75,15 @@ class Drafts extends BaseController
     private function take(array $d): ?string
     {
         $text = str_replace("\r", '', trim((string) $this->request->getPost('text')));
-        if (mb_strlen($text) > 4000) return '본문이 너무 깁니다 (4000자).';
         $data = ['text' => $text];
+        $body = '';
         if ($d['style'] === 'story') {
             $body = str_replace("\r", '', trim((string) $this->request->getPost('body')));
-            $data['thread'] = $body === '' ? null : json_encode([mb_substr($body, 0, 4000)], JSON_UNESCAPED_UNICODE);
+            $data['thread'] = $body === '' ? null : json_encode([$body], JSON_UNESCAPED_UNICODE);
         }
+        // X's long-post limit (Premium) is 25,000; nothing is cut silently (a 4,000 cut lost the end of a pasted original, 2026-11-21)
+        $len = mb_strlen($text) + mb_strlen($body);
+        if ($len > 25000) return '본문이 너무 깁니다 (' . number_format($len) . '자, X 긴 글 한도 25,000자).';
         $pick = array_values(array_unique(array_map('intval', (array) $this->request->getPost('media'))));
         if ($e = D::checkMedia(D::media($d), $pick)) return $e;
         $data['media'] = json_encode($pick);
