@@ -320,9 +320,12 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     if (!kind) return;   // save, rewrite: as before (page reload)
     e.preventDefault();
     const card = f.closest('.dr-card'), acts = f.querySelector('.dr-acts');
+    // kept before the buttons are disabled: 취소 puts exactly this back (a copy taken after held disabled buttons)
+    if (kind !== 'unapprove' && !acts.dataset.orig) acts.dataset.orig = acts.innerHTML;
+    const body = new FormData(f);
     acts.querySelectorAll('button, select').forEach((b) => { b.disabled = true; });
     try {
-      const r = await fetch(fa || f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const r = await fetch(fa || f.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
       if (kind === 'unapprove') {
@@ -333,18 +336,18 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
         b.textContent = j.label; b.className = 'ck-badge';
         f.querySelectorAll('textarea').forEach((t) => { t.readOnly = false; });
         card.querySelectorAll('.dr-m input').forEach((i) => { i.disabled = false; });
+        card.querySelectorAll('.dr-add').forEach((x) => { x.hidden = false; });
         acts.innerHTML = acts.dataset.orig || '';
         if (!acts.dataset.orig) location.reload();
         return;
       }
-      if (!acts.dataset.orig) acts.dataset.orig = acts.innerHTML;
       card.dataset.status = kind === 'approve' ? 'approved' : 'rejected';
       card.classList.add(kind === 'approve' ? 'dr-ok' : 'dr-out');
       const b = card.querySelector('.dr-src-head .ck-badge');
       b.textContent = j.label; b.className = 'ck-badge ' + (kind === 'approve' ? 'warn' : 'bad');
       f.querySelectorAll('textarea').forEach((t) => { t.readOnly = true; });
       card.querySelectorAll('.dr-m input').forEach((i) => { i.disabled = true; });
-      card.querySelectorAll('.dr-add').forEach((x) => x.remove());
+      card.querySelectorAll('.dr-add').forEach((x) => { x.hidden = true; });
       acts.innerHTML = '<span class="muted small"></span>';
       acts.firstChild.textContent = kind === 'approve' ? j.msg : '제외했습니다. 새로고침하면 목록에서 빠집니다.';
       const id = card.dataset.id || f.id.slice(1), base = f.action.replace(/\/approve$/, '');
