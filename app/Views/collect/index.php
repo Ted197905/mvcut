@@ -70,7 +70,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
     <p class="muted small" style="margin:0 0 12px">Wikidata에서 매주 가져오는 인지도 있는 그룹(위키백과 12개 언어판 이상), 그 멤버(8개 이상), 솔로(11개 이상)의 Instagram/TikTok 계정. 각 계정을 하루 한 번 읽어 최근 48시간 안의 새 게시물만 모읍니다. 직접 추가한 계정은 "수동"으로 표시. Wikidata 계정은 지우지 말고 끄면 됩니다. 인스타그램은 수집 전용 계정으로 로그인한 쿠키를 아래 "쿠키" 폼에서 "인스타그램 아이돌"로 등록해야 읽힙니다.</p>
     <div class="cl-log-bar">
       <input class="input sm" type="search" id="idQ" placeholder="이름, 그룹, 계정 검색" style="min-width:200px">
-      <select class="input sm" id="idPf"><option value="">모든 플랫폼</option><option value="ig">Instagram</option><option value="tt">TikTok</option></select>
+      <select class="input sm" id="idPf"><option value="">모든 플랫폼</option><option value="ig">Instagram</option><option value="tt">TikTok</option><option value="fb">Facebook 릴스</option></select>
       <select class="input sm" id="idSt"><option value="">모든 상태</option><option value="on">켜짐</option><option value="off">꺼짐</option><option value="err">오류/없음</option><option value="manual">수동 추가</option></select>
       <span class="muted small" id="idCount"></span>
       <span class="spacer"></span>
@@ -78,10 +78,11 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
       <span class="muted small" id="idRosterInfo"></span>
     </div>
     <form class="cl-idol-add" id="idAdd">
-      <select class="input sm" name="platform"><option value="ig">Instagram</option><option value="tt">TikTok</option></select>
+      <select class="input sm" name="platform"><option value="ig">Instagram</option><option value="tt">TikTok</option><option value="fb">Facebook 릴스</option></select>
       <input class="input sm" name="handle" placeholder="계정 아이디 (@ 없이)" required>
       <input class="input sm" name="name" placeholder="이름 (예: 카리나)" required>
       <input class="input sm" name="group" placeholder="그룹 (멤버/관련 계정일 때)">
+      <label class="small" title="아이돌이 아닌 관심 계정(꿀팁, 동물, 치어리더 등). 이 계정의 글은 초안 후보에 들어갑니다. Facebook은 페이지 아이디(주소의 이름 또는 숫자 ID)"><input type="checkbox" name="topic" value="1"> 관심 계정 (초안 후보)</label>
       <button class="btn sm" type="submit">계정 추가</button>
     </form>
     <div class="xw-table-wrap cl-idol-wrap">
@@ -98,8 +99,8 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
         count = document.getElementById('idCount'), info = document.getElementById('idRosterInfo');
   let all = [];
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const kind = { group: '그룹', member: '멤버', solo: '솔로', related: '관련' };
-  const link = (r) => r.platform === 'ig' ? 'https://www.instagram.com/' + r.handle + '/' : 'https://www.tiktok.com/@' + r.handle;
+  const kind = { group: '그룹', member: '멤버', solo: '솔로', related: '관련', topic: '관심' };
+  const link = (r) => r.platform === 'ig' ? 'https://www.instagram.com/' + r.handle + '/' : r.platform === 'fb' ? 'https://www.facebook.com/' + (/^\d+$/.test(r.handle) ? 'profile.php?id=' + r.handle + '&sk=reels_tab' : r.handle + '/reels/') : 'https://www.tiktok.com/@' + r.handle;
   const status = (r) => {
     if (!r.enabled) return '<span class="ck-badge">' + (r.last_status === 'notfound' ? '계정 없음' : '꺼짐') + '</span>';
     if (r.last_status === 'ok') return '<span class="ck-badge ok">정상</span>';
@@ -114,7 +115,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
       && (!s || (r.name + ' ' + (r.group_name || '') + ' ' + r.handle).toLowerCase().includes(s)));
     count.textContent = list.length + '개';
     rows.innerHTML = list.slice(0, 400).map((r) => '<tr data-id="' + r.id + '" class="' + (r.enabled ? '' : 'off') + '">'
-      + '<td><span class="cl-pf ' + r.platform + '">' + (r.platform === 'ig' ? 'IG' : 'TT') + '</span></td>'
+      + '<td><span class="cl-pf ' + r.platform + '">' + (r.platform === 'ig' ? 'IG' : r.platform === 'fb' ? 'FB' : 'TT') + '</span></td>'
       + '<td><a href="' + esc(link(r)) + '" target="_blank" rel="noopener">@' + esc(r.handle) + '</a></td>'
       + '<td>' + esc(r.name) + (r.source === 'manual' ? ' <span class="ck-badge">수동</span>' : '') + '</td><td>' + esc(r.group_name || '') + '</td>'
       + '<td class="muted">' + (kind[r.kind] || r.kind) + '</td><td class="c muted">' + (r.sites || '') + '</td><td class="muted">' + esc(r.checked) + '</td>'
@@ -297,7 +298,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
             <?php else: ?>
               <span class="ph"><?= esc(mb_substr($it['title_ko'] ?: $it['title'], 0, 60)) ?></span>
             <?php endif ?>
-            <span class="badge"><?= $isIdol ? ($it['source_id'] === 'ig_idols' ? 'Instagram' : 'TikTok') : esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
+            <span class="badge"><?= $isIdol ? ($it['source_id'] === 'ig_idols' ? 'Instagram' : ($it['source_id'] === 'fb_reels' ? 'Facebook' : 'TikTok')) : esc(Collect::COUNTRIES[$it['country']] ?? $it['country']) ?></span>
             <?php if ((int) $it['breaking']): ?><span class="badge hot">속보 후보</span><?php endif ?>
             <?php if ($it['used_at']): ?><span class="badge used" title="<?= esc(Collect::when($it['used_at']), 'attr') ?>">사용함</span><?php endif ?>
             <?php if ($isIdol): ?><?php elseif (! in_array($f['scope'], ['issue', 'x'], true)): ?><?php if (! (int) $it['relevant']): ?><span class="badge off">관련 없음</span><?php elseif ($it['news'] !== null && ! (int) $it['news']): ?><span class="badge off" title="<?= esc((string) $it['news_why'], 'attr') ?>">뉴스 아님</span><?php endif ?><?php elseif ((int) $it['relevant']): ?><span class="badge off">한류</span><?php endif ?>

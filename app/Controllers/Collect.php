@@ -19,7 +19,7 @@ class Collect extends BaseController
     /** Daily X search sources (hallyuwire xsearch.py): posts past 1M views in the last 24 hours. */
     public const X_SOURCES  = ['x_viral_kr', 'x_viral_kpop'];
     /** Idol accounts on Instagram / TikTok (hallyuwire idols.py): their own posts, shown under the "아이돌" tab only. */
-    public const IDOL_SOURCES = ['ig_idols', 'tt_idols'];
+    public const IDOL_SOURCES = ['ig_idols', 'tt_idols', 'fb_reels'];
 
     private function t(string $table): string
     {
@@ -205,14 +205,16 @@ class Collect extends BaseController
             $handle   = ltrim(trim((string) $this->request->getPost('handle')), '@');
             $name     = trim((string) $this->request->getPost('name'));
             $group    = trim((string) $this->request->getPost('group'));
-            if (! in_array($platform, ['ig', 'tt'], true) || ! preg_match('/^[A-Za-z0-9._]{1,60}$/', $handle) || $name === '') {
+            $topic    = $this->request->getPost('topic') === '1';   // 관심 계정: its posts are draft candidates (hallyuwire drafts.candidates)
+            if ($topic && $group === '') $group = '관심 계정';
+            if (! in_array($platform, ['ig', 'tt', 'fb'], true) || ! preg_match('/^[A-Za-z0-9._]{1,60}$/', $handle) || $name === '') {
                 return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => '플랫폼, 계정 아이디(영문/숫자/._), 이름이 필요합니다.']);
             }
             if ($db->table($t)->where('platform', $platform)->where('handle', $handle)->countAllResults()) {
                 return $this->response->setStatusCode(400)->setJSON(['ok' => false, 'error' => '이미 있는 계정입니다.']);
             }
             $db->table($t)->insert(['platform' => $platform, 'handle' => $handle, 'name' => mb_substr($name, 0, 100), 'group_name' => $group !== '' ? mb_substr($group, 0, 100) : null,
-                'kind' => $group !== '' ? 'member' : 'related', 'sites' => 0, 'enabled' => 1, 'source' => 'manual', 'added_at' => gmdate('Y-m-d H:i:s'), 'next_check_at' => gmdate('Y-m-d H:i:s')]);
+                'kind' => $topic ? 'topic' : ($group !== '' ? 'member' : 'related'), 'sites' => 0, 'enabled' => 1, 'source' => 'manual', 'added_at' => gmdate('Y-m-d H:i:s'), 'next_check_at' => gmdate('Y-m-d H:i:s')]);
             \App\Libraries\AppLog::info('collect', 'idol add', $platform . ' @' . $handle . ' ' . $name);
             return $this->response->setJSON(['ok' => true, 'id' => $db->insertID()]);
         }
