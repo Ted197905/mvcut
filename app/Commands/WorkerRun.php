@@ -36,6 +36,7 @@ class WorkerRun extends BaseCommand
         $nextCleanup = time() + 300;
         $nextXWatch  = time() + 20;
         $nextDrafts  = time() + 30;
+        $nextAutoLib = time() + 45;
         $lastImport  = ['platform' => '', 'at' => 0];
         while (true) {
             // 일시 정지(설정/상태 바) 중에는 새 작업을 받지 않는다; 돌던 작업은 끝까지 간다
@@ -81,6 +82,19 @@ class WorkerRun extends BaseCommand
                 }
             }
             // a draft batch the collector finished writing -> Telegram
+            // single videos from the followed SNS accounts -> library (origin auto)
+            if (time() >= $nextAutoLib) {
+                $nextAutoLib = time() + 300;
+                try {
+                    if (\App\Libraries\Ops::on('autolib')) {
+                        [$n, $dup] = \App\Libraries\AutoLib::run(5);
+                        if ($n || $dup) $log("autolib: {$n} copied, {$dup} duplicates");
+                        if ($n >= 5) $nextAutoLib = time() + 30;   // more waiting
+                    }
+                } catch (\Throwable $e) {
+                    $log('autolib failed: ' . $e->getMessage());
+                }
+            }
             if (time() >= $nextDrafts) {
                 $nextDrafts = time() + 60;
                 try {

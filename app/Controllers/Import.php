@@ -32,7 +32,10 @@ class Import extends BaseController
             $posts[$pk] = true;
             $items[] = ['id' => (int) $r['id'], 'title' => $r['title'], 'created_at' => substr((string) $r['created_at'], 0, 16)];
         }
-        return $this->response->setJSON(['items' => $items]);
+        // not in the library now, but it was once: the link of a deleted item
+        $gone = $items ? null : db_connect()->table('media_links')->select('origin, deleted_at')
+            ->where('user_id', (int) session()->get('user_id'))->where('url_key', mb_substr($key, 0, 190))->get()->getRowArray();
+        return $this->response->setJSON(['items' => $items, 'deleted' => $gone ? ['at' => substr((string) $gone['deleted_at'], 0, 10), 'origin' => $gone['origin']] : null]);
     }
 
     public function inspect()

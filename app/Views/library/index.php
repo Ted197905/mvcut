@@ -54,6 +54,11 @@
       <option value="image"<?= $kind === 'image' ? ' selected' : '' ?>>이미지만</option>
       <option value="xbad"<?= $kind === 'xbad' ? ' selected' : '' ?>>X 미지원만</option>
     </select>
+    <select class="input" name="origin" onchange="filterForm.submit()" title="수집 방식: 자동 = 수집기가 관심/아이돌 계정에서 가져온 영상, 수동 = 직접 가져온 것">
+      <option value=""<?= $origin === '' ? ' selected' : '' ?>>자동+수동</option>
+      <option value="manual"<?= $origin === 'manual' ? ' selected' : '' ?>>수동</option>
+      <option value="auto"<?= $origin === 'auto' ? ' selected' : '' ?>>자동</option>
+    </select>
     <select class="input" name="sort" onchange="filterForm.submit()">
       <option value="newest"<?= $sort === 'newest' ? ' selected' : '' ?>>최신순</option>
       <option value="oldest"<?= $sort === 'oldest' ? ' selected' : '' ?>>오래된순</option>
@@ -296,7 +301,7 @@
     const meta = [it.width && it.height ? it.width + 'x' + it.height : null, MV.fmtSize(it.size)].filter(Boolean).join(' / ');
     return '<div class="card-wrap"><label class="pick"><input type="checkbox" name="ids[]" value="' + it.id + '"></label>' +
       '<a class="card" href="' + base + 'library/' + it.id + '"><div class="thumb">' + thumb + dur +
-      '<span class="badge">' + esc(it.source) + '</span></div><div class="body"><div class="title">' + esc(it.title) +
+      '<span class="badge">' + esc(it.source) + (it.origin === 'auto' ? ' · 자동' : '') + '</span></div><div class="body"><div class="title">' + esc(it.title) +
       '</div><div class="meta">' + esc(meta) + '</div></div></a></div>';
   }
 
@@ -511,13 +516,15 @@
   // Asks before importing a post that is already in the library; resolves true to go on.
   async function confirmDuplicate(url) {
     let items = [];
-    try { items = (await post(base + 'api/import/duplicates', { url })).items || []; } catch (e) { return true; }
-    if (!items.length) return true;
+    let gone = null;
+    try { const d = await post(base + 'api/import/duplicates', { url }); items = d.items || []; gone = d.deleted || null; } catch (e) { return true; }
+    if (!items.length && !gone) return true;
     return new Promise((resolve) => {
       st.hidden = false; st.className = 'import-status warn';
-      st.innerHTML = '이미 라이브러리에 있는 링크입니다: ' +
+      st.innerHTML = (items.length ? '이미 라이브러리에 있는 링크입니다: ' +
         items.slice(0, 3).map(i => '<a href="' + base + 'library/' + i.id + '" target="_blank">' + esc(i.title) + '</a> <span class="muted">(' + esc(i.created_at) + ')</span>').join(', ') +
-        (items.length > 3 ? ' 외 ' + (items.length - 3) + '개' : '') +
+        (items.length > 3 ? ' 외 ' + (items.length - 3) + '개' : '')
+        : '전에 수집했다가 삭제한 링크입니다 (' + esc(gone.at) + ' 삭제, ' + (gone.origin === 'auto' ? '자동' : '수동') + ' 수집).') +
         '<div class="dup-actions"><button class="btn sm" type="button" data-go="1">그래도 가져오기</button> <button class="btn sm secondary" type="button" data-go="0">취소</button></div>';
       st.querySelectorAll('[data-go]').forEach(btn => btn.addEventListener('click', () => {
         const go = btn.dataset.go === '1';

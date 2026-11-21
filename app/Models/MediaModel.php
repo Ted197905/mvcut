@@ -10,12 +10,31 @@ class MediaModel extends Model
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
     protected $allowedFields = [
-        'user_id', 'parent_id', 'kind', 'category', 'source', 'source_url', 'post_key', 'post_order',
+        'user_id', 'parent_id', 'kind', 'category', 'source', 'origin', 'source_url', 'post_key', 'post_order',
         'description', 'x_text', 'uploader', 'stats', 'meta', 'title', 'filename',
         'media_type', 'mime', 'container', 'vcodec', 'acodec', 'width', 'height',
         'duration', 'fps', 'size', 'has_thumb', 'has_proxy', 'edit_params', 'status',
     ];
     protected $useTimestamps = true;
+    protected $beforeDelete  = ['rememberLink'];
+
+    /** The link of a deleted item is kept (media_links), so importing or auto-collecting it again is noticed. */
+    protected function rememberLink(array $data): array
+    {
+        $ids = array_filter((array) ($data['id'] ?? []));
+        if ($ids === []) return $data;
+        try {
+            foreach ($this->db->table('media')->select('user_id, source_url, origin')->whereIn('id', $ids)
+                         ->where('source_url IS NOT NULL', null, false)->where('source_url !=', '')->get()->getResultArray() as $r) {
+                $this->db->query('INSERT INTO media_links (user_id, url_key, source_url, origin, deleted_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP()) '
+                                 . 'ON DUPLICATE KEY UPDATE deleted_at = VALUES(deleted_at)',
+                                 [(int) $r['user_id'], mb_substr(\App\Libraries\MediaSupport::urlKey((string) $r['source_url']), 0, 190), $r['source_url'], $r['origin'] ?: 'manual']);
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'media_links: ' . $e->getMessage());
+        }
+        return $data;
+    }
 
     public function forUser(int $userId): array
     {

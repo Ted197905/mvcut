@@ -45,6 +45,15 @@ class Library extends BaseController
         $media   = new MediaModel();
         $builder = $media->where('user_id', $userId);
         if (! $showX) $builder->where('source !=', 'x');
+        // how the item came in: 수동 (imported by hand) / 자동 (AutoLib); remembered per account like the category
+        $origin = $this->request->getGet('origin');
+        if ($origin !== null) {
+            $origin = in_array($origin, ['manual', 'auto'], true) ? $origin : '';
+            $users->savePref($userId, 'library_origin', $origin === '' ? null : $origin);
+        } else {
+            $origin = (string) ($users->prefs($userId)['library_origin'] ?? '');
+        }
+        if ($origin !== '') $builder->where('origin', $origin);
         if ($q !== '') {
             $builder->groupStart()->like('title', $q)->orLike('source_url', $q)->groupEnd();
         }
@@ -119,6 +128,7 @@ class Library extends BaseController
             'kind'    => $kind ?: 'all',
             'cat'     => $cat,
             'showX'   => $showX,
+            'origin'  => $origin,
             'perPage' => $perPage,
             'mobile'  => $mobile,
             'cats'    => $cats,

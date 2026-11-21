@@ -23,6 +23,7 @@ class Ops
         'xviral'    => ['X', 'X 100만+ 수집', '매일 06:40, 24시간 안에 조회 100만 넘은 X 게시물'],
         'cleanup'   => ['수집', '오래된 수집 글 정리', '1시간마다, 14일 지난 글과 파일 삭제 (사용한 글은 보존)'],
         'mvcut_cleanup' => ['MV Cut', '미디어 정리', '6시간마다, 지운 항목의 남은 파일, 업로드 조각, 오래된 작업 기록 정리'],
+        'autolib'   => ['MV Cut', '자동 수집 영상 -> 라이브러리', '5분마다, TikTok/Instagram/Facebook 릴스 계정의 단일 영상을 라이브러리에 "자동"으로 복사 (있거나 지웠던 링크는 건너뜀)'],
         'worker'    => ['MV Cut', '미디어 작업', '편집/변환/가져오기 작업 처리 (꺼지면 새 작업을 받지 않고 대기열에 둠)'],
     ];
     /** switches row that marks "everything paused" (updated_at = since when). */
