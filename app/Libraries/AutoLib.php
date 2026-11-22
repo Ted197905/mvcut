@@ -27,6 +27,15 @@ class AutoLib
             MediaIntake::removeDir(MediaModel::dir($old));
             (new MediaModel())->delete($old['id']);
         }
+        // an auto video X cannot take (VP9 / AV1, webm ...: Facebook reels mostly) is converted to MP4 and replaced by it
+        foreach ((new MediaModel())->where('user_id', $userId)->where('origin', 'auto')->where('kind', 'original')->where('status', 'ready')
+                     ->where('media_type', 'video')->orderBy('id', 'DESC')->findAll(300) as $v) {
+            if (! MediaSupport::xUnsupported($v)) continue;
+            if ($db->table('jobs')->where('media_id', $v['id'])->where('type', 'convert')->countAllResults()) continue;   // queued, running, or tried already
+            $db->table('jobs')->where('media_id', $v['id'])->where('type', 'proxy')->where('status', 'queued')->delete();
+            (new \App\Models\JobModel())->insert(['user_id' => $userId, 'media_id' => $v['id'], 'type' => 'convert', 'status' => 'queued',
+                'params' => json_encode(['format' => 'mp4', 'height' => 0, 'quality' => 'high', 'delete_source' => true, 'keep_title' => true])]);
+        }
         $rows = $db->query("SELECT i.id, i.source_id, i.url, i.title, i.body, i.author, i.views, i.likes, i.comments, i.posted_at,
                 (SELECT COUNT(*) FROM {$hw}.media m WHERE m.item_id = i.id AND m.kind = 'video') AS vids,
                 (SELECT COUNT(*) FROM {$hw}.media m WHERE m.item_id = i.id AND m.kind = 'image') AS imgs

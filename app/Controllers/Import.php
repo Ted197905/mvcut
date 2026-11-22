@@ -20,7 +20,7 @@ class Import extends BaseController
         if ($url === '') return $this->response->setJSON(['items' => []]);
         $key  = MediaSupport::urlKey($url);
         $rows = db_connect()->table('media')->select('id, title, source_url, created_at, post_key')
-            ->where('user_id', (int) session()->get('user_id'))->where('kind', 'original')
+            ->where('user_id', (int) session()->get('user_id'))
             ->where('source_url IS NOT NULL', null, false)->where('source_url !=', '')
             ->orderBy('id', 'DESC')->get()->getResultArray();
         $items = []; $posts = [];

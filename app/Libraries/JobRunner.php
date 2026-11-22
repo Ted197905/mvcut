@@ -120,7 +120,8 @@ class JobRunner
         if (! $src) throw new \RuntimeException('source media missing');
         $c = json_decode($job['params'], true) ?: [];
         $drop = ! empty($c['delete_source']);   // bulk convert: remove the original once converted
-        unset($c['delete_source']);             // not part of the cache key
+        $keepTitle = ! empty($c['keep_title']); // AutoLib: the MP4 replaces the original, so it keeps the post's title
+        unset($c['delete_source'], $c['keep_title']);   // not part of the cache key
         $key = json_encode(['convert' => $c]);
         if ($src['media_type'] === 'image') {
             return $this->convertImage($job, $src, $c, $key, $log);
@@ -131,6 +132,7 @@ class JobRunner
         ], $src);
         $suffix = ' - ' . strtoupper($p['output']['format']) . ($p['output']['height'] ? ' ' . $p['output']['height'] . 'p' : '');
         $result = $this->encode($job, $src, $p, 'convert', $suffix, $key, $log);
+        if ($keepTitle) $this->media->update($result, ['title' => $src['title']]);
         if ($drop && $this->media->removeSource($src, (int) $job['id'])) $log("job {$job['id']} removed source media {$src['id']}");
         return $result;
     }
@@ -846,7 +848,7 @@ class JobRunner
         if (! is_file($srcPath)) throw new \RuntimeException('source file missing');
         $fmt = $p['output']['format'];
         $resultId = $this->media->insert([
-            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'category' => $src['category'] ?? '', 'source_url' => $src['source_url'] ?? null, 'source' => $source,
+            'user_id' => $src['user_id'], 'parent_id' => $src['id'], 'kind' => 'result', 'category' => $src['category'] ?? '', 'source_url' => $src['source_url'] ?? null, 'source' => $source, 'origin' => $src['origin'] ?? 'manual',
             'title' => mb_substr($src['title'] . $titleSuffix, 0, 255), 'filename' => 'result.' . $fmt,
             'media_type' => 'video', 'edit_params' => $editParams, 'status' => 'processing',
             'description' => $this->resultDescription($src, EditParams::summary($p, $src)),
