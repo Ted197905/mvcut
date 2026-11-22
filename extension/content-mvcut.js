@@ -1,7 +1,9 @@
 // Tells the page the extension is here, and forwards its "send to X" requests.
 // Injected by the manifest at document_start and again by bg.js when a MV Cut tab finishes loading
 // (a belt-and-braces for tabs where the manifest injection did not happen); the second run stops here.
-if (window.__mvcutLive) throw new Error('content-mvcut.js already running');
+// Everything sits in one function: a second run in the same world would otherwise fail on the top-level const before any guard ran.
+(() => {
+if (window.__mvcutLive) return;
 window.__mvcutLive = true;
 document.documentElement.dataset.mvcutX = '1';
 document.documentElement.dataset.mvcutXMulti = '1';   // send-to-x takes files[] (up to 4 photos)
@@ -52,3 +54,4 @@ window.addEventListener('message', (e) => {
     ack(d, false, '확장이 새로고침되어 이 페이지와 연결이 끊겼습니다. 페이지를 새로고침한 뒤 다시 누르세요.');
   }
 });
+})();
