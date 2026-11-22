@@ -947,3 +947,9 @@ body:not(.xw-replies) .xw-tab-replies, body.xw-replies .xw-tab-posts { display: 
 .cl-pf.fb { background: #1877f2; }
 
 .dr-add[hidden] { display: none; }
+
+.dr-media { counter-reset: drpick; }
+.dr-m:has(input:checked:not(:disabled)) { counter-increment: drpick; cursor: grab; }
+.dr-m:has(input:checked:not(:disabled))::after { content: counter(drpick); position: absolute; right: 6px; top: 6px; z-index: 2; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; pointer-events: none; }
+.dr-m.dragging { opacity: .4; }
+.dr-modal-pick button { border: 0; background: rgba(255,255,255,.2); color: #fff; border-radius: 6px; width: 28px; height: 24px; cursor: pointer; margin-left: 4px; }

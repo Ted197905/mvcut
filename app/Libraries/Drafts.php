@@ -282,6 +282,10 @@ class Drafts
         $rows = self::db()->table(self::t('media'))->where('item_id', (int) $d['item_id'])->where('status', 'done')
             ->whereIn('kind', ['image', 'video'])->orderBy('id')->get()->getResultArray();
         foreach ($rows as &$m) $m['chosen'] = in_array((int) $m['id'], $chosen, true);
+        unset($m);
+        // the chosen ones first, in the order they were saved (the card's order = the order on X), the rest by id
+        $pos = array_flip($chosen);
+        usort($rows, static fn ($a, $b) => [$pos[(int) $a['id']] ?? PHP_INT_MAX, (int) $a['id']] <=> [$pos[(int) $b['id']] ?? PHP_INT_MAX, (int) $b['id']]);
         return $rows;
     }
 

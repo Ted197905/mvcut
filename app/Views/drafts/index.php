@@ -193,6 +193,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <button class="dr-modal-nav next" type="button" id="drNext" aria-label="다음">&#8250;</button>
   <div class="dr-modal-tools" id="drModalTools" hidden>
     <label class="dr-modal-pick" id="drPickWrap"><input type="checkbox" id="drPick"> 선택</label>
+    <span class="dr-modal-pick" id="drMoveWrap" title="게시물에 붙는 순서를 바꿉니다 (저장/승인 때 반영)">순서 <button type="button" id="drMoveL">&#9664;</button><button type="button" id="drMoveR">&#9654;</button></span>
     <span class="dr-modal-note" id="drPos"></span>
     <button class="btn sm" type="button" id="drOcr" title="사진에 적힌 글자를 읽어 이 초안의 본문 아래에 덧붙입니다 (비전 모델, 10~30초)">글자 추출</button>
     <span class="dr-modal-note" id="drOcrNote"></span>
@@ -394,13 +395,28 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const inp = e.target.closest('.dr-add input[type=file]');
     if (inp) { upload(inp.closest('.dr-media'), inp.files); inp.value = ''; }
   });
-  document.addEventListener('dragover', (e) => { const box = e.target.closest('.dr-media'); if (box && box.querySelector('.dr-add')) { e.preventDefault(); box.classList.add('drop'); } });
+  document.addEventListener('dragover', (e) => { const box = e.target.closest('.dr-media'); if (!window.drTileDrag && box && box.querySelector('.dr-add')) { e.preventDefault(); box.classList.add('drop'); } });
   document.addEventListener('dragleave', (e) => { const box = e.target.closest('.dr-media'); if (box) box.classList.remove('drop'); });
   document.addEventListener('drop', (e) => {
     const box = e.target.closest('.dr-media');
-    if (!box || !box.querySelector('.dr-add')) return;
+    if (window.drTileDrag || !box || !box.querySelector('.dr-add')) return;   // a tile being reordered is not an upload
     e.preventDefault(); box.classList.remove('drop'); upload(box, e.dataTransfer.files);
   });
+})();
+(() => {
+  // drag a file tile onto another to change the order (the order of the card = the order saved and sent to X)
+  let drag = null;
+  const tileOf = (e) => { const t = e.target.closest && e.target.closest('.dr-m:not(.dr-yt):not(.dr-hold)'); return t && t.querySelector('input[type=checkbox]:not(:disabled)') ? t : null; };
+  document.addEventListener('dragstart', (e) => { drag = tileOf(e); window.drTileDrag = !!drag; if (drag) { e.dataTransfer.effectAllowed = 'move'; drag.classList.add('dragging'); } });
+  document.addEventListener('dragend', () => { if (drag) drag.classList.remove('dragging'); drag = null; setTimeout(() => { window.drTileDrag = false; }, 0); });
+  document.addEventListener('dragover', (e) => {
+    const t = drag && tileOf(e);
+    if (!t || t === drag || t.parentNode !== drag.parentNode) return;
+    e.preventDefault();
+    const r = t.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2;
+    t.parentNode.insertBefore(drag, after ? t.nextSibling : t);
+  });
+  document.addEventListener('drop', (e) => { if (drag) e.preventDefault(); });
 })();
 (() => {
   // a held video: the click asks the collector for it, the tile polls until the file is in and becomes a normal tile
@@ -457,6 +473,7 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const cb = tileBox(a);
     tools.hidden = false; ocrBtn.hidden = !cur; note.textContent = ''; ocrBtn.disabled = false;
     pickWrap.hidden = !cb; pick.checked = !!(cb && cb.checked);
+    document.getElementById('drMoveWrap').hidden = !cb;
     pos.textContent = list.length > 1 ? (at + 1) + ' / ' + list.length : '';
     prev.hidden = next.hidden = list.length < 2;
     body.innerHTML = a.dataset.kind === 'youtube'
@@ -477,6 +494,17 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     document.body.style.overflow = 'hidden';
     show(Math.max(0, list.indexOf(a)));
   });
+  // the open tile one place earlier / later among the draft's files; the viewer follows it
+  const move = (d) => {
+    const a = list[at], tile = a && a.parentNode, files = tile ? Array.from(tile.parentNode.querySelectorAll('.dr-m:not(.dr-yt):not(.dr-hold)')) : [];
+    const i = files.indexOf(tile), other = files[i + d];
+    if (i < 0 || !other) return;
+    tile.parentNode.insertBefore(tile, d < 0 ? other : other.nextSibling);
+    list = Array.from(tile.parentNode.querySelectorAll('a.dr-view'));
+    show(list.indexOf(a));
+  };
+  document.getElementById('drMoveL').addEventListener('click', () => move(-1));
+  document.getElementById('drMoveR').addEventListener('click', () => move(1));
   prev.addEventListener('click', () => show(at - 1));
   next.addEventListener('click', () => show(at + 1));
   pick.addEventListener('change', () => {
