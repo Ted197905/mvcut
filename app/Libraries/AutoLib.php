@@ -40,6 +40,11 @@ class AutoLib
 
         $root  = rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/');
         $model = new MediaModel();
+        // sound-only items copied before the check above existed
+        foreach ($model->where('user_id', $userId)->where('origin', 'auto')->where('status', 'ready')->where('media_type !=', 'video')->findAll() as $old) {
+            MediaIntake::removeDir(MediaModel::dir($old));
+            $model->delete($old['id']);
+        }
         $used  = static fn (int $id) => $db->table($hw . '.items')->where('id', $id)->update(['used_at' => gmdate('Y-m-d H:i:s')]);
         $copied = $dups = 0;
         foreach ($rows as $it) {
@@ -51,6 +56,8 @@ class AutoLib
             $path = $root . '/' . $m['path'];
             $ext  = MediaIntake::extOf((string) $m['path']);
             if (! is_file($path) || ! MediaIntake::allowed($ext)) continue;
+            // a TikTok photo slideshow comes down as sound only: not a video, left out
+            if ((Ffmpeg::probe($path)['media_type'] ?? '') !== 'video') { $used((int) $it['id']); continue; }
             try {
                 [$mid, , $target] = MediaIntake::create($userId, 'auto.' . $ext, $ext, (int) filesize($path), $m['mime']);
                 if (! copy($path, $target)) { $model->delete($mid); continue; }
