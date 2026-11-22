@@ -325,7 +325,8 @@ class Collect extends BaseController
             throw PageNotFoundException::forPageNotFound();
         }
         if ($this->request->getGet('dl')) {   // ?dl=1: saved as a file instead of shown
-            $this->response->setHeader('Content-Disposition', 'attachment; filename="mvcut-' . $id . '.' . (pathinfo((string) $m['path'], PATHINFO_EXTENSION) ?: 'bin') . '"');
+            $name = preg_replace('/[^\w-]/', '', (string) $this->request->getGet('name')) ?: 'mvcut-' . $id;   // &name=draft-12-01
+            $this->response->setHeader('Content-Disposition', 'attachment; filename="' . $name . '.' . (pathinfo((string) $m['path'], PATHINFO_EXTENSION) ?: 'bin') . '"');
         }
         return $this->response
             ->setHeader('X-Accel-Redirect', '/internal-hw/' . $m['path'])

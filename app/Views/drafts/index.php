@@ -98,7 +98,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <form method="post" action="<?= site_url('drafts/' . (int) $d['id'] . '/delete') ?>" class="dr-copy" onsubmit="return confirm('이 초안을 삭제할까요? 되돌릴 수 없습니다.')"><?= csrf_field() ?><input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
               <button class="linkbtn small dr-del" type="submit" title="이 초안을 지웁니다 (원문 글과 파일은 남고, 다음 배치에 다시 뽑히지 않습니다)">삭제</button></form>
           <?php endif ?>
-          <?php if ($d['files']): ?><a class="linkbtn small dr-zip" href="<?= site_url('drafts/' . (int) $d['id'] . '/zip') ?>" data-id="<?= (int) $d['id'] ?>" title="체크한 첨부파일을 zip 하나로 받습니다 (체크가 없으면 전부, 카드에 보이는 순서대로 01, 02 ...)">첨부 받기</a><?php endif ?>
+          <?php if ($d['files']): ?><button class="linkbtn small dr-zip" type="button" data-id="<?= (int) $d['id'] ?>" title="체크한 첨부파일을 하나씩 이어서 받습니다 (체크가 없으면 전부, 카드에 보이는 순서대로 01, 02 ...)">첨부 받기</button><?php endif ?>
           <?php if (! empty($d['copy_of'])): ?><span class="ck-badge" title="원본 초안 #<?= (int) $d['copy_of'] ?>">복사본</span><?php endif ?>
         </div>
         <a class="dr-title" href="<?= site_url('collect/' . (int) $d['item_id']) ?>" target="_blank" rel="noopener"><?= esc($d['title_ko'] ?: $d['title']) ?></a>
@@ -405,12 +405,22 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     e.preventDefault(); box.classList.remove('drop'); upload(box, e.dataTransfer.files);
   });
 })();
-document.addEventListener('click', (e) => {
-  // 첨부 받기: the boxes checked now (not only the saved choice), in the card's order
-  const a = e.target.closest('a.dr-zip');
-  if (!a) return;
-  const ids = Array.from(document.querySelectorAll('.dr-media[data-id="' + a.dataset.id + '"] .dr-m input:checked')).map((i) => i.value);
-  a.href = a.href.split('?')[0] + (ids.length ? '?media=' + ids.join(',') : '');
+document.addEventListener('click', async (e) => {
+  // 첨부 받기: the boxes checked now (all files when none is), one download after another in the card's order
+  const b = e.target.closest('.dr-zip');
+  if (!b) return;
+  const box = document.querySelector('.dr-media[data-id="' + b.dataset.id + '"]');
+  let tiles = Array.from(box.querySelectorAll('.dr-m:has(input:checked)'));
+  if (!tiles.length) tiles = Array.from(box.querySelectorAll('.dr-m:has(input[type=checkbox])'));
+  b.disabled = true;
+  for (let i = 0; i < tiles.length; i++) {
+    const a = document.createElement('a');
+    a.href = tiles[i].querySelector('a.dr-view').href.split('#')[0] + '?dl=1&name=draft-' + b.dataset.id + '-' + String(i + 1).padStart(2, '0');
+    a.download = '';
+    document.body.appendChild(a); a.click(); a.remove();
+    await new Promise((r) => setTimeout(r, 700));   // browsers drop downloads fired at the same instant
+  }
+  b.disabled = false;
 });
 (() => {
   // drag a file tile onto another to change the order (the order of the card = the order saved and sent to X)

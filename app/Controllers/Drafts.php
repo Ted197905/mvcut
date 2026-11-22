@@ -295,39 +295,6 @@ class Drafts extends BaseController
                                          'url' => site_url('collect/media/' . $mid), 'editable' => in_array($d['status'], ['new', 'error', 'failed', 'rejected', 'skipped'], true)]);
     }
 
-    /**
-     * GET /drafts/{id}/zip?media=1,2,3 - the draft's files in one zip (stored, not compressed), named 01.jpg, 02.mp4 ...
-     * in the order given; without `media` the chosen files, or all of them when none is chosen.
-     */
-    public function zip(int $id)
-    {
-        $d    = $this->draft($id);
-        $rows = D::media($d);
-        $want = array_values(array_filter(array_map('intval', explode(',', (string) $this->request->getGet('media')))));
-        if ($want) {
-            $by = array_column($rows, null, 'id');
-            $rows = array_values(array_filter(array_map(static fn ($i) => $by[$i] ?? null, $want)));
-        } elseif ($chosen = array_values(array_filter($rows, static fn ($m) => $m['chosen']))) {
-            $rows = $chosen;
-        }
-        $root = rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/');
-        $tmp  = tempnam(WRITEPATH . 'cache', 'drzip');
-        $zip  = new \ZipArchive();
-        if ($zip->open($tmp, \ZipArchive::OVERWRITE) !== true) return $this->back($id)->with('error', 'zip 파일을 만들 수 없습니다.');
-        $n = 0;
-        foreach ($rows as $m) {
-            $path = $root . '/' . $m['path'];
-            if (! is_file($path)) continue;
-            $name = sprintf('%02d.%s', ++$n, strtolower(pathinfo((string) $m['path'], PATHINFO_EXTENSION)) ?: ($m['kind'] === 'video' ? 'mp4' : 'jpg'));
-            $zip->addFile($path, $name);
-            $zip->setCompressionName($name, \ZipArchive::CM_STORE);
-        }
-        $zip->close();
-        if ($n === 0) { @unlink($tmp); return $this->back($id)->with('error', '받을 파일이 없습니다.'); }
-        register_shutdown_function(static fn () => @unlink($tmp));
-        return $this->response->download($tmp, null)->setFileName('draft-' . $id . '.zip');
-    }
-
     /** POST /drafts/{id}/delete - removes the draft for good */
     public function delete(int $id)
     {

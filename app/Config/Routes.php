@@ -150,7 +150,6 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->get('(:num)/source', 'Drafts::source/$1');
         $routes->post('(:num)/copy', 'Drafts::copy/$1');
         $routes->post('(:num)/delete', 'Drafts::delete/$1');
-        $routes->get('(:num)/zip', 'Drafts::zip/$1');
         $routes->post('(:num)/ocr', 'Drafts::ocr/$1');
     });
 
