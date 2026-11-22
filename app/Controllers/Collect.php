@@ -324,6 +324,9 @@ class Collect extends BaseController
             || ! is_file($this->mediaDir() . '/' . $m['path'])) {
             throw PageNotFoundException::forPageNotFound();
         }
+        if ($this->request->getGet('dl')) {   // ?dl=1: saved as a file instead of shown
+            $this->response->setHeader('Content-Disposition', 'attachment; filename="mvcut-' . $id . '.' . (pathinfo((string) $m['path'], PATHINFO_EXTENSION) ?: 'bin') . '"');
+        }
         return $this->response
             ->setHeader('X-Accel-Redirect', '/internal-hw/' . $m['path'])
             ->setHeader('Content-Type', $m['mime'] ?: 'application/octet-stream')

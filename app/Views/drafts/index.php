@@ -98,6 +98,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
             <form method="post" action="<?= site_url('drafts/' . (int) $d['id'] . '/delete') ?>" class="dr-copy" onsubmit="return confirm('이 초안을 삭제할까요? 되돌릴 수 없습니다.')"><?= csrf_field() ?><input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
               <button class="linkbtn small dr-del" type="submit" title="이 초안을 지웁니다 (원문 글과 파일은 남고, 다음 배치에 다시 뽑히지 않습니다)">삭제</button></form>
           <?php endif ?>
+          <?php if ($d['files']): ?><a class="linkbtn small dr-zip" href="<?= site_url('drafts/' . (int) $d['id'] . '/zip') ?>" data-id="<?= (int) $d['id'] ?>" title="체크한 첨부파일을 zip 하나로 받습니다 (체크가 없으면 전부, 카드에 보이는 순서대로 01, 02 ...)">첨부 받기</a><?php endif ?>
           <?php if (! empty($d['copy_of'])): ?><span class="ck-badge" title="원본 초안 #<?= (int) $d['copy_of'] ?>">복사본</span><?php endif ?>
         </div>
         <a class="dr-title" href="<?= site_url('collect/' . (int) $d['item_id']) ?>" target="_blank" rel="noopener"><?= esc($d['title_ko'] ?: $d['title']) ?></a>
@@ -193,6 +194,7 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
   <button class="dr-modal-nav next" type="button" id="drNext" aria-label="다음">&#8250;</button>
   <div class="dr-modal-tools" id="drModalTools" hidden>
     <label class="dr-modal-pick" id="drPickWrap"><input type="checkbox" id="drPick"> 선택</label>
+    <a class="dr-modal-pick" id="drDl" download title="이 파일을 내려받습니다">다운로드</a>
     <span class="dr-modal-pick" id="drMoveWrap" title="게시물에 붙는 순서를 바꿉니다 (저장/승인 때 반영)">순서 <button type="button" id="drMoveL">&#9664;</button><button type="button" id="drMoveR">&#9654;</button></span>
     <span class="dr-modal-note" id="drPos"></span>
     <button class="btn sm" type="button" id="drOcr" title="사진에 적힌 글자를 읽어 이 초안의 본문 아래에 덧붙입니다 (비전 모델, 10~30초)">글자 추출</button>
@@ -403,6 +405,13 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     e.preventDefault(); box.classList.remove('drop'); upload(box, e.dataTransfer.files);
   });
 })();
+document.addEventListener('click', (e) => {
+  // 첨부 받기: the boxes checked now (not only the saved choice), in the card's order
+  const a = e.target.closest('a.dr-zip');
+  if (!a) return;
+  const ids = Array.from(document.querySelectorAll('.dr-media[data-id="' + a.dataset.id + '"] .dr-m input:checked')).map((i) => i.value);
+  a.href = a.href.split('?')[0] + (ids.length ? '?media=' + ids.join(',') : '');
+});
 (() => {
   // drag a file tile onto another to change the order (the order of the card = the order saved and sent to X)
   let drag = null;
@@ -474,6 +483,8 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     tools.hidden = false; ocrBtn.hidden = !cur; note.textContent = ''; ocrBtn.disabled = false;
     pickWrap.hidden = !cb; pick.checked = !!(cb && cb.checked);
     document.getElementById('drMoveWrap').hidden = !cb;
+    const dl = document.getElementById('drDl');
+    dl.hidden = !mm; if (mm) dl.href = a.href.split('#')[0] + '?dl=1';
     pos.textContent = list.length > 1 ? (at + 1) + ' / ' + list.length : '';
     prev.hidden = next.hidden = list.length < 2;
     body.innerHTML = a.dataset.kind === 'youtube'
