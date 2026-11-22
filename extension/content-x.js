@@ -112,6 +112,12 @@
       el.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2147483647;padding:10px 16px;border-radius:10px;'
         + 'font:600 15px system-ui;color:#fff;background:#c77700;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer';
       el.onclick = () => el.remove();
+      // gone by itself once the composer closes (posted, scheduled or dismissed), and after 5 minutes at the latest
+      const until = Date.now() + 5 * 60 * 1000;
+      const watch = setInterval(() => {
+        if (!el.isConnected) return clearInterval(watch);
+        if (Date.now() > until || !document.querySelector('div[role="dialog"] [data-testid="tweetTextarea_0"]')) { el.remove(); clearInterval(watch); }
+      }, 1000);
       document.body.appendChild(el);
     }
     toast('본문' + (files.length ? '과 파일 ' + files.length + '개를' : '을') + ' 올렸습니다. ' + (job.note ? '예약 시각을 지정해 예약하세요.' : '확인 후 직접 게시하세요.'));
