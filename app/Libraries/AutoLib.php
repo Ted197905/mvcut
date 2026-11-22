@@ -22,6 +22,11 @@ class AutoLib
         if (! $u) return [0, 0];
         $userId = (int) $u['user_id'];
         $hw = env('hallyuwire.db', 'hallyuwire');
+        // sound-only items copied before the probe check existed
+        foreach ((new MediaModel())->where('user_id', $userId)->where('origin', 'auto')->where('status', 'ready')->where('media_type !=', 'video')->findAll() as $old) {
+            MediaIntake::removeDir(MediaModel::dir($old));
+            (new MediaModel())->delete($old['id']);
+        }
         $rows = $db->query("SELECT i.id, i.source_id, i.url, i.title, i.body, i.author, i.views, i.likes, i.comments, i.posted_at,
                 (SELECT COUNT(*) FROM {$hw}.media m WHERE m.item_id = i.id AND m.kind = 'video') AS vids,
                 (SELECT COUNT(*) FROM {$hw}.media m WHERE m.item_id = i.id AND m.kind = 'image') AS imgs
@@ -40,11 +45,6 @@ class AutoLib
 
         $root  = rtrim((string) env('hallyuwire.media', '/srv/hallyuwire/media'), '/');
         $model = new MediaModel();
-        // sound-only items copied before the check above existed
-        foreach ($model->where('user_id', $userId)->where('origin', 'auto')->where('status', 'ready')->where('media_type !=', 'video')->findAll() as $old) {
-            MediaIntake::removeDir(MediaModel::dir($old));
-            $model->delete($old['id']);
-        }
         $used  = static fn (int $id) => $db->table($hw . '.items')->where('id', $id)->update(['used_at' => gmdate('Y-m-d H:i:s')]);
         $copied = $dups = 0;
         foreach ($rows as $it) {
