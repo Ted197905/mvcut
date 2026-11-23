@@ -328,8 +328,15 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
     const body = new FormData(f);
     acts.querySelectorAll('button, select').forEach((b) => { b.disabled = true; });
     try {
-      const r = await fetch(fa || f.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      const j = await r.json();
+      let r = await fetch(fa || f.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      let j = await r.json();
+      if (!j.ok && j.confirm) {
+        // no slot left by the settings: booked anyway on OK (same time grid and gap, past the limit)
+        if (!confirm(j.error + '\n그래도 예약할까요? (시간 간격 규칙은 지키고, 한도를 넘겨 추가합니다)')) { acts.querySelectorAll('button, select').forEach((b) => { b.disabled = false; }); return; }
+        body.set('force', '1');
+        r = await fetch(fa || f.action, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        j = await r.json();
+      }
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
       if (kind === 'unapprove') {
         // back to editing: the slot is freed, the text and photo choice open up again

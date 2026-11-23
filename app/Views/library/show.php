@@ -359,8 +359,14 @@ $srcSum = $isImg
         return;
       }
       // the edited text is saved on the way; the composer opens with the next free slot as the schedule time
-      const res = await fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow(), day: (document.querySelector('input[name=xDay]:checked') || {}).value || '' }) });
+      const ask = (force) => fetch(base + 'api/media/' + id + '/sharelink', { method: 'POST', headers: hdr, body: JSON.stringify({ text: xTextNow(), day: (document.querySelector('input[name=xDay]:checked') || {}).value || '', force }) });
+      let res = await ask(false);
       let j = {}; try { j = await res.json(); } catch (e) {}
+      if (res.ok && !j.ok && j.confirm) {   // no slot left by the settings: booked anyway on OK
+        if (!confirm(j.error + '\n그래도 예약할까요? (시간 간격 규칙은 지키고, 한도를 넘겨 추가합니다)')) { b.disabled = false; return; }
+        res = await ask(true);
+        j = {}; try { j = await res.json(); } catch (e) {}
+      }
       if (MV.expired(res.status, j)) throw new Error(MV.httpError(res.status));
       if (!res.ok || !j.ok) throw new Error(j.error || MV.httpError(res.status));
       $('xSaved').textContent = '저장됨';

@@ -109,7 +109,12 @@ class Drafts extends BaseController
         $d = $this->draft($id);
         if (in_array($d['status'], ['skipped', 'failed'], true)) D::update($id, ['status' => 'new']);
         $day = (string) $this->request->getPost('day');
-        $r = D::approve($this->uid(), $this->draft($id), preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) ? $day : '');
+        $r = D::approve($this->uid(), $this->draft($id), preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) ? $day : '', $this->request->getPost('force') === '1');
+        if (is_string($r) && str_starts_with($r, D::NO_SLOT)) {   // no slot by the settings: the page asks whether to book it anyway
+            $msg = substr($r, strlen(D::NO_SLOT));
+            if ($this->request->isAJAX()) return $this->response->setJSON(['ok' => false, 'error' => $msg, 'confirm' => true]);
+            return $this->answer($id, $msg);
+        }
         if (is_string($r)) return $this->answer($id, $r);
         $at = \App\Libraries\XWatch::kst($r, 'n/j H:i');
         $semi = D::mode($this->uid()) !== 'auto';

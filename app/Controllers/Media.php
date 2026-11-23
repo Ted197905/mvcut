@@ -61,8 +61,12 @@ class Media extends BaseController
         $day  = (string) ($in['day'] ?? '');   // 오늘 / 내일 picked on the page (Y-m-d, KST): that day's first free slot
         try {
             if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
-                $slot = \App\Libraries\Drafts::daySlot((int) $item['user_id'], $day);
-                if ($slot === null) return $this->response->setJSON(['ok' => false, 'error' => (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2) . '에는 빈 슬롯이 없습니다.']);
+                $force = ! empty($in['force']);
+                $slot  = \App\Libraries\Drafts::daySlot((int) $item['user_id'], $day, $force);
+                $md    = (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2);
+                if ($slot === null) return $this->response->setJSON($force
+                    ? ['ok' => false, 'error' => $md . '에는 간격 규칙을 지키면서 넣을 시간이 남아 있지 않습니다.']
+                    : ['ok' => false, 'confirm' => true, 'error' => $md . '에는 설정상 빈 슬롯이 없습니다 (하루 한도 또는 시간표가 찼습니다).']);
             } else {
                 $slot = \App\Libraries\Drafts::nextSlot((int) $item['user_id']);
             }

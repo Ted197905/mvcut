@@ -217,22 +217,44 @@ class Drafts
         return null;
     }
 
-    /** The first free slot (unix) on the KST day `$day` (Y-m-d), null when that day has none left. */
-    public static function daySlot(int $userId, string $day): ?int
+    /**
+     * The first free slot (unix) on the KST day `$day` (Y-m-d), null when that day has none left.
+     * `$force` (the user said "book it anyway"): the daily limit is not counted and the grid goes on past its last
+     * slot in the same steps until midnight; the gap to everything taken is still kept.
+     */
+    public static function daySlot(int $userId, string $day, bool $force = false): ?int
     {
         $start = (new \DateTimeImmutable($day, new \DateTimeZone('Asia/Seoul')))->getTimestamp();
         $slot  = self::nextSlot($userId, $start);
-        return $slot !== null && $slot < $start + 86400 ? $slot : null;
+        if ($slot !== null && $slot < $start + 86400) return $slot;
+        if (! $force) return null;
+        $type = self::slotType($userId);
+        $grid = array_values(array_filter(self::grid(5, $type), static fn ($t) => $t >= $start && $t < $start + 86400));
+        if ($grid === []) return null;
+        $step = self::SLOT_TYPES[$type]['step'][0] * 60;
+        for ($t = end($grid) + $step; $t < $start + 86400; $t += $step) $grid[] = $t;
+        $gap   = max(self::SLOT_STEP, (int) XWatch::forUser($userId)['gap_min']) * 60;
+        $taken = self::taken($userId);
+        $from  = time() + self::LEAD_MIN * 60;
+        foreach ($grid as $t) {
+            if ($t < $from) continue;
+            foreach ($taken as $x) if (abs($t - $x) < $gap) continue 2;
+            return $t;
+        }
+        return null;
     }
 
     /** Approves a draft: the slot, the item marked used. Returns the slot or an error string. */
-    public static function approve(int $userId, array $d, string $day = ''): int|string
+    public const NO_SLOT = 'NOSLOT:';   // approve(): this error can be overridden with $force
+
+    public static function approve(int $userId, array $d, string $day = '', bool $force = false): int|string
     {
         if (! in_array($d['status'], ['new', 'error', 'rejected'], true)) return '지금 상태에서는 승인할 수 없습니다.';
         if (trim((string) $d['text']) === '') return '본문이 비어 있습니다.';
         if ($day !== '') {   // a day picked on the card (KST): the first free slot of that day, whatever the batch's own day
-            $slot = self::daySlot($userId, $day);
-            if ($slot === null) return (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2) . '에는 빈 슬롯이 없습니다.';
+            $slot = self::daySlot($userId, $day, $force);
+            $md   = (int) substr($day, 5, 2) . '/' . (int) substr($day, 8, 2);
+            if ($slot === null) return $force ? $md . '에는 간격 규칙을 지키면서 넣을 시간이 남아 있지 않습니다.' : self::NO_SLOT . $md . '에는 설정상 빈 슬롯이 없습니다 (하루 한도 또는 시간표가 찼습니다).';
         } else {
             $slot = self::nextSlot($userId, self::publishFrom((string) $d['batch']));
         }
