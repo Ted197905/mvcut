@@ -255,7 +255,9 @@
           const cell = a.closest('[data-testid="cellInnerDiv"]'), pcell = before.el.closest('[data-testid="cellInnerDiv"]');
           if (cell && pcell && cell.previousElementSibling === pcell) r.kind = 'reply';
         }
-        if (allReplies && r.kind === 'post') { r.kind = 'reply'; r.orphan = true; }
+        // 댓글 정리: everything of mine in a filter:replies search goes, a plain post and a quote alike (user, 2026-11-24);
+        // reposts never do (skipped above: X does not undo old reposts reliably)
+        if (allReplies && r.kind !== 'reply') { r.kind = 'reply'; r.orphan = true; }
         if (!r.pinned && r.time < oldest) oldest = r.time;
         const earlier = done.get(r.id);
         if (earlier && earlier.ok === true && job.mode !== 'scan') {   // deleted a moment ago, back on screen: the deletion did not take
