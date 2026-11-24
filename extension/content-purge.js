@@ -200,7 +200,7 @@
   const kinds = new Set(job.kinds || ['post', 'reply']);
   // a filter:replies search returns replies only; X drops the "Replying to" header (and the parent cell) when the
   // parent post or its author is gone, so such replies looked like plain posts and were skipped (seen 2026-11-02)
-  const allReplies = /filter:replies/i.test(String(job.query || ''));
+  const allReplies = /(^|\s)filter:replies/i.test(String(job.query || ''));   // not "-filter:replies" (posts only)
   const seen = new Set();    // every post id that has been on screen
   const done = new Map();    // id -> item reported
   const items = [];

@@ -259,13 +259,15 @@ $gapTxt = static fn (?int $m) => $m === null ? '-' : ($m >= 60 ? intdiv($m, 60) 
     const csrf = () => { const c = MV.csrf(); return c ? { 'X-CSRF-TOKEN': c.hash } : {}; };
     const handle = <?= json_encode($w['handle']) ?>;
     let edited = false;   // the user typed in the query box: inputs no longer overwrite it
-    // the user's own search shapes (2026-10-30): 게시물 "from:h until:D", 댓글 "from:h until:D filter:replies";
+    // the user's own search shapes: 게시물 "from:h -filter:replies until:D" (replies left out of the results, 2026-11-24),
+    // 댓글 "from:h until:D filter:replies";
     // the dates go into the query as typed: until: = the start date (posts before it), since: = the end date
     const build = () => {
       if (edited) return;
       const parts = [];
       if (kw.value.trim()) parts.push(kw.value.trim());
       parts.push('from:' + handle);
+      if (kinds()[0] !== 'reply') parts.push('-filter:replies');
       if (from.value) parts.push('until:' + from.value);
       if (!all.checked && to.value) parts.push('since:' + to.value);
       if (kinds()[0] === 'reply') parts.push('filter:replies');
