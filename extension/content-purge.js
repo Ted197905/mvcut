@@ -108,13 +108,14 @@
   // deletes the article's post through its menu; true when the confirm sheet was clicked
   const remove = async (r) => {
     await closeMenu();   // a menu left open by the previous try would stack under this one
-    r.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    await sleep(jitter(700, 1400));   // a glance at the post before the menu
+    // fast: short waits only (user, 2026-11-24: delete quickly, rest when X stops taking deletions)
+    r.el.scrollIntoView({ block: 'center' });
+    await sleep(jitter(150, 300));
     const caret = r.el.querySelector('button[data-testid="caret"]');
     if (!caret) throw new Error('메뉴 버튼 없음');
     caret.click();
     await waitFor('div[role="menu"] [role="menuitem"]', 8000);
-    await sleep(jitter(400, 900));
+    await sleep(jitter(100, 250));
     const menu = Array.from(document.querySelectorAll('div[role="menu"] [role="menuitem"]')).map((x) => (x.innerText || '').trim().split('\n')[0]);
     log('menu ' + r.id + ': ' + menu.slice(0, 6).join(' / '));
     // "삭제하기" / "삭제" / "Delete": \b does not work after Hangul, so match the start of the text only
@@ -125,7 +126,7 @@
     }
     item.click();
     const ok = await waitFor('[data-testid="confirmationSheetConfirm"]', 8000);
-    await sleep(jitter(500, 1100));
+    await sleep(jitter(100, 250));
     log('confirm ' + r.id + ': "' + (ok.innerText || '').trim().slice(0, 20) + '"');
     ok.click();
     // the article leaves the timeline; wait for it (or give it 4 s)
@@ -285,7 +286,7 @@
         say('삭제 ' + deleted + '건' + (failed ? ', 실패 ' + failed : '') + ' ...');
         report({ found, deleted, failed, last: r.text, done: false, item: it, oldest: isFinite(oldest) ? oldest : 0 });
         acted = true;
-        await pause(1800, 4500);
+        await sleep(jitter(300, 700));
         break;   // the timeline shifted: read it again
       }
       if (acted) continue;
@@ -303,7 +304,7 @@
         break;
       }
       await scrollDown();
-      await pause(900, 2400);
+      await sleep(jitter(400, 900));
     }
     const status = stopped ? 'stopped' : 'done';
     log('finish ' + status + ' found=' + found + ' deleted=' + deleted + ' failed=' + failed);
