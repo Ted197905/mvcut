@@ -20,6 +20,7 @@ class XWatch
     private const BANCHECKER = 'https://banchecker.org/api/check-twitter?username=';
     private const XAUTODM    = 'https://xautodm.com/api/shadowban-check';
     private const TAISHIN    = 'https://taishin-miyamoto.com/ShadowBan/api/?screen_name=';
+    private const QUOTE_AFTER = 25 * 60;   // seconds from a probe check to the X 인용 대상 search
     private const TAISHIN_CONTROL = 'NASA';   // an account that is certainly not restricted
     private const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
     public const KINDS = ['post', 'reply', 'quote', 'repost'];
@@ -551,6 +552,13 @@ class XWatch
             $j = ['ok' => false, 'error' => 'checker failed: ' . mb_substr(trim($r['stderr']), -300)];
         }
         $j['source'] = 'probe';
+        // X 인용 대상 searches with the same probe account: it goes 25 minutes after this check, so the two never
+        // share one 15-minute search window (50 pages) (user, 2026-11-25)
+        try {
+            db_connect()->table(env('hallyuwire.db', 'hallyuwire') . '.sources')->where('id', 'x_quote')
+                ->update(['next_run_at' => gmdate('Y-m-d H:i:s', time() + self::QUOTE_AFTER)]);
+        } catch (\Throwable $e) {
+        }
         // the watched account's posts the probe saw: posting history for posts made without the extension
         if (is_array($j['posts'] ?? null)) {
             $j['posts_seen'] = count($j['posts']);

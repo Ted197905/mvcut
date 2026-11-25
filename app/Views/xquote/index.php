@@ -7,7 +7,7 @@ $kst = static fn (?string $utc) => $utc ? \App\Libraries\XWatch::kst(strtotime($
 ?>
 <main class="wide settings xq">
   <h1>X 인용 대상</h1>
-  <p class="muted small" style="margin-top:-6px">게시 후 2시간이 안 됐는데 조회수 5만을 넘은 한국어 게시물입니다 (좋아요 300 이상인 글 중에서 찾음). 수집기가 30분마다 부계정으로 X를 검색합니다(08시~24시). 아이돌/기획사 등 공식 계정(금색 인증, 소속 배지, 이름에 official/_twt/공식, 팔로워 100만 이상, 아이돌 계정 목록)은 제외합니다. 조회수는 마지막으로 확인한 시점의 값입니다.</p>
+  <p class="muted small" style="margin-top:-6px">게시 후 2시간이 안 됐는데 조회수 5만을 넘은 한국어 게시물입니다 (좋아요 300 이상인 글 중에서 찾음). 수집기가 부계정 제한 검사 25분 뒤마다(약 50분 간격, 08시~24시) 부계정으로 X를 검색합니다. 아이돌/기획사 등 공식 계정(금색 인증, 소속 배지, 이름에 official/_twt/공식, 팔로워 100만 이상, 아이돌 계정 목록)은 제외합니다. 조회수는 마지막으로 확인한 시점의 값입니다.</p>
 
   <section class="set-card">
     <div class="cl-log-bar">
