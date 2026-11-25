@@ -31,6 +31,7 @@ $routes->post('youtube/(:num)/delete', 'Youtube::delete/$1');
 // Chrome extension (token auth, no session/CSRF)
 $routes->get('xapi/status', 'XApi::status');
 $routes->post('xapi/posts', 'XApi::posts');
+$routes->post('xapi/quotes', 'XApi::quotes');
 $routes->post('xapi/import', 'XApi::import');
 $routes->post('xapi/scheduled', 'XApi::scheduled');
 $routes->get('xapi/jobs/(:num)', 'XApi::job/$1');
@@ -116,7 +117,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->group('xquote', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'XQuote::index');
         $routes->post('refresh', 'XQuote::refresh');
-        $routes->post('(:num)/used', 'XQuote::used/$1');
+        $routes->post('used', 'XQuote::used');
     });
     $routes->group('collect', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Collect::index');

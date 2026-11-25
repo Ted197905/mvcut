@@ -343,6 +343,10 @@ async function addPosts(list) {
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg && msg.type === 'posts') { addPosts(msg.posts || []); return false; }
+  if (msg && msg.type === 'quotes') {   // X 인용 대상 seen in this browser -> MV Cut /xquote
+    api('/xapi/quotes', { method: 'POST', body: JSON.stringify({ posts: (msg.posts || []).slice(0, 200) }) }).catch(() => {});
+    return false;
+  }
   if (msg && msg.type === 'scheduled') {
     if (msg.qid && /^[A-Za-z0-9_-]{10,40}$/.test(msg.qid)) set({ schedQid: msg.qid });
     api('/xapi/scheduled', { method: 'POST', body: JSON.stringify({ items: msg.items || [], viewer: msg.viewer || '' }) })

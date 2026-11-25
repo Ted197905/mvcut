@@ -3,6 +3,7 @@
 (() => {
   const STATUS = /^\/([A-Za-z0-9_]{1,15})\/status\/(\d+)/;
   const sent = new Set();
+  const quoteSent = new Map();
   let handle = '';
   let pending = [];
   let flushTimer = null;
@@ -39,6 +40,12 @@
   window.addEventListener('message', (e) => {
     if (e.source !== window || !e.data) return;
     if (e.data.__mvx === 'posts') queue(e.data.posts || [], 'api');
+    if (e.data.__mvx === 'quotes' && Array.isArray(e.data.posts)) {   // X 인용 대상: each post is passed on once per 10 minutes
+      const now = Date.now();
+      const fresh = e.data.posts.filter((p) => p && p.id && !(quoteSent.get(p.id) > now - 600000));
+      fresh.forEach((p) => quoteSent.set(p.id, now));
+      if (fresh.length) live(() => chrome.runtime.sendMessage({ type: 'quotes', posts: fresh }).catch(() => {}));
+    }
     // the list belongs to whoever is signed in; only the watched account's goes to MV Cut
     if (e.data.__mvx === 'scheduled' && Array.isArray(e.data.items)) sendScheduled(e.data.items, 0);
   });

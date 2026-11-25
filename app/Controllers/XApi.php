@@ -34,6 +34,42 @@ class XApi extends BaseController
         return $row ? $this->response->setJSON(['ok' => true, 'status' => $row['status']]) : $this->response->setStatusCode(404)->setJSON(['ok' => false]);
     }
 
+    /**
+     * POST /xapi/quotes  {"posts":[{id,handle,name,text,thumb,time,views,likes,replies,reposts,bookmarks}]}
+     * X 인용 대상 from the user's own session: posts the extension saw in the timelines the browser loaded that are
+     * under 2 hours old with 100,000+ views (checked again here). Shown on /xquote next to the collector's finds.
+     */
+    public function quotes()
+    {
+        $w = $this->watch();
+        if (! $w) return $this->deny();
+        $db  = db_connect();
+        $now = time();
+        $idols = [];
+        try {
+            foreach ($db->table(env('hallyuwire.db', 'hallyuwire') . '.idol_accounts')->select('handle')->where('kind !=', 'topic')->get()->getResultArray() as $r) {
+                $idols[strtolower($r['handle'])] = true;
+            }
+        } catch (\Throwable $e) {
+        }
+        $n = 0;
+        foreach (array_slice((array) (($this->request->getJSON(true) ?: [])['posts'] ?? []), 0, 200) as $p) {
+            $id = (string) ($p['id'] ?? ''); $ts = strtotime((string) ($p['time'] ?? ''));
+            $handle = XWatch::cleanHandle((string) ($p['handle'] ?? ''));
+            if (! ctype_digit($id) || ! $ts || $handle === '' || (int) ($p['views'] ?? 0) < 100000 || $now - $ts > 2 * 3600 || $ts > $now + 300) continue;
+            if (isset($idols[strtolower($handle)]) || strcasecmp($handle, (string) $w['handle']) === 0) continue;
+            $db->query('INSERT INTO x_quotes (id, user_id, handle, name, text, thumb, posted_at, views, likes, replies, reposts, bookmarks, seen_at) '
+                . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE views = GREATEST(views, VALUES(views)), '
+                . 'likes = VALUES(likes), replies = VALUES(replies), reposts = VALUES(reposts), bookmarks = VALUES(bookmarks), seen_at = VALUES(seen_at)',
+                [$id, (int) $w['user_id'], $handle, mb_substr((string) ($p['name'] ?? ''), 0, 100), mb_substr((string) ($p['text'] ?? ''), 0, 1000),
+                 mb_substr((string) ($p['thumb'] ?? ''), 0, 500) ?: null, gmdate('Y-m-d H:i:s', $ts), (int) $p['views'], (int) ($p['likes'] ?? 0),
+                 (int) ($p['replies'] ?? 0), (int) ($p['reposts'] ?? 0), (int) ($p['bookmarks'] ?? 0)]);
+            $n++;
+        }
+        $db->query('DELETE FROM x_quotes WHERE posted_at < UTC_TIMESTAMP() - INTERVAL 3 DAY');
+        return $this->response->setJSON(['ok' => true, 'saved' => $n]);
+    }
+
     /** GET /xapi/status */
     public function status()
     {
