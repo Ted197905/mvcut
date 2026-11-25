@@ -206,6 +206,7 @@
   const done = new Map();    // id -> item reported
   const items = [];
   let found = 0, deleted = 0, failed = 0, oldest = Infinity, idle = 0, mine = 0;
+  let oldestAny = Infinity;   // the oldest post on the page, anyone's (reposts included)
   if (job.resume) {   // the tab was reloaded in the middle (or a hop): carry on, skipping what was handled already
     found = job.resume.found || 0; deleted = job.resume.deleted || 0; failed = job.resume.failed || 0;
     for (const it of job.resume.items || []) { done.set(it.id, it); items.push(it); }
@@ -248,6 +249,7 @@
         const before = prev;
         prev = r;
         if (r && !seen.has(r.id)) { seen.add(r.id); fresh++; }   // anything new on screen, mine or not: the page is still loading more
+        if (r && r.time < oldestAny) oldestAny = r.time;
         if (!r || r.handle.toLowerCase() !== me || r.repost) continue;
         if (!done.has(r.id) && !seen.has(r.id + ':mine')) { seen.add(r.id + ':mine'); mine++; }
         // in a conversation the post right above (someone else's) is the parent: this one is a reply
@@ -301,6 +303,18 @@
         if (isFinite(oldest) && mine > 0 && (job.hop || 0) < 40 && (!job.from || oldest - 1 > job.from)) {
           report({ found, deleted, failed, done: false, oldest });
           if (await hop(oldest - 1, 'results ran out after ' + mine + ' of mine')) return;
+        }
+        // nothing of mine on the page, only reposts / other people's posts (2026-11-26: the search for an old range
+        // showed one repost and the run ended there): go further back - below the oldest post shown, or one day
+        // back when that would not move the search
+        const um = /until:(\d{4})-(\d{2})-(\d{2})/.exec(job.query || '');
+        if (mine === 0 && um && (job.hop || 0) < 40) {
+            const cur = Date.UTC(+um[1], +um[2] - 1, +um[3]) / 1000 - 86400;   // the hop time behind this until: (fmtDay adds a day)
+            const next = isFinite(oldestAny) && oldestAny - 1 < cur ? oldestAny - 1 : cur - 86400;
+            if (!job.from || next > job.from) {
+              report({ found, deleted, failed, done: false, oldest: next });
+              if (await hop(next, 'nothing of mine on the page (reposts only)')) return;
+            }
         }
         log('end of results (hop=' + (job.hop || 0) + ', mine=' + mine + ')');
         break;
