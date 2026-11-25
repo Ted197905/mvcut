@@ -957,3 +957,12 @@ body:not(.xw-replies) .xw-tab-replies, body.xw-replies .xw-tab-posts { display: 
 a.dr-modal-pick { text-decoration: none; }
 a.dr-modal-pick[hidden] { display: none; }
 .dr-src-head .dr-zip { color: var(--blue); }
+
+.xq-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--separator); }
+.xq-row.used { opacity: .45; }
+.xq-thumb { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: var(--fill3); flex: none; display: block; }
+.xq-main { flex: 1; min-width: 0; }
+.xq-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.xq-text { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.xq-acts { display: flex; gap: 6px; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 760px) { .xq-row { flex-wrap: wrap; } .xq-acts { width: 100%; justify-content: flex-start; } }

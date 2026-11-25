@@ -44,6 +44,7 @@
       <a href="<?= site_url('admin') ?>" class="<?= str_starts_with(uri_string(), 'admin') ? 'active' : '' ?>">관리자</a>
       <a href="<?= site_url('collect') ?>" class="<?= str_starts_with(uri_string(), 'collect') ? 'active' : '' ?>">수집</a>
       <a href="<?= site_url('drafts') ?>" class="<?= str_starts_with(uri_string(), 'drafts') ? 'active' : '' ?>">초안</a>
+      <a href="<?= site_url('xquote') ?>" class="<?= str_starts_with(uri_string(), 'xquote') ? 'active' : '' ?>">인용 대상</a>
       <?php $errs = \App\Libraries\AppLog::recentErrors() ?>
       <a href="<?= site_url('admin/logs') ?>" class="<?= str_starts_with(uri_string(), 'admin/logs') ? 'active' : '' ?>">로그<?= $errs ? ' <span class="nav-badge" title="24시간 안의 오류">' . $errs . '</span>' : '' ?></a>
     <?php endif ?>

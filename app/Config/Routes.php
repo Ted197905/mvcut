@@ -113,6 +113,11 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('api/import/duplicates', 'Import::duplicates');
     $routes->post('api/import', 'Import::submit');
 
+    $routes->group('xquote', ['filter' => 'admin'], static function (RouteCollection $routes) {
+        $routes->get('', 'XQuote::index');
+        $routes->post('refresh', 'XQuote::refresh');
+        $routes->post('(:num)/used', 'XQuote::used/$1');
+    });
     $routes->group('collect', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('', 'Collect::index');
         $routes->get('(:num)', 'Collect::show/$1');
