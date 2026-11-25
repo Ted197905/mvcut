@@ -47,8 +47,8 @@ class XApi extends BaseController
         $now = time();
         $idols = [];
         try {
-            foreach ($db->table(env('hallyuwire.db', 'hallyuwire') . '.idol_accounts')->select('handle')->where('kind !=', 'topic')->get()->getResultArray() as $r) {
-                $idols[strtolower($r['handle'])] = true;
+            foreach ($db->table(env('hallyuwire.db', 'hallyuwire') . '.idol_accounts')->select('handle, name')->where('kind !=', 'topic')->get()->getResultArray() as $r) {
+                foreach ([$r['handle'], $r['name']] as $v) if (strlen($k = self::normName((string) $v)) >= 3) $idols[$k] = true;
             }
         } catch (\Throwable $e) {
         }
@@ -57,7 +57,7 @@ class XApi extends BaseController
             $id = (string) ($p['id'] ?? ''); $ts = strtotime((string) ($p['time'] ?? ''));
             $handle = XWatch::cleanHandle((string) ($p['handle'] ?? ''));
             if (! ctype_digit($id) || ! $ts || $handle === '' || (int) ($p['views'] ?? 0) < 100000 || $now - $ts > 2 * 3600 || $ts > $now + 300) continue;
-            if (isset($idols[strtolower($handle)]) || strcasecmp($handle, (string) $w['handle']) === 0) continue;
+            if (isset($idols[self::normName($handle)]) || isset($idols[self::normName((string) ($p['name'] ?? ''))]) || strcasecmp($handle, (string) $w['handle']) === 0) continue;
             $db->query('INSERT INTO x_quotes (id, user_id, handle, name, text, thumb, posted_at, views, likes, replies, reposts, bookmarks, seen_at) '
                 . 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE views = GREATEST(views, VALUES(views)), '
                 . 'likes = VALUES(likes), replies = VALUES(replies), reposts = VALUES(reposts), bookmarks = VALUES(bookmarks), seen_at = VALUES(seen_at)',
@@ -68,6 +68,12 @@ class XApi extends BaseController
         }
         $db->query('DELETE FROM x_quotes WHERE posted_at < UTC_TIMESTAMP() - INTERVAL 3 DAY');
         return $this->response->setJSON(['ok' => true, 'saved' => $n]);
+    }
+
+    /** Same as hallyuwire xsearch._norm: a handle / display name without case, punctuation and the usual account suffixes. */
+    private static function normName(string $s): string
+    {
+        return (string) preg_replace('/official|offcl|ofcl|members?|global|japan|twt|staff|[^0-9a-z가-힣]/u', '', mb_strtolower($s));
     }
 
     /** GET /xapi/status */

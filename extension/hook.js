@@ -91,7 +91,9 @@
         // you browse load it. Organizations' accounts (gold check, or affiliated to one) are left out.
         const views = Number(node.views && node.views.count) || 0, ts = Date.parse(leg.created_at);
         const vt = (u.verification && u.verification.verified_type) || u.verified_type || (u.legacy && u.legacy.verified_type) || '';
-        const org = vt === 'Business' || vt === 'Government' || !!(u.affiliates_highlighted_label && u.affiliates_highlighted_label.label);
+        const uname = (u.core && u.core.name) || (u.legacy && u.legacy.name) || '';
+        const org = vt === 'Business' || vt === 'Government' || !!(u.affiliates_highlighted_label && u.affiliates_highlighted_label.label)
+          || /official|offcl|ofcl|_twt\b|_members?\b|오피셜|공식/i.test(handle + ' ' + uname) || ((u.legacy && u.legacy.followers_count) || 0) >= 1000000;
         if (views >= 100000 && Date.now() - ts < 2 * 3600 * 1000 && !org && !leg.retweeted_status_result && !leg.in_reply_to_status_id_str) {
           const m = ((leg.extended_entities || leg.entities || {}).media || [])[0];
           const note = node.note_tweet && node.note_tweet.note_tweet_results && node.note_tweet.note_tweet_results.result;
