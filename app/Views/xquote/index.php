@@ -7,7 +7,7 @@ $kst = static fn (?string $utc) => $utc ? \App\Libraries\XWatch::kst(strtotime($
 ?>
 <main class="wide settings xq">
   <h1>X 인용 대상</h1>
-  <p class="muted small" style="margin-top:-6px">게시 후 2시간이 안 됐는데 조회수 10만을 넘은 게시물입니다. 두 경로로 모읍니다: 수집기가 30분마다 부계정으로 X를 검색(한국어, 좋아요 500 이상, 08시~24시)하고, 본계정으로 X를 보는 동안 화면에 로드된 글을 확장이 보냅니다. 아이돌/기획사 등 공식 계정(금색 인증, 소속 배지, 이름에 official/_twt/공식, 팔로워 100만 이상, 아이돌 계정 목록)은 제외합니다. 조회수는 마지막으로 확인한 시점의 값입니다.</p>
+  <p class="muted small" style="margin-top:-6px">게시 후 2시간이 안 됐는데 조회수 5만을 넘은 한국어 게시물입니다 (좋아요 300 이상인 글 중에서 찾음). 수집기가 30분마다 부계정으로 X를 검색합니다(08시~24시). 아이돌/기획사 등 공식 계정(금색 인증, 소속 배지, 이름에 official/_twt/공식, 팔로워 100만 이상, 아이돌 계정 목록)은 제외합니다. 조회수는 마지막으로 확인한 시점의 값입니다.</p>
 
   <section class="set-card">
     <div class="cl-log-bar">
@@ -35,7 +35,7 @@ $kst = static fn (?string $utc) => $utc ? \App\Libraries\XWatch::kst(strtotime($
           <div class="xq-meta">
             <b><?= esc($num((int) $r['views'])) ?> 조회</b>
             <span class="ck-badge <?= $r['age_min'] <= 120 ? 'ok' : '' ?>">게시 <?= esc($ago($r['age_min'])) ?> 전</span>
-            <span class="muted small">시간당 <?= esc($num($r['per_hour'])) ?> · 좋아요 <?= esc($num($r['likes'])) ?> · 답글 <?= esc($num($r['comments'])) ?> · <?= esc((string) $r['tags']) ?> · <?= (int) $r['seen_min'] ?>분 전 확인 · <?= esc($r['from']) ?></span>
+            <span class="muted small">시간당 <?= esc($num($r['per_hour'])) ?> · 좋아요 <?= esc($num($r['likes'])) ?> · 답글 <?= esc($num($r['comments'])) ?> · <?= esc((string) $r['tags']) ?> · <?= (int) $r['seen_min'] ?>분 전 확인</span>
           </div>
           <div class="xq-text"><span class="muted"><?= esc((string) $r['author']) ?></span> <?= esc(mb_substr((string) $r['text'], 0, 220)) ?></div>
         </div>

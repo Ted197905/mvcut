@@ -31,7 +31,6 @@ $routes->post('youtube/(:num)/delete', 'Youtube::delete/$1');
 // Chrome extension (token auth, no session/CSRF)
 $routes->get('xapi/status', 'XApi::status');
 $routes->post('xapi/posts', 'XApi::posts');
-$routes->post('xapi/quotes', 'XApi::quotes');
 $routes->post('xapi/import', 'XApi::import');
 $routes->post('xapi/scheduled', 'XApi::scheduled');
 $routes->get('xapi/jobs/(:num)', 'XApi::job/$1');

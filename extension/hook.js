@@ -76,7 +76,6 @@
   if (window.__mvxHook) return;
   window.__mvxHook = true;
 
-  let hot = [];   // quote targets found by walk() in the response being read
   // Finds tweet objects anywhere in a JSON response (GraphQL or REST shapes).
   function walk(node, out, depth) {
     if (!node || typeof node !== 'object' || depth > 40) return;
@@ -87,20 +86,6 @@
       const handle = u && ((u.core && u.core.screen_name) || (u.legacy && u.legacy.screen_name));
       const id = node.rest_id || leg.id_str;
       if (handle && id) {
-        // X 인용 대상 (MV Cut /xquote): someone's post under 2 hours old that already has 100,000+ views, as the timelines
-        // you browse load it. Organizations' accounts (gold check, or affiliated to one) are left out.
-        const views = Number(node.views && node.views.count) || 0, ts = Date.parse(leg.created_at);
-        const vt = (u.verification && u.verification.verified_type) || u.verified_type || (u.legacy && u.legacy.verified_type) || '';
-        const uname = (u.core && u.core.name) || (u.legacy && u.legacy.name) || '';
-        const org = vt === 'Business' || vt === 'Government' || !!(u.affiliates_highlighted_label && u.affiliates_highlighted_label.label)
-          || /official|offcl|ofcl|_twt\b|_members?\b|오피셜|공식/i.test(handle + ' ' + uname) || ((u.legacy && u.legacy.followers_count) || 0) >= 1000000;
-        if (views >= 100000 && Date.now() - ts < 2 * 3600 * 1000 && !org && !leg.retweeted_status_result && !leg.in_reply_to_status_id_str) {
-          const m = ((leg.extended_entities || leg.entities || {}).media || [])[0];
-          const note = node.note_tweet && node.note_tweet.note_tweet_results && node.note_tweet.note_tweet_results.result;
-          hot.push({ id: String(id), handle, name: (u.core && u.core.name) || (u.legacy && u.legacy.name) || '', time: new Date(ts).toISOString(),
-            text: String((note && note.text) || leg.full_text || leg.text || '').slice(0, 600), thumb: (m && m.media_url_https) || '',
-            views, likes: leg.favorite_count || 0, replies: leg.reply_count || 0, reposts: leg.retweet_count || 0, bookmarks: leg.bookmark_count || 0 });
-        }
         out.push({
           id: String(id), handle,
           time: new Date(leg.created_at).toISOString(),
@@ -127,10 +112,8 @@
     let j;
     try { j = JSON.parse(text); } catch (e) { return; }
     const out = [];
-    hot = [];
     walk(j, out, 0);
     if (out.length) window.postMessage({ __mvx: 'posts', posts: out, src: 'api' }, location.origin);
-    if (hot.length) window.postMessage({ __mvx: 'quotes', posts: hot }, location.origin);
   }
 
   window.fetch = async function (input, init) {
