@@ -29,19 +29,42 @@ class Edit extends BaseController
         $resumed = false;
         if (! $this->request->getGet('fresh') && ! empty($item['last_edit'])) {
             $last = json_decode((string) $item['last_edit'], true);
-            if (is_array($last) && ! empty($last['keep'])) { $params = $last; $resumed = true; }
+            if (is_array($last) && (! empty($last['clips']) || ! empty($last['keep']))) { $params = $last; $resumed = true; }
         }
+        // the other videos the reopened edit's clips and bin come from
+        $pool = $resumed ? array_map([$this, 'poolItem'], array_values($media->clipPool($params, $item))) : [];
         $prefs  = (new \App\Models\UserModel())->prefs((int) session()->get('user_id'));
         return view('edit/index', [
             'title'    => '편집',
             'item'     => $item,
             'params'   => $params,
             'resumed'  => $resumed,
+            'pool'     => $pool,
             'wmPreset' => $prefs['watermark'] ?? null,
             'aiEnabled' => (bool) session()->get('ai_enabled'),
             'fonts'    => \App\Libraries\Fonts::available(),
             'bgm'      => (new \App\Models\BgmModel())->ordered(),
         ]);
+    }
+
+    /** What the editor needs of a library video to use it as a clip. */
+    private function poolItem(array $m): array
+    {
+        return ['id' => (int) $m['id'], 'title' => (string) $m['title'], 'duration' => (float) $m['duration'],
+                'width' => (int) $m['width'], 'height' => (int) $m['height'], 'hasAudio' => ! empty($m['acodec']),
+                'playUrl' => site_url('media/' . $m['id'] . '/proxy'), 'stripUrl' => site_url('media/' . $m['id'] . '/strip') . '?v=2',
+                'thumb' => $m['has_thumb'] ? site_url('media/' . $m['id'] . '/thumb') : ''];
+    }
+
+    /** GET /api/edit/{id}/pool?q= - the user's other videos, to bring into the editor's bin */
+    public function pool(int $id)
+    {
+        $userId = (int) session()->get('user_id');
+        $b = (new MediaModel())->where('user_id', $userId)->where('media_type', 'video')->where('status', 'ready')
+            ->where('id !=', $id)->where('duration >', 0)->where('width >', 0);
+        $q = trim((string) $this->request->getGet('q'));
+        if ($q !== '') $b->like('title', $q);
+        return $this->response->setJSON(['items' => array_map([$this, 'poolItem'], $b->orderBy('id', 'DESC')->findAll(60))]);
     }
 
     /** GET /bgm/{id}/file - streams a background track for preview (any signed-in user). */
@@ -110,7 +133,7 @@ class Edit extends BaseController
             return $this->response->setStatusCode(400)->setJSON(['error' => 'invalid json']);
         }
         try {
-            $params = EditParams::normalize($raw, $item);
+            $params = EditParams::normalize($raw, $item, $media->clipPool($raw, $item));
         } catch (\InvalidArgumentException $e) {
             return $this->response->setStatusCode(422)->setJSON(['error' => $e->getMessage()]);
         }

@@ -467,7 +467,7 @@ $icons = [
       <button class="tb" id="btnMarkIn" title="마크 In (I)">I</button>
       <button class="tb" id="btnMarkOut" title="마크 Out (O)">O</button>
       <button class="tb" id="btnSplit2" title="플레이헤드에서 분할 (S)" aria-label="분할"><?= $icons['split'] ?></button>
-      <button class="tb" id="btnDelete" title="세그먼트 삭제 / 복원 (Del)" aria-label="세그먼트 삭제"><?= $icons['trash'] ?></button>
+      <button class="tb" id="btnDelete" title="선택한 클립을 아래 보관 칸으로 내리기 (Del)" aria-label="클립 내리기"><?= $icons['trash'] ?></button>
       <span class="sep"></span>
       <label class="zoom" title="줌 (Ctrl+휠, +/-)">&#x1F50D;<input type="range" id="zoom" min="1" max="60" step="0.5" value="1"></label>
       <button class="tb" id="btnFit" title="전체 보기">Fit</button>
@@ -479,6 +479,11 @@ $icons = [
           <div class="strip" id="strip"></div>
           <div class="segments" id="segments"></div>
           <div class="marks" id="marks"></div>
+        </div>
+        <div class="binlane" id="binLane" title="보관 칸: 결과에 들어가지 않습니다. 라이브러리에서 불러온 영상과 위에서 내려 둔 클립이 여기 있습니다">
+          <button class="tb" type="button" id="btnBinLoad" title="라이브러리의 다른 영상을 불러옵니다">+ 불러오기</button>
+          <div class="binitems" id="binItems"></div>
+          <span class="binempty" id="binEmpty">보관 칸 · 불러온 영상이나 위에서 내린 클립이 여기에 놓입니다 (끌어서 위 트랙에 올리기)</span>
         </div>
         <div class="subtrack" id="subTrack0" data-layer="0">
           <span class="tl-label">자막 1</span><div class="cues" id="cues0"></div>
@@ -498,6 +503,9 @@ window.FONT_URL = <?= json_encode(site_url('fonts/')) ?>;
 window.ICONS = { play: <?= json_encode($icons['play']) ?>, pause: <?= json_encode($icons['pause']) ?> };
 window.EDITOR_DATA = <?= json_encode([
     'id'       => (int) $item['id'],
+    'title'    => (string) $item['title'],
+    'pool'     => $pool ?? [],
+    'poolUrl'  => site_url('api/edit/' . $item['id'] . '/pool'),
     'duration' => (float) $item['duration'],
     'fps'      => (float) ($item['fps'] ?: 30),
     'width'    => (int) $item['width'],

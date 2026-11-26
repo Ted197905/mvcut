@@ -85,6 +85,19 @@ class MediaModel extends Model
         return true;
     }
 
+    /** The other library videos an edit's clips come from: id => row (the owner's ready videos only). */
+    public function clipPool(array $params, array $main): array
+    {
+        $ids = [];
+        foreach (['clips', 'bin'] as $k) foreach ((array) ($params[$k] ?? []) as $c) {
+            $id = (int) ($c['m'] ?? 0);
+            if ($id > 0 && $id !== (int) $main['id']) $ids[$id] = true;
+        }
+        if ($ids === []) return [];
+        $rows = (new self())->whereIn('id', array_keys($ids))->where('user_id', $main['user_id'])->where('media_type', 'video')->where('status', 'ready')->findAll();
+        return array_column($rows, null, 'id');
+    }
+
     /** Storage directory for a media row (outside web root). */
     public static function dir(array $media): string
     {

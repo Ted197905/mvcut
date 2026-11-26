@@ -7,7 +7,7 @@
   const escHtml = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const FPS = D.fps > 0 ? D.fps : 30;
   const FRAME = 1 / FPS;
-  const DUR = D.duration;
+  let DUR = D.duration;   // length of the sequence (the clips of the top track end to end); reflow() keeps it
   const MIN_SEG = Math.max(FRAME, 0.04);
   const snapFrame = (t) => clamp(Math.round(t * FPS) / FPS, 0, DUR);
 
@@ -41,7 +41,10 @@
 
   /* ---------- state ---------- */
   const state = {
-    segments: [{ start: 0, end: DUR, removed: false }],
+    // the top track: clips in play order. m = library video, s/e = in/out in that video, start/end = place in the
+    // sequence (reflow). The bin below holds clips that are loaded or parked but not in the result.
+    segments: [{ m: D.id, s: 0, e: D.duration, start: 0, end: D.duration, removed: false }],
+    bin: [],
     selected: 0,
     markIn: null, markOut: null,
     transform: { rotate: 0, flipH: false, flipV: false },   // applied before everything else
@@ -62,29 +65,60 @@
     subCue: -1,
     output: { format: 'mp4', audio: 'auto', height: 0, quality: 'high', bgm: 0 },
   };
+  // the videos clips can come from: this one, and the ones brought in from the library (D.pool on a reopened edit)
+  const pool = new Map();
+  pool.set(D.id, { id: D.id, title: D.title || '', duration: D.duration, hasAudio: D.hasAudio, playUrl: null, stripUrl: D.stripUrl });
+  (D.pool || []).forEach((m) => pool.set(m.id, m));
+  const mediaDur = (m) => (pool.get(m) || {}).duration || 0;
+  function reflow() {
+    let t = 0;
+    state.segments.forEach((c) => { c.start = t; t += c.e - c.s; c.end = t; c.removed = false; });
+    DUR = Math.max(MIN_SEG, t);
+    state.selected = clamp(state.selected, 0, state.segments.length - 1);
+    if (state.markIn !== null) state.markIn = Math.min(state.markIn, DUR);
+    if (state.markOut !== null) state.markOut = Math.min(state.markOut, DUR);
+    const tot = document.getElementById('tcTotal'); if (tot) tot.textContent = '/ ' + tc(DUR);
+  }
   const undoStack = [], redoStack = [];
-  function snapshot() { return JSON.stringify({ segments: state.segments, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform, facetrack: state.facetrack }); }
+  function snapshot() { return JSON.stringify({ segments: state.segments, bin: state.bin, crop: state.crop, masks: state.masks, speed: state.speed, watermark: state.watermark, subtitles: state.subtitles, transform: state.transform, facetrack: state.facetrack }); }
   function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; updateUndoButtons(); }
-  function restore(json) { const s = JSON.parse(json); state.segments = s.segments; state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.transform) state.transform = s.transform; if (s.subtitles) state.subtitles = s.subtitles; state.facetrack = s.facetrack || null; syncFace(); state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; renderAll(); }
+  function restore(json) { const s = JSON.parse(json); pause(); state.segments = s.segments; state.bin = s.bin || []; reflow(); playhead = Math.min(playhead, DUR); state.crop = s.crop; state.masks = s.masks; state.speed = s.speed; state.watermark = s.watermark; if (s.transform) state.transform = s.transform; if (s.subtitles) state.subtitles = s.subtitles; state.facetrack = s.facetrack || null; syncFace(); state.selected = clamp(state.selected, 0, state.segments.length - 1); state.selectedMask = -1; layoutTimeline(); renderAll(); seek(playhead); }
   function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); updateUndoButtons(); }
   function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); updateUndoButtons(); }
   function updateUndoButtons() { $('btnUndo').disabled = !undoStack.length; $('btnRedo').disabled = !redoStack.length; }
 
   // restore previous params (re-edit)
   if (D.params && D.params.output && ! D.params.keep) state.output = Object.assign({ audio: 'auto', bgm: 0 }, D.params.output);
-  if (D.params && D.params.keep) {
-    const keep = D.params.keep;
-    const segs = []; let cur = 0;
-    keep.forEach(([s, e]) => { if (s > cur + 0.001) segs.push({ start: cur, end: s, removed: true }); segs.push({ start: s, end: e, removed: false }); cur = e; });
-    if (cur < DUR - 0.001) segs.push({ start: cur, end: DUR, removed: true });
-    state.segments = segs;
+  const known = (c) => c && pool.has(c.m) && c.e - c.s >= MIN_SEG;
+  const clipOf = (c) => ({ m: c.m, s: Math.max(0, +c.s), e: Math.min(mediaDur(c.m), +c.e) });
+  if (D.params && (D.params.clips || D.params.keep)) {
+    if (D.params.clips) {
+      state.segments = D.params.clips.filter(known).map(clipOf);
+      state.bin = (D.params.bin || []).filter(known).map(clipOf);
+      if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
+    } else {
+      // an edit saved before clips existed: kept ranges of this video in order, the cut-out ranges go to the bin,
+      // and the subtitle times move from the video's clock to the sequence's
+      const keep = D.params.keep, bin = []; let cur = 0;
+      keep.forEach(([a, b]) => { if (a > cur + 0.001) bin.push({ m: D.id, s: cur, e: a }); cur = b; });
+      if (cur < D.duration - 0.001) bin.push({ m: D.id, s: cur, e: D.duration });
+      state.segments = keep.map(([a, b]) => ({ m: D.id, s: a, e: b }));
+      state.bin = bin;
+      const pos = (t) => { let o = 0; for (const [a, b] of keep) { if (t <= a) return o; if (t < b) return o + (t - a); o += b - a; } return o; };
+      if (D.params.subtitles) state.subtitles = [0, 1].map((k) => {
+        const sub = D.params.subtitles[k]; if (!sub) return null;
+        sub.cues = (sub.cues || []).map((c) => Object.assign({}, c, { start: +pos(c.start).toFixed(3), end: +pos(c.end).toFixed(3) })).filter((c) => c.end - c.start >= 0.05);
+        return sub;
+      });
+    }
+    if (!state.segments.length) state.segments = [{ m: D.id, s: 0, e: D.duration }];
+    reflow();
     state.crop = D.params.crop || null;
     state.masks = D.params.masks || [];
     state.speed = D.params.speed || 1;
     state.watermark = D.params.watermark || null;
     state.keepAudio = D.params.keepAudio !== false;
     if (D.params.output) state.output = Object.assign({ audio: 'auto', bgm: 0 }, D.params.output);
-    if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
     if (D.params.transform) state.transform = Object.assign({ rotate: 0, flipH: false, flipV: false }, D.params.transform);
     if (D.params.facetrack) state.facetrack = D.params.facetrack;
     if (D.params.cropAR) state.cropAR = D.params.cropAR;
@@ -95,90 +129,174 @@
     if (D.params.erase) state.erase = Object.assign(state.erase, D.params.erase);
   }
 
-  /* ---------- segment ops ---------- */
+  /* ---------- clip ops ---------- */
   function segAt(t) { for (let i = 0; i < state.segments.length; i++) { const s = state.segments[i]; if (t >= s.start && t < s.end) return i; } return state.segments.length - 1; }
+  const cutAt = (c, t) => [{ m: c.m, s: c.s, e: c.s + (t - c.start) }, { m: c.m, s: c.s + (t - c.start), e: c.e }];   // t on the sequence clock
+  function changed(sel) { reflow(); if (sel !== undefined) state.selected = clamp(sel, 0, state.segments.length - 1); playhead = Math.min(playhead, DUR); layoutTimeline(); renderAll(); seek(playhead); }
   function split(t) {
     t = snapFrame(t);
     const i = segAt(t); const s = state.segments[i];
     if (t - s.start < MIN_SEG || s.end - t < MIN_SEG) return false;
-    commit();
-    state.segments.splice(i, 1, { start: s.start, end: t, removed: s.removed }, { start: t, end: s.end, removed: s.removed });
-    state.selected = i + 1;
-    renderAll(); return true;
+    pause(); commit();
+    state.segments.splice(i, 1, ...cutAt(s, t));
+    changed(i + 1); return true;
   }
+  // "delete" parks the clip in the bin below: nothing is lost, it can be dragged back up
   function toggleSeg(i) {
     if (i < 0 || i >= state.segments.length) return;
-    if (!state.segments[i].removed && state.segments.filter(s => !s.removed).length === 1) { flash('마지막 남은 구간은 삭제할 수 없습니다.'); return; }
-    commit(); state.segments[i].removed = !state.segments[i].removed; renderAll();
+    if (state.segments.length === 1) { flash('마지막 남은 클립은 내릴 수 없습니다.'); return; }
+    pause(); commit();
+    const [c] = state.segments.splice(i, 1);
+    state.bin.push({ m: c.m, s: c.s, e: c.e });
+    changed(Math.min(i, state.segments.length - 1));
   }
-  function mergeBoundary(i) { // merge segments i and i+1
+  const joined = (a, b) => a.m === b.m && Math.abs(a.e - b.s) < 0.002;   // two pieces of one cut, still in order
+  function mergeBoundary(i) { // merge clips i and i+1 when they are the two sides of a cut
     if (i < 0 || i + 1 >= state.segments.length) return;
-    commit();
     const a = state.segments[i], b = state.segments[i + 1];
-    state.segments.splice(i, 2, { start: a.start, end: b.end, removed: a.removed && b.removed });
-    state.selected = i; renderAll();
+    if (!joined(a, b)) { flash('같은 영상에서 이어지는 클립만 합칠 수 있습니다.'); return; }
+    pause(); commit();
+    state.segments.splice(i, 2, { m: a.m, s: a.s, e: b.e });
+    changed(i);
   }
-  function moveBoundary(i, t, live) { // boundary between i and i+1
+  // the edge between clips i and i+1 moved to sequence time t: the cut point slides when the two are one cut,
+  // otherwise clip i's end is trimmed or extended and everything after it follows
+  function moveBoundary(i, t, live) {
     const a = state.segments[i], b = state.segments[i + 1];
-    t = clamp(snapFrame(t), a.start + MIN_SEG, b.end - MIN_SEG);
-    a.end = t; b.start = t;
-    if (live) renderSegments(); else renderAll();
+    let at = a.s + (snapFrame(t) - a.start);
+    if (b && joined(a, b)) { at = clamp(at, a.s + MIN_SEG, b.e - MIN_SEG); a.e = at; b.s = at; }
+    else a.e = clamp(at, a.s + MIN_SEG, mediaDur(a.m));
+    reflow();
+    if (live) renderSegments(); else { layoutTimeline(); renderAll(); }
   }
   function applyMarks(mode) { // 'keep' or 'cut'
     if (state.markIn === null || state.markOut === null || state.markOut - state.markIn < MIN_SEG) { flash('In / Out 마크를 먼저 지정하세요.'); return; }
-    commit();
+    pause(); commit();
     const a = snapFrame(state.markIn), b = snapFrame(state.markOut);
-    // split at a and b without pushing extra undo entries
-    const doSplit = (t) => { const i = segAt(t); const s = state.segments[i]; if (t - s.start >= MIN_SEG && s.end - t >= MIN_SEG) state.segments.splice(i, 1, { start: s.start, end: t, removed: s.removed }, { start: t, end: s.end, removed: s.removed }); };
+    const doSplit = (t) => { const i = segAt(t); const s = state.segments[i]; if (t - s.start >= MIN_SEG && s.end - t >= MIN_SEG) { state.segments.splice(i, 1, ...cutAt(s, t)); reflow(); } };
     doSplit(a); doSplit(b);
-    state.segments.forEach(s => {
-      const inside = s.start >= a - 0.0005 && s.end <= b + 0.0005;
-      if (mode === 'keep') s.removed = !inside; else if (inside) s.removed = true;
-    });
-    if (!state.segments.some(s => !s.removed)) state.segments.forEach(s => s.removed = false);
-    state.selected = segAt(a);
+    const inside = (s) => s.start >= a - 0.0005 && s.end <= b + 0.0005;
+    const stay = state.segments.filter((s) => (mode === 'keep') === inside(s));
+    if (stay.length && stay.length < state.segments.length) {
+      state.segments.filter((s) => !stay.includes(s)).forEach((c) => state.bin.push({ m: c.m, s: c.s, e: c.e }));
+      state.segments = stay;
+    }
     state.markIn = state.markOut = null;
-    renderAll();
+    changed(0);
   }
-  function keepList() { return state.segments.filter(s => !s.removed).map(s => [round3(s.start), round3(s.end)]); }
+  // bin <-> track. `at` is the place among the clips (0 = before the first)
+  function liftClip(bi, at) {
+    const c = state.bin[bi]; if (!c) return;
+    pause(); commit();
+    state.bin.splice(bi, 1);
+    at = clamp(at, 0, state.segments.length);
+    state.segments.splice(at, 0, { m: c.m, s: c.s, e: c.e });
+    changed(at); seek(state.segments[at].start);
+  }
+  function moveClip(i, at) {   // reorder on the track; `at` counted before the clip is taken out
+    if (at === i || at === i + 1) return;
+    pause(); commit();
+    const [c] = state.segments.splice(i, 1);
+    const to = at > i ? at - 1 : at;
+    state.segments.splice(to, 0, c);
+    changed(to); seek(state.segments[to].start);
+  }
+  function liftAtPlayhead(bi) {   // double click in the bin: into the track at the playhead, cutting the clip there
+    const i = segAt(playhead), s = state.segments[i];
+    const mid = playhead - s.start >= MIN_SEG && s.end - playhead >= MIN_SEG;
+    const c = state.bin[bi]; if (!c) return;
+    pause(); commit();
+    state.bin.splice(bi, 1);
+    const at = mid ? i + 1 : (playhead - s.start < MIN_SEG ? i : i + 1);
+    if (mid) state.segments.splice(i, 1, ...cutAt(s, playhead));
+    state.segments.splice(at, 0, { m: c.m, s: c.s, e: c.e });
+    changed(at); seek(state.segments[at].start);
+  }
+  function dropBin(bi) { if (!state.bin[bi]) return; commit(); state.bin.splice(bi, 1); renderBin(); }
+  function clipList(list) { return list.map((c) => ({ m: c.m, s: round3(c.s), e: round3(c.e) })); }
   const round3 = (v) => Math.round(v * 1000) / 1000;
-  function outputDuration() { return keepList().reduce((t, [s, e]) => t + (e - s), 0) / state.speed; }
+  function outputDuration() { return DUR / state.speed; }
 
   /* ---------- video / playhead ---------- */
+  // one <video> per library video in use; the one under the playhead is shown, the rest wait hidden. The others
+  // sit in the same box as the first, fitted inside it with black bars, as the export pads them.
   const video = $('video');
-  let playhead = 0, playing = false, rafId = 0;
+  const vids = new Map([[D.id, video]]);
+  let cur = video, rate = 1;
+  let playhead = 0, playing = false, rafId = 0, playIdx = 0;
+  function vidFor(m) {
+    let v = vids.get(m);
+    if (!v) {
+      v = document.createElement('video');
+      v.src = pool.get(m).playUrl; v.preload = 'auto'; v.playsInline = true; v.className = 'ed-vid-extra';
+      v.style.visibility = 'hidden';
+      video.after(v);
+      v.addEventListener('seeked', () => renderSubs());
+      vids.set(m, v); layoutStage();
+    }
+    return v;
+  }
+  function show(v) {
+    if (cur === v) return;
+    cur.pause(); cur.style.visibility = 'hidden';
+    cur = v; cur.style.visibility = 'visible';
+  }
+  function locate(t) { const i = segAt(t), c = state.segments[i]; return { i, c, t: clamp(c.s + (t - c.start), c.s, c.e) }; }
   function seek(t, fromVideo) {
     playhead = clamp(t, 0, DUR);
-    if (!fromVideo && Math.abs(video.currentTime - playhead) > 0.001) video.currentTime = playhead;
+    if (!fromVideo) {
+      const L = locate(playhead), v = vidFor(L.c.m);
+      show(v);
+      if (Math.abs(v.currentTime - L.t) > 0.001) v.currentTime = L.t;
+    }
     // the subtitle preview follows the playhead, not the video's seeked event, which
     // does not fire while the media is still loading
     renderPlayhead(); renderSubs();
   }
-  function play() { if (playing) return; const i = segAt(playhead); if (state.segments[i].removed) jumpToNextKept(); video.play().catch(() => {}); }
-  function pause() { video.pause(); }
-  function jumpToNextKept() {
-    const i = segAt(playhead);
-    for (let k = i; k < state.segments.length; k++) if (!state.segments[k].removed) { seek(state.segments[k].start); return true; }
-    pause(); seek(state.segments[i].end); return false;
+  function startClip(i, t) {
+    playIdx = i;
+    const c = state.segments[i], v = vidFor(c.m);
+    show(v);
+    if (Math.abs(v.currentTime - t) > 0.03) v.currentTime = t;
+    v.playbackRate = rate;
+    v.play().catch(() => {});
   }
-  video.addEventListener('play', () => { playing = true; $('btnPlay').innerHTML = window.ICONS.pause; loop(); });
-  video.addEventListener('pause', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; cancelAnimationFrame(rafId); seek(video.currentTime, true); });
-  video.addEventListener('ended', () => { playing = false; $('btnPlay').innerHTML = window.ICONS.play; });
+  function play() {
+    if (playing) return;
+    if (playhead >= DUR - 0.02) playhead = 0;
+    const L = locate(playhead);
+    playing = true; $('btnPlay').innerHTML = window.ICONS.pause;
+    startClip(L.i, L.t);
+    loop();
+  }
+  function pause() {
+    cur.pause();
+    if (!playing) return;
+    playing = false; $('btnPlay').innerHTML = window.ICONS.play; cancelAnimationFrame(rafId);
+    renderPlayhead();
+  }
   video.addEventListener('loadedmetadata', () => layoutStage());
   video.addEventListener('seeked', () => renderSubs());
   function loop() {
     if (!playing) return;
-    playhead = video.currentTime;
-    const i = segAt(playhead);
-    if (state.segments[i].removed) { if (!jumpToNextKept()) return; }
+    const c = state.segments[playIdx];
+    if (!c) { pause(); return; }
+    const t = cur.currentTime;
+    if (t >= c.e - 0.015 || cur.ended) {   // this clip is through: the next one, or the end
+      if (playIdx + 1 >= state.segments.length) { pause(); seek(DUR); return; }
+      playhead = state.segments[playIdx + 1].start;
+      startClip(playIdx + 1, state.segments[playIdx + 1].s);
+    } else {
+      playhead = c.start + clamp(t - c.s, 0, c.e - c.s);
+    }
     renderPlayhead(); keepPlayheadVisible(); renderSubs();
     rafId = requestAnimationFrame(loop);
   }
   function stepFrames(n) { pause(); seek(snapFrame(playhead + n * FRAME)); }
   let jkl = 0;
   function shuttle(dir) { // J/K/L
-    if (dir === 0) { pause(); video.playbackRate = 1; jkl = 0; return; }
-    if (dir > 0) { jkl = jkl > 0 ? Math.min(jkl * 2, 8) : 1; video.playbackRate = jkl; play(); }
+    if (dir === 0) { pause(); rate = 1; jkl = 0; return; }
+    if (dir > 0) { jkl = jkl > 0 ? Math.min(jkl * 2, 8) : 1; rate = jkl; cur.playbackRate = rate; play(); }
     else { pause(); stepFrames(-Math.round(FPS / 4)); } // no native reverse playback: step back 1/4 s
   }
 
@@ -186,7 +304,8 @@
   const tlScroll = $('tlScroll'), tlInner = $('tlInner'), ruler = $('ruler'), track = $('track'), stripEl = $('strip'), segLayer = $('segments'), markLayer = $('marks'), playheadEl = $('playhead');
   let zoom = 1;
   const trackWidth = () => Math.max(10, tlScroll.clientWidth * zoom);
-  const pps = () => trackWidth() / DUR; // px per second
+  let ppsLock = 0;   // while a clip edge is dragged the scale stays put although the length changes
+  const pps = () => ppsLock || trackWidth() / DUR; // px per second
   const xOf = (t) => t * pps();
   const tOf = (x) => x / pps();
   function setZoom(z, anchorT) {
@@ -198,9 +317,10 @@
   function layoutTimeline() {
     const w = trackWidth();
     tlInner.style.width = w + 'px';
+    $('binLane').style.width = tlScroll.clientWidth + 'px';
     ruler.width = Math.floor(w * devicePixelRatio); ruler.height = Math.floor(28 * devicePixelRatio);
     ruler.style.width = w + 'px';
-    drawRuler(); renderSegments(); renderMarks(); renderCueTrack(true); renderPlayhead();
+    drawRuler(); renderSegments(); renderMarks(); renderCueTrack(true); renderPlayhead(); renderBin();
   }
   function drawRuler() {
     const ctx = ruler.getContext('2d'); const dpr = devicePixelRatio; const w = ruler.width / dpr, h = 28;
@@ -227,21 +347,55 @@
     if (!$('segStart').matches(':focus')) syncSegFields();
   }
   function keepPlayheadVisible() { const x = xOf(playhead); const l = tlScroll.scrollLeft, r = l + tlScroll.clientWidth; if (x < l || x > r - 20) tlScroll.scrollLeft = x - tlScroll.clientWidth * 0.2; }
+  // a piece of a video's filmstrip as the background of an element `w` px wide showing s..e of it
+  function stripStyle(el, c, w) {
+    const m = pool.get(c.m); if (!m || !m.stripUrl || !m.duration) return;
+    const full = w * m.duration / Math.max(0.001, c.e - c.s);
+    el.style.backgroundImage = `url("${m.stripUrl}")`;
+    el.style.backgroundSize = full + 'px 100%';
+    el.style.backgroundPosition = (-c.s / m.duration * full) + 'px 0';
+  }
+  const lenText = (d) => tc(d, false) + (d < 60 ? '.' + String(Math.round((d % 1) * 100)).padStart(2, '0') : '');
   function renderSegments() {
     segLayer.innerHTML = '';
     state.segments.forEach((s, i) => {
       const el = document.createElement('div');
-      el.className = 'seg' + (s.removed ? ' removed' : '') + (i === state.selected ? ' selected' : '');
-      el.style.left = xOf(s.start) + 'px'; el.style.width = Math.max(1, xOf(s.end) - xOf(s.start)) + 'px';
-      const len = document.createElement('span'); len.className = 'len'; len.textContent = tc(s.end - s.start, false) + ((s.end - s.start) < 60 ? '.' + String(Math.round(((s.end - s.start) % 1) * 100)).padStart(2, '0') : '');
+      const w = Math.max(1, xOf(s.end) - xOf(s.start));
+      el.className = 'seg clip' + (i === state.selected ? ' selected' : '') + (s.m !== D.id ? ' other' : '');
+      el.style.left = xOf(s.start) + 'px'; el.style.width = w + 'px';
+      stripStyle(el, s, w);
+      const len = document.createElement('span'); len.className = 'len'; len.textContent = lenText(s.end - s.start);
       el.appendChild(len);
+      const grip = document.createElement('span'); grip.className = 'grip'; grip.title = '끌어서 순서 바꾸기 / 아래 보관 칸으로 내리기'; grip.textContent = '\u2630';
+      el.appendChild(grip);
       el.dataset.i = i;
       segLayer.appendChild(el);
       if (i < state.segments.length - 1) {
         const b = document.createElement('div'); b.className = 'boundary'; b.style.left = xOf(s.end) + 'px'; b.dataset.i = i; segLayer.appendChild(b);
       }
     });
+    // the end of the last clip can be dragged too (trim / extend)
+    const last = state.segments[state.segments.length - 1];
+    const eb = document.createElement('div'); eb.className = 'boundary end'; eb.style.left = xOf(last.end) + 'px'; eb.dataset.i = state.segments.length - 1; segLayer.appendChild(eb);
     renderSegList();
+  }
+  // the bin: clips brought in from the library or parked from the track; not part of the result
+  function renderBin() {
+    const lane = $('binItems'); if (!lane) return;
+    lane.innerHTML = '';
+    state.bin.forEach((c, i) => {
+      const m = pool.get(c.m) || {};
+      const el = document.createElement('div');
+      const w = clamp((c.e - c.s) * 24, 72, 220);
+      el.className = 'binclip' + (c.m !== D.id ? ' other' : '');
+      el.style.width = w + 'px'; el.dataset.i = i;
+      el.title = (m.title || '') + ' · ' + tc(c.s) + ' - ' + tc(c.e) + ' · 끌어서 위 트랙에 올리기, 더블클릭: 재생 위치에 넣기';
+      stripStyle(el, c, w);
+      el.innerHTML = '<span class="len"></span><button type="button" class="x" title="보관 칸에서 지우기">\u00d7</button>';
+      el.querySelector('.len').textContent = lenText(c.e - c.s);
+      lane.appendChild(el);
+    });
+    $('binEmpty').hidden = state.bin.length > 0;
   }
   function renderMarks() {
     markLayer.innerHTML = '';
@@ -254,13 +408,12 @@
   function renderSegList() {
     const list = $('segList'); list.innerHTML = '';
     state.segments.forEach((s, i) => {
-      const el = document.createElement('div'); el.className = 'segitem' + (s.removed ? ' removed' : '') + (i === state.selected ? ' selected' : '');
-      el.innerHTML = `<span class="dot"></span><span>${tc(s.start)} - ${tc(s.end)}</span><span class="len">${(s.end - s.start).toFixed(2)}s</span>`;
+      const el = document.createElement('div'); el.className = 'segitem' + (i === state.selected ? ' selected' : '');
+      el.innerHTML = `<span class="dot"></span><span>${tc(s.start)} - ${tc(s.end)}${s.m !== D.id ? ' · ' + escHtml(((pool.get(s.m) || {}).title || '').slice(0, 14)) : ''}</span><span class="len">${(s.end - s.start).toFixed(2)}s</span>`;
       el.addEventListener('click', () => { state.selected = i; pause(); seek(s.start); renderSegments(); });
       list.appendChild(el);
     });
-    const kept = keepList();
-    $('keepSummary').textContent = `남는 구간 ${kept.length}개, 총 ${outputDuration().toFixed(2)}s (원본 ${DUR.toFixed(2)}s)`;
+    $('keepSummary').textContent = `클립 ${state.segments.length}개, 총 ${outputDuration().toFixed(2)}s` + (state.bin.length ? ` · 보관 ${state.bin.length}개` : '');
     $('outDuration').value = tc(outputDuration());
     syncSegFields();
   }
@@ -289,21 +442,104 @@
   segLayer.addEventListener('pointerdown', (e) => {
     const b = e.target.closest('.boundary');
     if (b) { startBoundaryDrag(+b.dataset.i, e, b); return; }
+    const grip = e.target.closest('.grip');
+    if (grip) { startClipDrag('top', +grip.parentNode.dataset.i, e); return; }
     const seg = e.target.closest('.seg');
     if (seg) { state.selected = +seg.dataset.i; renderSegments(); }
     startScrub(e);
   });
   segLayer.addEventListener('dblclick', (e) => {
     const b = e.target.closest('.boundary'); if (b) { mergeBoundary(+b.dataset.i); return; }
-    const seg = e.target.closest('.seg'); if (seg) toggleSeg(+seg.dataset.i);
   });
   function startBoundaryDrag(i, e, el) {
     e.stopPropagation(); e.preventDefault(); pause();
     el.classList.add('dragging'); commit();
-    const move = (ev) => { let t = tOf(clamp(localX(ev), 0, trackWidth())); if (!ev.altKey) t = snapTime(t, i); moveBoundary(i, t, true); seek(state.segments[i].end); };
-    const up = () => { el.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); renderAll(); };
+    ppsLock = pps();
+    const move = (ev) => { let t = tOf(Math.max(0, localX(ev))); if (!ev.altKey) t = snapTime(t, i); moveBoundary(i, t, true); seek(Math.max(0, state.segments[i].end - FRAME)); };
+    const up = () => { ppsLock = 0; el.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); layoutTimeline(); renderAll(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
+  // a clip dragged by its grip (track) or body (bin): onto the track = placed at the nearest clip edge,
+  // onto the bin = parked. A line shows where it lands.
+  function startClipDrag(from, idx, e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation(); pause();
+    const src = from === 'top' ? state.segments[idx] : state.bin[idx]; if (!src) return;
+    const ghost = document.createElement('div'); ghost.className = 'clipghost'; ghost.textContent = lenText(src.e - src.s);
+    const line = document.createElement('div'); line.className = 'dropline'; line.hidden = true;
+    document.body.appendChild(ghost); tlInner.appendChild(line);
+    const binBox = $('binLane');
+    let target = null, moved = false;
+    const edges = () => [0].concat(state.segments.map((s) => s.end));
+    const move = (ev) => {
+      moved = moved || Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 5;
+      ghost.style.left = ev.clientX + 8 + 'px'; ghost.style.top = ev.clientY + 8 + 'px';
+      const tr = track.getBoundingClientRect(), br = binBox.getBoundingClientRect();
+      target = null; line.hidden = true; binBox.classList.remove('drop');
+      if (ev.clientY >= tr.top - 30 && ev.clientY <= tr.bottom) {
+        const t = tOf(clamp(localX(ev), 0, xOf(DUR)));
+        let at = 0, best = Infinity;
+        edges().forEach((x, k) => { const d = Math.abs(x - t); if (d < best) { best = d; at = k; } });
+        target = { top: at };
+        line.hidden = false; line.style.left = xOf(edges()[at]) + 'px';
+      } else if (ev.clientY > tr.bottom && ev.clientY <= br.bottom + 20) {
+        target = { bin: true }; binBox.classList.add('drop');
+      }
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      ghost.remove(); line.remove(); binBox.classList.remove('drop');
+      if (!moved || !target) return;
+      if (from === 'top' && target.bin) toggleSeg(idx);
+      else if (from === 'top' && target.top !== undefined) moveClip(idx, target.top);
+      else if (from === 'bin' && target.top !== undefined) liftClip(idx, target.top);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+  $('binLane').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.x') || e.target.closest('#btnBinLoad')) return;
+    const el = e.target.closest('.binclip'); if (el) startClipDrag('bin', +el.dataset.i, e);
+  });
+  $('binLane').addEventListener('click', (e) => { const x = e.target.closest('.x'); if (x) dropBin(+x.parentNode.dataset.i); });
+  $('binLane').addEventListener('dblclick', (e) => { const el = e.target.closest('.binclip'); if (el && !e.target.closest('.x')) liftAtPlayhead(+el.dataset.i); });
+
+  // 불러오기: a library video joins the bin whole
+  async function openPicker() {
+    let box = document.getElementById('poolPicker');
+    if (!box) {
+      box = document.createElement('div'); box.id = 'poolPicker'; box.className = 'pool-picker';
+      box.innerHTML = '<div class="pp-box"><div class="pp-head"><b>라이브러리에서 영상 불러오기</b><input type="search" id="ppQ" placeholder="제목 검색"><button type="button" class="tb" id="ppClose">\u00d7</button></div><div class="pp-list" id="ppList"></div></div>';
+      document.body.appendChild(box);
+      box.addEventListener('click', (e) => { if (e.target === box || e.target.closest('#ppClose')) box.hidden = true; });
+      let timer = 0;
+      box.querySelector('#ppQ').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(loadPicker, 250); });
+      box.querySelector('#ppList').addEventListener('click', (e) => {
+        const it = e.target.closest('.pp-item'); if (!it) return;
+        const m = JSON.parse(it.dataset.m);
+        pool.set(m.id, m);
+        commit(); state.bin.push({ m: m.id, s: 0, e: m.duration }); renderBin(); renderSegList();
+        box.hidden = true; flash('아래 보관 칸에 넣었습니다. 끌어서 위 트랙의 원하는 자리에 올리세요.');
+      });
+    }
+    box.hidden = false; loadPicker();
+  }
+  async function loadPicker() {
+    const list = document.getElementById('ppList'); list.textContent = '불러오는 중...';
+    try {
+      const r = await fetch(D.poolUrl + '?q=' + encodeURIComponent(document.getElementById('ppQ').value.trim()), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const j = await r.json();
+      list.innerHTML = '';
+      (j.items || []).forEach((m) => {
+        const el = document.createElement('button'); el.type = 'button'; el.className = 'pp-item'; el.dataset.m = JSON.stringify(m);
+        el.innerHTML = (m.thumb ? '<img src="' + escHtml(m.thumb) + '" alt="" loading="lazy">' : '<span class="noimg"></span>') + '<span class="t"></span><span class="d"></span>';
+        el.querySelector('.t').textContent = m.title; el.querySelector('.d').textContent = tc(m.duration, false) + ' · ' + m.width + 'x' + m.height;
+        list.appendChild(el);
+      });
+      if (!list.children.length) list.textContent = '영상이 없습니다.';
+    } catch (err) { list.textContent = '불러오지 못했습니다: ' + err.message; }
+  }
+  $('btnBinLoad').addEventListener('click', openPicker);
+
   tlScroll.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); const t = tOf(localX(e)); setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), t); }
     else if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { tlScroll.scrollLeft += e.deltaY; }
@@ -354,8 +590,8 @@
   $('tcCurrent').addEventListener('blur', () => renderPlayhead());
   $('markIn').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markIn = snapFrame(t); } renderMarks(); });
   $('markOut').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markOut = snapFrame(t); } renderMarks(); });
-  $('segStart').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i > 0) { commit(); moveBoundary(i - 1, t); } else syncSegFields(); });
-  $('segEnd').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i < state.segments.length - 1) { commit(); moveBoundary(i, t); } else syncSegFields(); });
+  $('segStart').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i > 0 && joined(state.segments[i - 1], state.segments[i])) { pause(); commit(); moveBoundary(i - 1, t); } else syncSegFields(); });
+  $('segEnd').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null) { pause(); commit(); moveBoundary(i, t); } else syncSegFields(); });
 
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
@@ -438,11 +674,13 @@
     // the file itself is not rotated: size the element unrotated, then turn it about its
     // centre. Turned, its box is (h x w) and it fills the (w x h) stage exactly.
     const vw = turned() ? h : w, vh = turned() ? w : h;
-    video.style.width = vw + 'px'; video.style.height = vh + 'px';
     const t = state.transform;
-    // right to left: rotate, then mirror what is now on screen, then centre it
-    video.style.transform = 'translate(-50%,-50%) scale(' + (t.flipH ? -1 : 1) + ',' + (t.flipV ? -1 : 1) + ')'
-                          + ' rotate(' + t.rotate + 'deg)';
+    vids.forEach((el) => {
+      el.style.width = vw + 'px'; el.style.height = vh + 'px';
+      // right to left: rotate, then mirror what is now on screen, then centre it
+      el.style.transform = 'translate(-50%,-50%) scale(' + (t.flipH ? -1 : 1) + ',' + (t.flipV ? -1 : 1) + ')'
+                         + ' rotate(' + t.rotate + 'deg)';
+    });
     scale = w / SW(); renderOverlay();
   }
   function placeRect(el, r) { el.style.left = r.x * scale + 'px'; el.style.top = r.y * scale + 'px'; el.style.width = r.w * scale + 'px'; el.style.height = r.h * scale + 'px'; }
@@ -732,8 +970,8 @@
   });
   $('btnCueAdd').addEventListener('click', () => {
     const sub = curSub(); if (!sub) return; commit();
-    const t = video.currentTime || 0;
-    sub.cues.push({ start: +t.toFixed(3), end: +Math.min(D.duration, t + 2).toFixed(3), text: '자막',
+    const t = playhead;
+    sub.cues.push({ start: +t.toFixed(3), end: +Math.min(DUR, t + 2).toFixed(3), text: '자막',
                     style: styleOf(sub) });
     sub.cues.sort((a, b) => a.start - b.start);
     state.subCue = sub.cues.findIndex(c => Math.abs(c.start - t) < 0.001);
@@ -779,7 +1017,15 @@
         commit();
         if (!state.subtitles[li]) state.subtitles[li] = defaultSub();
         const sub = state.subtitles[li];
-        sub.cues = cues.map(c => ({ start: +(+c.start).toFixed(3), end: +Math.min(D.duration, +c.end).toFixed(3), text: String(c.text).slice(0, 200), src: String(c.src || '').slice(0, 200), style: styleOf(sub) }));
+        // the transcript runs on this video's clock: each line goes where the clip holding it sits in the sequence
+        sub.cues = [];
+        cues.forEach((c) => {
+          const clip = state.segments.find((k) => k.m === D.id && +c.start >= k.s - 0.001 && +c.start < k.e);
+          if (!clip) return;
+          const st = clip.start + (+c.start - clip.s), en = Math.min(clip.end, clip.start + (+c.end - clip.s));
+          if (en - st >= 0.05) sub.cues.push({ start: +st.toFixed(3), end: +en.toFixed(3), text: String(c.text).slice(0, 200), src: String(c.src || '').slice(0, 200), style: styleOf(sub) });
+        });
+        if (!sub.cues.length) { autosubState('인식된 문장이 편집 트랙의 클립 밖에 있습니다.', false); return; }
         sub.cues.sort((a, b) => a.start - b.start);
         state.subCue = 0;
         const langName = { en: '영어', ja: '일본어', zh: '중국어', vi: '베트남어', ko: '한국어', th: '태국어', id: '인도네시아어', es: '스페인어' }[j.language] || j.language || '';
@@ -800,8 +1046,8 @@
   ['cueStart', 'cueEnd'].forEach(id => $(id).addEventListener('change', () => {
     const sub = curSub(), c = sub && sub.cues[state.subCue]; if (!c) return; commit();
     const s = parseTc($('cueStart').value), e2 = parseTc($('cueEnd').value);
-    if (s !== null) c.start = clamp(s, 0, D.duration);
-    if (e2 !== null) c.end = clamp(e2, c.start + 0.1, D.duration);
+    if (s !== null) c.start = clamp(s, 0, DUR);
+    if (e2 !== null) c.end = clamp(e2, c.start + 0.1, DUR);
     sub.cues.sort((a, b) => a.start - b.start);
     state.subCue = sub.cues.indexOf(c);
     renderSubs();
@@ -1095,7 +1341,7 @@
       style: 'track',
       x: Math.round((e.clientX - r.left) / scale),
       y: Math.round((e.clientY - r.top) / scale),
-      at: +(video.currentTime || 0).toFixed(3),
+      at: +playhead.toFixed(3),
     });
     pickTrack = false;
     $('btnMaskTrack').classList.remove('active');
@@ -1159,7 +1405,7 @@
     state.facetrack = Object.assign({}, state.facetrack || FACE_DEF, {
       x: Math.round((e.clientX - r.left) / scale),
       y: Math.round((e.clientY - r.top) / scale),
-      at: +(video.currentTime || 0).toFixed(3),
+      at: +playhead.toFixed(3),
     });
     setPickFace(false); renderFace();
   }, true);
@@ -1305,7 +1551,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, cropAR: state.cropAR, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, facetrack: state.facetrack, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { clips: clipList(state.segments), bin: clipList(state.bin), transform: state.transform, crop: state.crop, cropAR: state.cropAR, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, facetrack: state.facetrack, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;
@@ -1343,11 +1589,11 @@
   /* ---------- misc ---------- */
   let flashTimer = 0;
   function flash(msg) { let el = document.getElementById('flash'); if (!el) { el = document.createElement('div'); el.id = 'flash'; el.style.cssText = 'position:fixed;left:50%;bottom:260px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:8px 14px;border-radius:8px;font-size:13px;z-index:99;pointer-events:none;transition:opacity .3s'; document.body.appendChild(el); } el.textContent = msg; el.style.opacity = 1; clearTimeout(flashTimer); flashTimer = setTimeout(() => el.style.opacity = 0, 1800); }
-  function renderAll() { renderSegments(); renderMarks(); renderPlayhead(); renderOverlay(); }
+  function renderAll() { renderSegments(); renderBin(); renderMarks(); renderPlayhead(); renderOverlay(); }
 
   /* ---------- init ---------- */
-  stripEl.style.backgroundImage = `url("${D.stripUrl}")`;
-  $('tcTotal').textContent = '/ ' + tc(DUR);
+  stripEl.hidden = true;   // each clip carries its own piece of filmstrip
+  reflow();
   syncOutputFields();
   // the buttons of a reopened edit (media.last_edit) show what the state holds
   document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x.dataset.sharpen === state.enhance.sharpen));

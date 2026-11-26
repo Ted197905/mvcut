@@ -72,7 +72,8 @@ class JobRunner
     {
         $src = $this->media->find($job['media_id']);
         if (! $src) throw new \RuntimeException('source media missing');
-        $p = EditParams::normalize(json_decode($job['params'], true) ?: [], $src);
+        $raw = json_decode($job['params'], true) ?: [];
+        $p = EditParams::normalize($raw, $src, $this->media->clipPool($raw, $src));
         return $this->encode($job, $src, $p, 'edit', ' - edit', json_encode($p, JSON_UNESCAPED_UNICODE), $log);
     }
 
@@ -1030,9 +1031,41 @@ class JobRunner
             if ($row && is_file(\App\Models\BgmModel::path($row))) $bgm = \App\Models\BgmModel::path($row);
         }
         $hasAudio = $bgm === null && ! empty($srcMeta['acodec']) && $aFmt !== 'none' && $fmt !== 'gif';
-        $n        = count($p['keep']);
         $f        = [];
         $vin = []; $ain = [];
+        $inputs = [$src];   // ffmpeg inputs: this video, then the other videos its clips come from
+        if (! empty($p['clips'])) {
+            // the editor's track: pieces of several videos in play order. Another video's picture is fitted inside
+            // this one's frame with black bars and brought to its frame rate, a clip without sound gets silence
+            $rows = $this->media->clipPool($p, $srcMeta);
+            $idx  = [(int) $srcMeta['id'] => 0];
+            $meta = [(int) $srcMeta['id'] => $srcMeta];
+            foreach ($rows as $id => $row) {
+                $path = MediaModel::dir($row) . '/' . $row['filename'];
+                if (! is_file($path)) throw new \RuntimeException('끼워 넣은 영상 파일이 없습니다 (#' . $id . ')');
+                $idx[(int) $id] = count($inputs); $meta[(int) $id] = $row; $inputs[] = $path;
+            }
+            $mixed = count($inputs) > 1;
+            $anyAudio = (bool) array_filter($p['clips'], static fn ($c) => ! empty($meta[(int) $c['m']]['acodec']));
+            $hasAudio = $bgm === null && $anyAudio && $aFmt !== 'none' && $fmt !== 'gif';
+            $W = (int) $srcMeta['width']; $H = (int) $srcMeta['height'];
+            $fps = min(60, (float) ($srcMeta['fps'] ?: 30));
+            foreach ($p['clips'] as $i => $c) {
+                if (! isset($idx[(int) $c['m']])) throw new \RuntimeException('끼워 넣은 영상을 찾을 수 없습니다 (#' . $c['m'] . ')');
+                $k = $idx[(int) $c['m']];
+                $fit = $mixed ? sprintf(',scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=%.3f,format=yuv420p', $W, $H, $W, $H, $fps) : '';
+                $f[] = sprintf('[%d:v]trim=start=%.3f:end=%.3f,setpts=PTS-STARTPTS%s[v%d]', $k, $c['s'], $c['e'], $fit, $i);
+                $vin[] = "[v{$i}]";
+                if ($hasAudio) {
+                    $f[] = ! empty($meta[(int) $c['m']]['acodec'])
+                        ? sprintf('[%d:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[a%d]', $k, $c['s'], $c['e'], $i)
+                        : sprintf('anullsrc=r=48000:cl=stereo,atrim=0:%.3f[a%d]', $c['e'] - $c['s'], $i);
+                    $ain[] = "[a{$i}]";
+                }
+            }
+            $n = count($p['clips']);
+        } else {
+        $n = count($p['keep']);
         foreach ($p['keep'] as $i => [$s, $e]) {
             $f[] = sprintf('[0:v]trim=start=%.3f:end=%.3f,setpts=PTS-STARTPTS[v%d]', $s, $e, $i);
             $vin[] = "[v{$i}]";
@@ -1040,6 +1073,7 @@ class JobRunner
                 $f[] = sprintf('[0:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS[a%d]', $s, $e, $i);
                 $ain[] = "[a{$i}]";
             }
+        }
         }
         if ($hasAudio) {
             $pairs = '';
@@ -1156,12 +1190,13 @@ class JobRunner
         if ($bgm !== null) {
             $dur  = max(0.1, EditParams::outputDuration($p));
             $fade = min(1.5, $dur / 2);
-            $f[] = sprintf('[1:a]atrim=0:%.3f,asetpts=PTS-STARTPTS,afade=t=out:st=%.3f:d=%.3f,aresample=48000[aout]', $dur, $dur - $fade, $fade);
+            $f[] = sprintf('[%d:a]atrim=0:%.3f,asetpts=PTS-STARTPTS,afade=t=out:st=%.3f:d=%.3f,aresample=48000[aout]', count($inputs), $dur, $dur - $fade, $fade);
             $hasAudio = true;
         }
 
         $bin  = Ffmpeg::bin('ffmpeg');
-        $args = [$bin, '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-i', $src];
+        $args = [$bin, '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1'];
+        foreach ($inputs as $in) array_push($args, '-i', $in);
         if ($bgm !== null) array_push($args, '-stream_loop', '-1', '-i', $bgm);
         array_push($args, '-filter_complex', implode(';', $f), '-map', '[vout]');
         if ($hasAudio) { $args[] = '-map'; $args[] = '[aout]'; } else { $args[] = '-an'; }

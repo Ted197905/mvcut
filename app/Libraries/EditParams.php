@@ -94,13 +94,34 @@ class EditParams
         return $ov;
     }
 
-    public static function normalize(array $in, array $media): array
+    public static function normalize(array $in, array $media, array $pool = []): array
     {
         $dur = (float) $media['duration'];
         $W   = (int) $media['width'];
         $H   = (int) $media['height'];
         if ($dur <= 0 || $W <= 0 || $H <= 0) {
             throw new \InvalidArgumentException('원본 메타데이터가 없어 편집할 수 없습니다.');
+        }
+
+        // clips: the editor's top track - pieces of this video and of others from the library ($pool: id => media
+        // row), in play order. The sequence they make is the clock of everything below (subtitle cues, track points),
+        // so `keep` becomes the whole of it and the cut-and-join step of the encode reads `clips` instead.
+        $clips = null;
+        if (! empty($in['clips']) && is_array($in['clips'])) {
+            $clips = [];
+            foreach ($in['clips'] as $c) {
+                $mid = (int) ($c['m'] ?? 0);
+                $row = $mid === (int) $media['id'] ? $media : ($pool[$mid] ?? null);
+                if (! $row) throw new \InvalidArgumentException('끼워 넣은 영상을 라이브러리에서 찾을 수 없습니다 (#' . $mid . ').');
+                $md = (float) $row['duration'];
+                $s  = max(0.0, min($md, (float) ($c['s'] ?? 0)));
+                $e  = max(0.0, min($md, (float) ($c['e'] ?? 0)));
+                if ($e - $s >= 0.04) $clips[] = ['m' => $mid, 's' => round($s, 3), 'e' => round($e, 3)];
+            }
+            if ($clips === []) throw new \InvalidArgumentException('남길 구간이 없습니다.');
+            if (count($clips) > 300) throw new \InvalidArgumentException('클립이 너무 많습니다 (300개까지).');
+            $dur = round(array_sum(array_map(static fn ($c) => $c['e'] - $c['s'], $clips)), 3);
+            $in['keep'] = [[0, $dur]];
         }
 
         // keep segments
@@ -277,6 +298,7 @@ class EditParams
         };
 
         return [
+            'clips'     => $clips,
             'keep'      => $keep,
             'transform' => $transform,
             'crop'      => $crop,
@@ -327,6 +349,13 @@ class EditParams
         };
         $lines = [];
 
+        if (! empty($p['clips'])) {
+            $others = count(array_unique(array_filter(array_column($p['clips'], 'm'), static fn ($m) => (int) $m !== (int) $src['id'])));
+            $total  = array_sum(array_map(static fn ($c) => $c['e'] - $c['s'], $p['clips']));
+            $one    = count($p['clips']) === 1 && ! $others && $p['clips'][0]['s'] <= 0.05 && abs($p['clips'][0]['e'] - (float) $src['duration']) <= 0.05;
+            if (! $one) $lines[] = '클립: ' . count($p['clips']) . '개' . ($others ? ' (다른 영상 ' . $others . '개 포함)' : '') . ' · 합계 ' . $fmtTime($total);
+            $p['keep'] = [[0, (float) $src['duration']]];   // nothing more to say about ranges
+        }
         $n = count($p['keep']);
         $kept = array_sum(array_map(static fn ($seg) => $seg[1] - $seg[0], $p['keep']));
         $whole = $n === 1 && $p['keep'][0][0] <= 0.05 && abs($p['keep'][0][1] - (float) $src['duration']) <= 0.05;

@@ -95,6 +95,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('edit/(:num)', 'Edit::index/$1');
     $routes->get('bgm/(:num)/file', 'Edit::bgmFile/$1');
     $routes->post('api/edit/(:num)', 'Edit::submit/$1');
+    $routes->get('api/edit/(:num)/pool', 'Edit::pool/$1');
     $routes->post('api/edit/(:num)/autosub', 'Edit::autosub/$1');
     $routes->get('api/edit/(:num)/autosub/(:num)', 'Edit::autosubStatus/$1/$2');
     $routes->post('api/prefs/watermark', 'Prefs::watermark');
