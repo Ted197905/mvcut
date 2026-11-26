@@ -15,7 +15,7 @@ class Ssul extends BaseController
     public const ACCOUNTS = ['blackout' => '@blackout_kr', 'maeum' => '마음자로', 'hue' => 'HUE 한류분석'];
     public const KINDS    = ['trend' => '트렌드 썰', 'keyword' => '키워드 썰', 'article' => '트렌드 기사'];
     public const MODES    = ['remix' => '실제 썰 재구성', 'create' => '창작'];
-    public const TYPES    = ['auto' => '자동', 'twist' => '반전 썰', 'dialog' => '대화체', 'relate' => '공감 일상', 'gap' => '기대 vs 현실', 'mistake' => '실수/교훈',
+    public const TYPES    = ['auto' => '자동', 'twist' => '반전 썰', 'relate' => '공감 일상', 'gap' => '기대 vs 현실', 'mistake' => '실수/교훈',
                              'arc' => '변화 스토리', 'contra' => '통념 반박', 'list' => '리스트', 'analysis' => '분석 분해'];
     public const ORIGINS  = ['community' => '커뮤니티', 'google' => '구글', 'nate' => '네이트', 'signal' => '시그널', 'x' => 'X'];
     private const STATUS  = ['queued' => ['대기', 'warn'], 'running' => ['쓰는 중', 'warn'], 'done' => ['완료', 'ok'], 'failed' => ['실패', 'bad']];

@@ -185,7 +185,7 @@ main.wide.settings.ssul { max-width: 980px; }
   const card = (j) => {
     const done = j.status === 'done', sent = j.draft !== 0;
     const head = `<div class="ss-head"><span class="ck-badge ${j.cls}">${esc(j.label)}</span><b>${esc(j.keyword)}</b>
-      <span>${esc(j.kind)} · ${esc(j.mode)} · ${esc(j.account)}${j.ptype && !j.isArticle ? ' · ' + esc(j.ptype) : ''}${j.auto ? ' · 자동' : ''} · ${esc(j.when)}</span>
+      <span>${esc(j.kind)} · ${esc(j.mode)} · ${esc(j.account)}${j.ptype && !j.isArticle ? ' · ' + (j.ptype === '자동' ? '유형 자동' : esc(j.ptype)) : ''}${j.auto ? ' · 자동 생성' : ''} · ${esc(j.when)}</span>
       ${j.made === 'create' ? '<span class="ck-badge warn" title="지어낸 이야기입니다">창작</span>' : ''}${sent ? `<span class="ck-badge ok">${j.draft > 0 ? '초안 #' + j.draft : '초안으로 보내는 중'}</span>` : ''}</div>`;
     let body = '';
     if (j.status === 'queued' || j.status === 'running') body = `<p class="ss-wait">${j.status === 'running' ? '쓰는 중입니다...' : '차례를 기다립니다...'}${j.note ? ' (요청: ' + esc(j.note) + ')' : ''}</p>`;
