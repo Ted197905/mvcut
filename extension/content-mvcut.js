@@ -8,6 +8,7 @@ window.__mvcutLive = true;
 document.documentElement.dataset.mvcutX = '1';
 document.documentElement.dataset.mvcutXMulti = '1';   // send-to-x takes files[] (up to 4 photos)
 document.documentElement.dataset.mvcutXVersion = chrome.runtime.getManifest().version;
+document.documentElement.dataset.mvcutXReload = '1';   // the page may ask the extension to reload itself from its folder (ext-reload, 1.12.0)
 
 // After an extension reload this copy of the script is orphaned (no chrome.runtime.id, chrome.* throws
 // "Extension context invalidated"): it stays quiet, the live copy bg.js re-injects answers instead, and a page
@@ -34,6 +35,10 @@ window.addEventListener('message', (e) => {
       window.postMessage({ source: 'mvcut-ext', type: 'x-purge-progress', job: String(d.job || ''), done: true, status: 'error',
                            error: '확장이 새로고침되어 이 페이지와 연결이 끊겼습니다. 페이지를 새로고침하세요.' }, location.origin);
     }
+    return;
+  }
+  if (d && d.source === 'mvcut' && d.type === 'ext-reload') {   // an unpacked extension reads its files again: an update without chrome://extensions
+    try { chrome.runtime.sendMessage({ type: 'ext-reload' }).catch(() => {}); } catch (err) { /* orphaned copy */ }
     return;
   }
   if (!d || d.source !== 'mvcut' || d.type !== 'send-to-x' || (typeof d.url !== 'string' && !Array.isArray(d.files))) return;

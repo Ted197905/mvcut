@@ -19,6 +19,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     });
     return true;
   }
+  if (msg && msg.type === 'ext-reload') {   // asked by a MV Cut page (content-mvcut.js): the files on disk are newer than what is loaded
+    reply({ ok: true });
+    setTimeout(() => chrome.runtime.reload(), 300);
+    return true;
+  }
   if (msg && msg.type === 'x-done') {   // content-x.js scheduled the post itself (submit): its tab is done
     const id = sender.tab && sender.tab.id;
     if (id != null) setTimeout(() => chrome.tabs.remove(id).catch(() => {}), 2500);

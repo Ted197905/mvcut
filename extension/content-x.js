@@ -46,16 +46,17 @@
   // a paste event is one of them (and, unlike the /intent URL, the text then survives the
   // caption / content-warning sub-screens).
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const fillText = async (text, n = 0) => {
+  const BOXES = 'div[role="dialog"] div[data-testid^="tweetTextarea_"][contenteditable="true"]';
+  const fillText = async (text, box) => {
     if (!text) return;
-    const box = await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_' + n + '"][contenteditable="true"]');
+    box = box || await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_0"][contenteditable="true"]');
     box.focus();
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
     box.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
     await new Promise((r) => setTimeout(r, 400));
     if (!box.innerText.trim()) document.execCommand('insertText', false, text);
-    if (!box.innerText.trim()) throw new Error((n + 1) + '번째 글을 넣지 못했습니다');
+    if (!box.innerText.trim()) throw new Error('글을 넣지 못했습니다: ' + text.slice(0, 20));
   };
 
   // "게시물 추가" needs the whole pointer sequence: a bare click() empties the composer instead of adding a post box (seen 2026-11-26)
@@ -80,12 +81,28 @@
       await sleep(400);
     }
   };
-  const addPost = async (n, text) => {
+  // X puts the new box right under the FIRST post however the others are focused from a script (seen 2026-11-26: C1, C2, then C3
+  // landed between them), so the thread is built from its last post up; the new box is the empty one, wherever it is, and the
+  // order is checked at the end (checkOrder) before anything is scheduled.
+  const addPost = async (text) => {
+    const before = document.querySelectorAll(BOXES).length;
     press(await enabled('div[role="dialog"] [data-testid="addButton"]', 180000));
-    await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_' + n + '"][contenteditable="true"]', 8000);
+    const until = Date.now() + 8000;
+    let box = null;
+    while (!box) {
+      const all = Array.from(document.querySelectorAll(BOXES));
+      if (all.length > before) box = all.find((b) => !b.innerText.trim());
+      if (!box && Date.now() > until) throw new Error('답글 칸이 추가되지 않았습니다');
+      if (!box) await sleep(200);
+    }
     await sleep(350);
-    await fillText(text, n);
+    await fillText(text, box);
     await sleep(350);
+  };
+  const norm = (t) => String(t).replace(/\s+/g, '').slice(0, 18);
+  const checkOrder = (texts) => {
+    const got = Array.from(document.querySelectorAll(BOXES)).map((b) => norm(b.innerText));
+    if (got.length !== texts.length || texts.some((t, i) => norm(t) !== got[i])) throw new Error('타래 순서가 맞지 않습니다. 작성창을 확인하세요 (예약하지 않았습니다).');
   };
 
   // the composer's schedule screen: native selects (SELECTOR_1..6 = month, day, year, hour, minute, am/pm) driven by React
@@ -131,9 +148,10 @@
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
     const parts = Array.isArray(job.parts) ? job.parts : [];
-    for (let i = 0; i < parts.length; i++) {
-      if (i === 0) await sleep(700);
-      await addPost(i + 1, parts[i]);
+    if (parts.length) {
+      await sleep(700);
+      for (let i = parts.length - 1; i >= 0; i--) await addPost(parts[i]);
+      checkOrder([job.text, ...parts]);
     }
     let scheduled = false;
     if (job.at) {
@@ -167,6 +185,7 @@
       const sel = 'div[role="dialog"] [data-testid="tweetButton"]';
       const btn = await enabled(sel, 300000);
       if (!/예약|Schedule/i.test(btn.innerText)) throw new Error('예약 버튼이 아닙니다: 누르지 않았습니다');
+      if (parts.length) checkOrder([job.text, ...parts]);
       await sleep(900 + Math.random() * 900);
       btn.click();
       const until = Date.now() + 30000;

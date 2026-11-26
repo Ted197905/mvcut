@@ -85,3 +85,16 @@ window.mvSendToX = (data) => new Promise((resolve, reject) => {
   document.addEventListener('click', (e) => { if (!e.target.closest('.nav')) set(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
 })();
+
+// The Chrome extension is loaded unpacked from the project folder: when the loaded copy is older than the one this code
+// was deployed with, it is asked to reload itself (1.12.0+ takes the request), then this page reloads once to get the
+// new content script. Older copies need one manual reload at chrome://extensions.
+window.addEventListener('load', () => setTimeout(() => {
+  const want = (document.querySelector('meta[name="mvcut-ext"]') || {}).content || '';
+  const el = document.documentElement, have = el.dataset.mvcutXVersion || '';
+  const num = (v) => v.split('.').map(Number).reduce((a, n) => a * 100 + (n || 0), 0);
+  if (!want || !have || num(have) >= num(want) || el.dataset.mvcutXReload !== '1') return;
+  try { if (sessionStorage.getItem('mvcut.extReload') === want) return; sessionStorage.setItem('mvcut.extReload', want); } catch (e) { return; }
+  window.postMessage({ source: 'mvcut', type: 'ext-reload' }, location.origin);
+  setTimeout(() => location.reload(), 2500);
+}, 800));

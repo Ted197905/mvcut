@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf" data-name="<?= csrf_token() ?>" content="<?= csrf_hash() ?>">
 <meta name="expired-url" content="<?= site_url('session/expired') ?>">
+<?php $extV = json_decode((string) @file_get_contents(ROOTPATH . 'extension/manifest.json'), true)['version'] ?? ''; // the extension version this code expects (app.js reloads an older one) ?>
+<meta name="mvcut-ext" content="<?= esc($extV, 'attr') ?>">
 <title>MV Cut<?= ! empty($title) && $title !== 'MV Cut' ? ' - ' . esc($title) : '' ?></title>
 <?= view('partials/favicon') ?>
 <link rel="stylesheet" href="<?= asset_url('assets/css/app.css') ?>">
