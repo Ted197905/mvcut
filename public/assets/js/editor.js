@@ -586,6 +586,21 @@
   $('btnNextFrame').addEventListener('click', () => stepFrames(1));
   $('btnSplit').addEventListener('click', () => split(playhead));
   $('btnSplit2').addEventListener('click', () => split(playhead));
+  // the frame the preview shows right now, as a file (the preview video's own picture, no re-encode on the server)
+  $('btnStill').addEventListener('click', () => {
+    if (!cur.videoWidth) { flash('아직 화면이 준비되지 않았습니다'); return; }
+    const cv = document.createElement('canvas'); cv.width = cur.videoWidth; cv.height = cur.videoHeight;
+    try {
+      cv.getContext('2d').drawImage(cur, 0, 0);
+      cv.toBlob((blob) => {
+        if (!blob) { flash('이미지를 만들지 못했습니다'); return; }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'still-' + D.id + '-' + tc(playhead).replace(/:/g, '') + '.jpg';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      }, 'image/jpeg', 0.95);
+    } catch (e) { flash('이미지를 만들지 못했습니다'); }
+  });
   $('btnToggleSeg').addEventListener('click', () => toggleSeg(state.selected));
   $('btnDelete').addEventListener('click', () => toggleSeg(state.selected));
   $('btnMarkIn').addEventListener('click', markIn); $('btnMarkOut').addEventListener('click', markOut);

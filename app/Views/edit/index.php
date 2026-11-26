@@ -467,6 +467,7 @@ $icons = [
       <button class="tb" id="btnMarkIn" title="마크 In (I)">I</button>
       <button class="tb" id="btnMarkOut" title="마크 Out (O)">O</button>
       <button class="tb" id="btnSplit2" title="재생 위치에서 자르기 (S)" aria-label="자르기"><?= $icons['split'] ?></button>
+      <button class="tb still" id="btnStill" title="지금 보이는 화면을 이미지로 받기">스틸 저장</button>
       <button class="tb" id="btnDelete" title="선택한 클립을 아래 보관 칸으로 내리기 (Del)" aria-label="클립 내리기"><?= $icons['trash'] ?></button>
       <span class="sep"></span>
       <label class="zoom" title="줌 (Ctrl+휠, +/-)">&#x1F50D;<input type="range" id="zoom" min="1" max="60" step="0.5" value="1"></label>

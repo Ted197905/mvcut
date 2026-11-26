@@ -297,3 +297,5 @@
 .seg .grip { right: 14px; }
 .clipghost[hidden] { display: none; }
 @media (max-width: 900px) { .seg .trim { width: 18px; } }
+
+.tb.still { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
