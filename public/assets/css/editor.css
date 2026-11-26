@@ -286,3 +286,14 @@
 .pp-item img, .pp-item .noimg { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 5px; background: #000; display: block; }
 .pp-item .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-item .d { color: var(--e-fg3, #888); font-size: 11px; }
+
+.seg.clip { border: 1px solid rgba(255,255,255,.45); border-radius: 6px; cursor: grab; }
+.seg.clip.selected { border: 2px solid var(--e-accent); }
+.seg .trim { position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; z-index: 3; touch-action: none; }
+.seg .trim.l { left: 0; } .seg .trim.r { right: 0; }
+.seg .trim::before { content: ""; position: absolute; top: 22%; bottom: 22%; width: 3px; border-radius: 2px; background: rgba(255,255,255,.85); }
+.seg .trim.l::before { left: 2px; } .seg .trim.r::before { right: 2px; }
+.seg .trim:hover::before { background: var(--e-accent); top: 8%; bottom: 8%; width: 4px; }
+.seg .grip { right: 14px; }
+.clipghost[hidden] { display: none; }
+@media (max-width: 900px) { .seg .trim { width: 18px; } }

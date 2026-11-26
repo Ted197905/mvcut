@@ -89,18 +89,18 @@ $icons = [
           </div>
         </div>
         <div class="sec">
-          <div class="sec-title">선택한 세그먼트 <span class="hint">S 분할 · Del 삭제</span></div>
+          <div class="sec-title">선택한 클립 <span class="hint">S 자르기 · Del 아래로 내리기</span></div>
           <div class="row2">
             <label>시작<input class="tc" id="segStart"></label>
             <label>끝<input class="tc" id="segEnd"></label>
           </div>
           <div class="row2">
-            <button class="btn sm secondary" id="btnSplit">플레이헤드에서 분할</button>
-            <button class="btn sm secondary" id="btnToggleSeg">삭제 / 복원</button>
+            <button class="btn sm secondary" id="btnSplit">재생 위치에서 자르기</button>
+            <button class="btn sm secondary" id="btnToggleSeg">아래로 내리기</button>
           </div>
         </div>
         <div class="sec">
-          <div class="sec-title">세그먼트 목록</div>
+          <div class="sec-title">클립 목록</div>
           <div class="seglist" id="segList"></div>
           <div class="hint" id="keepSummary"></div>
         </div>
@@ -466,7 +466,7 @@ $icons = [
       <span class="spacer"></span>
       <button class="tb" id="btnMarkIn" title="마크 In (I)">I</button>
       <button class="tb" id="btnMarkOut" title="마크 Out (O)">O</button>
-      <button class="tb" id="btnSplit2" title="플레이헤드에서 분할 (S)" aria-label="분할"><?= $icons['split'] ?></button>
+      <button class="tb" id="btnSplit2" title="재생 위치에서 자르기 (S)" aria-label="자르기"><?= $icons['split'] ?></button>
       <button class="tb" id="btnDelete" title="선택한 클립을 아래 보관 칸으로 내리기 (Del)" aria-label="클립 내리기"><?= $icons['trash'] ?></button>
       <span class="sep"></span>
       <label class="zoom" title="줌 (Ctrl+휠, +/-)">&#x1F50D;<input type="range" id="zoom" min="1" max="60" step="0.5" value="1"></label>

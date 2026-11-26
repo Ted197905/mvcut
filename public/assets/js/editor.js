@@ -159,13 +159,13 @@
     state.segments.splice(i, 2, { m: a.m, s: a.s, e: b.e });
     changed(i);
   }
-  // the edge between clips i and i+1 moved to sequence time t: the cut point slides when the two are one cut,
-  // otherwise clip i's end is trimmed or extended and everything after it follows
-  function moveBoundary(i, t, live) {
-    const a = state.segments[i], b = state.segments[i + 1];
-    let at = a.s + (snapFrame(t) - a.start);
-    if (b && joined(a, b)) { at = clamp(at, a.s + MIN_SEG, b.e - MIN_SEG); a.e = at; b.s = at; }
-    else a.e = clamp(at, a.s + MIN_SEG, mediaDur(a.m));
+  // one edge of clip i dragged by `d` seconds from where the drag began (o = the clip then): the front edge moves
+  // the in point, the back edge the out point; the clips after it follow (ripple)
+  function trimClip(i, side, d, o, live) {
+    const c = state.segments[i]; if (!c) return;
+    const snap = (v) => Math.round(v * FPS) / FPS;
+    if (side === 'l') c.s = clamp(snap(o.s + d), 0, c.e - MIN_SEG);
+    else c.e = clamp(snap(o.e + d), c.s + MIN_SEG, mediaDur(c.m));
     reflow();
     if (live) renderSegments(); else { layoutTimeline(); renderAll(); }
   }
@@ -362,21 +362,17 @@
       const el = document.createElement('div');
       const w = Math.max(1, xOf(s.end) - xOf(s.start));
       el.className = 'seg clip' + (i === state.selected ? ' selected' : '') + (s.m !== D.id ? ' other' : '');
-      el.style.left = xOf(s.start) + 'px'; el.style.width = w + 'px';
+      el.style.left = (xOf(s.start) + 1) + 'px'; el.style.width = Math.max(1, w - 2) + 'px';
       stripStyle(el, s, w);
       const len = document.createElement('span'); len.className = 'len'; len.textContent = lenText(s.end - s.start);
       el.appendChild(len);
       const grip = document.createElement('span'); grip.className = 'grip'; grip.title = '끌어서 순서 바꾸기 / 아래 보관 칸으로 내리기'; grip.textContent = '\u2630';
       el.appendChild(grip);
+      // both ends can be dragged: shorter, or longer again up to what the video has
+      for (const side of ['l', 'r']) { const h = document.createElement('span'); h.className = 'trim ' + side; h.dataset.side = side; h.title = side === 'l' ? '앞쪽 줄이기/늘리기' : '뒤쪽 줄이기/늘리기'; el.appendChild(h); }
       el.dataset.i = i;
       segLayer.appendChild(el);
-      if (i < state.segments.length - 1) {
-        const b = document.createElement('div'); b.className = 'boundary'; b.style.left = xOf(s.end) + 'px'; b.dataset.i = i; segLayer.appendChild(b);
-      }
     });
-    // the end of the last clip can be dragged too (trim / extend)
-    const last = state.segments[state.segments.length - 1];
-    const eb = document.createElement('div'); eb.className = 'boundary end'; eb.style.left = xOf(last.end) + 'px'; eb.dataset.i = state.segments.length - 1; segLayer.appendChild(eb);
     renderSegList();
   }
   // the bin: clips brought in from the library or parked from the track; not part of the result
@@ -440,39 +436,54 @@
   }
   ruler.addEventListener('pointerdown', startScrub);
   segLayer.addEventListener('pointerdown', (e) => {
-    const b = e.target.closest('.boundary');
-    if (b) { startBoundaryDrag(+b.dataset.i, e, b); return; }
+    const tr = e.target.closest('.trim');
+    if (tr) { startTrim(+tr.parentNode.dataset.i, tr.dataset.side, e, tr); return; }
     const grip = e.target.closest('.grip');
     if (grip) { startClipDrag('top', +grip.parentNode.dataset.i, e); return; }
     const seg = e.target.closest('.seg');
     if (seg) { state.selected = +seg.dataset.i; renderSegments(); }
+    // with a mouse the clip's body drags it too; a plain click moves the playhead there. Touch scrolls the timeline,
+    // so there the grip is the handle.
+    if (seg && e.pointerType === 'mouse' && e.button === 0) { startClipDrag('top', +seg.dataset.i, e, () => startScrub(e)); return; }
     startScrub(e);
   });
   segLayer.addEventListener('dblclick', (e) => {
-    const b = e.target.closest('.boundary'); if (b) { mergeBoundary(+b.dataset.i); return; }
+    // a cut between two pieces that still follow each other is undone by a double click on its edge
+    const tr = e.target.closest('.trim'); if (!tr) return;
+    const i = +tr.parentNode.dataset.i;
+    mergeBoundary(tr.dataset.side === 'l' ? i - 1 : i);
   });
-  function startBoundaryDrag(i, e, el) {
+  function startTrim(i, side, e, el) {
     e.stopPropagation(); e.preventDefault(); pause();
-    el.classList.add('dragging'); commit();
+    commit();
+    state.selected = i;
     ppsLock = pps();
-    const move = (ev) => { let t = tOf(Math.max(0, localX(ev))); if (!ev.altKey) t = snapTime(t, i); moveBoundary(i, t, true); seek(Math.max(0, state.segments[i].end - FRAME)); };
-    const up = () => { ppsLock = 0; el.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); layoutTimeline(); renderAll(); };
+    const o = { s: state.segments[i].s, e: state.segments[i].e }, x0 = localX(e);
+    const move = (ev) => {
+      trimClip(i, side, (localX(ev) - x0) / ppsLock, o, true);
+      const c = state.segments[i];
+      seek(side === 'l' ? c.start : Math.max(c.start, c.end - FRAME));   // the frame the edge now lands on
+    };
+    const up = () => { ppsLock = 0; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); layoutTimeline(); renderAll(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
   // a clip dragged by its grip (track) or body (bin): onto the track = placed at the nearest clip edge,
   // onto the bin = parked. A line shows where it lands.
-  function startClipDrag(from, idx, e) {
+  function startClipDrag(from, idx, e, onClick) {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation(); pause();
     const src = from === 'top' ? state.segments[idx] : state.bin[idx]; if (!src) return;
     const ghost = document.createElement('div'); ghost.className = 'clipghost'; ghost.textContent = lenText(src.e - src.s);
     const line = document.createElement('div'); line.className = 'dropline'; line.hidden = true;
+    ghost.hidden = true;
     document.body.appendChild(ghost); tlInner.appendChild(line);
     const binBox = $('binLane');
     let target = null, moved = false;
     const edges = () => [0].concat(state.segments.map((s) => s.end));
     const move = (ev) => {
-      moved = moved || Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 5;
+      moved = moved || Math.abs(ev.clientX - e.clientX) + Math.abs(ev.clientY - e.clientY) > 6;
+      if (!moved) return;
+      ghost.hidden = false;
       ghost.style.left = ev.clientX + 8 + 'px'; ghost.style.top = ev.clientY + 8 + 'px';
       const tr = track.getBoundingClientRect(), br = binBox.getBoundingClientRect();
       target = null; line.hidden = true; binBox.classList.remove('drop');
@@ -489,7 +500,8 @@
     const up = () => {
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
       ghost.remove(); line.remove(); binBox.classList.remove('drop');
-      if (!moved || !target) return;
+      if (!moved) { if (onClick) onClick(); return; }
+      if (!target) return;
       if (from === 'top' && target.bin) toggleSeg(idx);
       else if (from === 'top' && target.top !== undefined) moveClip(idx, target.top);
       else if (from === 'bin' && target.top !== undefined) liftClip(idx, target.top);
@@ -590,8 +602,8 @@
   $('tcCurrent').addEventListener('blur', () => renderPlayhead());
   $('markIn').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markIn = snapFrame(t); } renderMarks(); });
   $('markOut').addEventListener('change', (e) => { const t = parseTc(e.target.value); if (t !== null) { state.markOut = snapFrame(t); } renderMarks(); });
-  $('segStart').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null && i > 0 && joined(state.segments[i - 1], state.segments[i])) { pause(); commit(); moveBoundary(i - 1, t); } else syncSegFields(); });
-  $('segEnd').addEventListener('change', (e) => { const t = parseTc(e.target.value); const i = state.selected; if (t !== null) { pause(); commit(); moveBoundary(i, t); } else syncSegFields(); });
+  $('segStart').addEventListener('change', (e) => { const t = parseTc(e.target.value); const c = state.segments[state.selected]; if (t !== null && c) { pause(); commit(); trimClip(state.selected, 'l', t - c.start, { s: c.s, e: c.e }); seek(state.segments[state.selected].start); } else syncSegFields(); });
+  $('segEnd').addEventListener('change', (e) => { const t = parseTc(e.target.value); const c = state.segments[state.selected]; if (t !== null && c) { pause(); commit(); trimClip(state.selected, 'r', t - c.end, { s: c.s, e: c.e }); } else syncSegFields(); });
 
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
