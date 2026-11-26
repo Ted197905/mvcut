@@ -36,6 +36,7 @@ $icons = [
     <div class="ed-title"><span class="name"><?= esc($item['title']) ?></span>
       <span class="meta"><?= esc($item['width'] . 'x' . $item['height']) ?> · <?= esc(rtrim(rtrim((string) $item['fps'], '0'), '.')) ?> fps · <?= esc($item['vcodec']) ?></span></div>
     <div class="ed-top-actions">
+      <?php if (! empty($resumed)): ?><a class="ed-fresh" href="<?= site_url('edit/' . $item['id']) ?>?fresh=1" title="마지막 편집 상태를 불러왔습니다. 누르면 아무 편집도 없는 상태로 다시 엽니다">처음부터</a><?php endif ?>
       <button class="tb" id="btnUndo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소" disabled><?= $icons['undo'] ?></button>
       <button class="tb" id="btnRedo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행" disabled><?= $icons['redo'] ?></button>
       <button class="btn sm" id="btnSave">저장</button>
@@ -507,6 +508,7 @@ window.EDITOR_DATA = <?= json_encode([
     'jobsUrl'  => site_url('api/jobs'),
     'libraryUrl' => site_url('library'),
     'params'   => $params,
+    'resumed'  => ! empty($resumed),
     'wmPreset' => $wmPreset,
     'wmPrefUrl'=> site_url('api/prefs/watermark'),
     'aiEnabled'=> (bool) $aiEnabled,

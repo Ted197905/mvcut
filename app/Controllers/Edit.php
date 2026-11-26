@@ -24,11 +24,19 @@ class Edit extends BaseController
             unset($output['bgm']);
             $params = ['output' => $output];
         }
+        // the state of the last edit made from this video (saved on submit) comes back as it was: cuts, subtitles,
+        // crop, watermark ... (?fresh=1 starts clean)
+        $resumed = false;
+        if (! $this->request->getGet('fresh') && ! empty($item['last_edit'])) {
+            $last = json_decode((string) $item['last_edit'], true);
+            if (is_array($last) && ! empty($last['keep'])) { $params = $last; $resumed = true; }
+        }
         $prefs  = (new \App\Models\UserModel())->prefs((int) session()->get('user_id'));
         return view('edit/index', [
             'title'    => '편집',
             'item'     => $item,
             'params'   => $params,
+            'resumed'  => $resumed,
             'wmPreset' => $prefs['watermark'] ?? null,
             'aiEnabled' => (bool) session()->get('ai_enabled'),
             'fonts'    => \App\Libraries\Fonts::available(),
@@ -119,6 +127,9 @@ class Edit extends BaseController
             'params'   => json_encode($params, JSON_UNESCAPED_UNICODE),
             'status'   => 'queued',
         ]);
+        // what the editor sent, kept on the video: the next 편집 opens with it
+        $state = json_encode($raw, JSON_UNESCAPED_UNICODE);
+        if ($state !== false && strlen($state) < 2000000) $media->update($item['id'], ['last_edit' => $state]);
         return $this->response->setJSON(['ok' => true, 'job' => $jobs->find($jobId)]);
     }
 }

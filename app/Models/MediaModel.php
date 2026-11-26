@@ -13,7 +13,7 @@ class MediaModel extends Model
         'user_id', 'parent_id', 'kind', 'category', 'source', 'origin', 'source_url', 'post_key', 'post_order',
         'description', 'x_text', 'uploader', 'stats', 'meta', 'title', 'filename',
         'media_type', 'mime', 'container', 'vcodec', 'acodec', 'width', 'height',
-        'duration', 'fps', 'size', 'has_thumb', 'has_proxy', 'edit_params', 'status',
+        'duration', 'fps', 'size', 'has_thumb', 'has_proxy', 'edit_params', 'last_edit', 'status',
     ];
     protected $useTimestamps = true;
     protected $beforeDelete  = ['rememberLink'];

@@ -253,3 +253,5 @@
 .pos-grid button:hover { border-color: var(--e-fg3); }
 .pos-grid button.active { border-color: var(--e-accent); background: rgba(41,151,255,.15); }
 .pos-grid button.active::after { background: var(--e-accent); }
+
+.ed-fresh { font-size: 12px; color: var(--label2, #999); text-decoration: underline; margin-right: 8px; white-space: nowrap; }

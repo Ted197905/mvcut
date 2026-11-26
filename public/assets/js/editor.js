@@ -87,6 +87,12 @@
     if (D.params.subtitles) state.subtitles = [D.params.subtitles[0] || null, D.params.subtitles[1] || null];
     if (D.params.transform) state.transform = Object.assign({ rotate: 0, flipH: false, flipV: false }, D.params.transform);
     if (D.params.facetrack) state.facetrack = D.params.facetrack;
+    if (D.params.cropAR) state.cropAR = D.params.cropAR;
+    if (D.params.enhance) state.enhance = Object.assign(state.enhance, D.params.enhance);
+    if (D.params.smooth) state.smooth = D.params.smooth;
+    if (D.params.restore) state.restore = Object.assign(state.restore, D.params.restore);
+    if (D.params.expand) state.expand = Object.assign(state.expand, D.params.expand);
+    if (D.params.erase) state.erase = Object.assign(state.erase, D.params.erase);
   }
 
   /* ---------- segment ops ---------- */
@@ -1299,7 +1305,7 @@
 
   /* ---------- submit / job polling ---------- */
   let pollTimer = 0;
-  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, facetrack: state.facetrack, keepAudio: state.keepAudio, output: state.output }; }
+  function params() { return { keep: keepList(), transform: state.transform, crop: state.crop, cropAR: state.cropAR, masks: state.masks, watermark: state.watermark, speed: state.speed, enhance: state.enhance, subtitles: state.subtitles.filter(Boolean), smooth: state.smooth, restore: state.restore, expand: state.expand, erase: state.erase, facetrack: state.facetrack, keepAudio: state.keepAudio, output: state.output }; }
   async function submit() {
     const csrf = MV.csrf();
     const box = $('jobBox'); box.hidden = false; box.classList.remove('done'); $('jobLinks').hidden = true; $('jobError').hidden = true;
@@ -1343,5 +1349,13 @@
   stripEl.style.backgroundImage = `url("${D.stripUrl}")`;
   $('tcTotal').textContent = '/ ' + tc(DUR);
   syncOutputFields();
+  // the buttons of a reopened edit (media.last_edit) show what the state holds
+  document.querySelectorAll('#sharpenPresets button').forEach(x => x.classList.toggle('active', x.dataset.sharpen === state.enhance.sharpen));
+  $('denoise').checked = !!state.enhance.denoise; $('denoise').disabled = state.enhance.sharpen === 'off';
+  document.querySelectorAll('#smoothPresets button').forEach(x => x.classList.toggle('active', x.dataset.smooth === state.smooth));
+  document.querySelectorAll('#restorePresets button').forEach(x => x.classList.toggle('active', x.dataset.restore === state.restore.mode));
+  document.querySelectorAll('#expandPresets button').forEach(x => x.classList.toggle('active', +x.dataset.w === state.expand.w && +x.dataset.h === state.expand.h));
+  $('eraseQuality').value = state.erase.quality; $('restoreModel').value = state.restore.model; $('restoreModelRow').hidden = state.restore.mode === 'off';
   syncTransform(); layoutStage(); layoutTimeline(); renderAll();
+  if (D.resumed) flash('마지막 편집 상태를 불러왔습니다.');
 })();
