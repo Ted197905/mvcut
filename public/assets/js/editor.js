@@ -444,7 +444,7 @@
     if (seg) { state.selected = +seg.dataset.i; renderSegments(); }
     // with a mouse the clip's body drags it too; a plain click moves the playhead there. Touch scrolls the timeline,
     // so there the grip is the handle.
-    if (seg && e.pointerType === 'mouse' && e.button === 0) { startClipDrag('top', +seg.dataset.i, e, () => startScrub(e)); return; }
+    if (seg && e.pointerType === 'mouse' && e.button === 0) { startClipDrag('top', +seg.dataset.i, e, () => seek(snapFrame(tOf(clamp(localX(e), 0, trackWidth()))))); return; }
     startScrub(e);
   });
   segLayer.addEventListener('dblclick', (e) => {
