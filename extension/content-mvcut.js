@@ -46,6 +46,9 @@ window.addEventListener('message', (e) => {
       filename: String(d.filename || 'video.mp4'),
       mime: String(d.mime || 'application/octet-stream'),
       text: String(d.text || ''),
+      // a thread: the posts under the first one (content-x.js adds a post box for each); submit = press "예약하기" too (1.12.0)
+      parts: Array.isArray(d.parts) ? d.parts.slice(0, 24).map((p) => String(p || '')).filter((p) => p.trim() !== '') : [],
+      submit: d.submit === true,
       files: Array.isArray(d.files) ? d.files.slice(0, 20).filter((f) => f && typeof f.url === 'string')
         .map((f) => ({ url: f.url, filename: String(f.filename || 'file'), mime: String(f.mime || 'application/octet-stream') })) : null,
     }).catch(() => {});

@@ -13,9 +13,16 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.type === 'send-to-x') {
     chrome.tabs.create({ url: 'https://x.com/compose/post' }, (tab) => {
       const files = Array.isArray(msg.files) ? msg.files : (msg.url ? [{ url: msg.url, filename: msg.filename, mime: msg.mime }] : []);
-      pending.set(tab.id, { files, text: String(msg.text || ''), note: String(msg.note || ''), at: Number(msg.at) || 0 });
+      pending.set(tab.id, { files, text: String(msg.text || ''), note: String(msg.note || ''), at: Number(msg.at) || 0,
+                            parts: Array.isArray(msg.parts) ? msg.parts : [], submit: msg.submit === true });
       reply({ ok: true });
     });
+    return true;
+  }
+  if (msg && msg.type === 'x-done') {   // content-x.js scheduled the post itself (submit): its tab is done
+    const id = sender.tab && sender.tab.id;
+    if (id != null) setTimeout(() => chrome.tabs.remove(id).catch(() => {}), 2500);
+    reply({ ok: true });
     return true;
   }
   if (msg && msg.type === 'x-ready') {

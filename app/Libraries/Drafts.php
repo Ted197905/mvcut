@@ -100,6 +100,14 @@ class Drafts
         return $text;
     }
 
+    /** The posts under the first one (a thread scheduled as a whole): thread[1..]; thread[0] is the first post's body. */
+    public static function parts(array $d): array
+    {
+        $thread = json_decode((string) ($d['thread'] ?? ''), true);
+        if (! is_array($thread)) return [];
+        return array_values(array_filter(array_map(static fn ($p) => trim((string) $p), array_slice($thread, 1)), static fn ($p) => $p !== ''));
+    }
+
     /** The account's posting grid type (a key of SLOT_TYPES). */
     public static function slotType(int $userId): string
     {
@@ -370,7 +378,9 @@ class Drafts
             self::failed($d, '확장이 결과를 보내지 않음 (시간 초과)');
         }
         if (! empty($w['draft_queue_at']) && strtotime($w['draft_queue_at'] . ' UTC') > time() - self::AUTO_GAP) return [];
+        // a thread (replies under the post) cannot go through this request: it is filled into X's composer instead
         $d = $db->table(self::t('drafts'))->where('status', 'approved')->where('tries <', self::MAX_TRIES)
+            ->where('(thread IS NULL OR JSON_LENGTH(thread) < 2)', null, false)
             ->orderBy('slot_at')->orderBy('id')->get(1)->getRowArray();
         if (! $d) return [];
         if (strtotime($d['slot_at'] . ' UTC') < time() + 5 * 60) {   // X refuses a time in the past; keep a margin

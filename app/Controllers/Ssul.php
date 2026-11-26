@@ -141,7 +141,7 @@ class Ssul extends BaseController
         return redirect()->to(site_url('ssul') . '#j' . $id)->with('flash', '저장했습니다.');
     }
 
-    /** POST /ssul/{id}/draft  with=0|1 - saved first, then handed to the drafts (the model worker makes the draft within ~15 s) */
+    /** POST /ssul/{id}/draft  with=0 (one post) | 1 (a thread: the post, the rest as its replies) - saved first, then handed to the drafts (the model worker makes the draft within ~15 s) */
     public function draft(int $id)
     {
         $j = $this->job($id);

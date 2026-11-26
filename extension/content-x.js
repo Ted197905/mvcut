@@ -1,4 +1,6 @@
-// Fills the compose modal with the post text and attaches the files (up to 4 with a video, up to 20 photos). Posting stays manual.
+// Fills the compose modal with the post text and attaches the files (up to 4 with a video, up to 20 photos); a thread's other
+// posts go into post boxes added under the first (job.parts, 1.12.0). The schedule time is set; "예약하기" stays for the user
+// unless the job says submit.
 
 (async () => {
   const job = await chrome.runtime.sendMessage({ type: 'x-ready' });
@@ -43,15 +45,47 @@
   // The composer is a rich editor that only takes text through events it handles itself;
   // a paste event is one of them (and, unlike the /intent URL, the text then survives the
   // caption / content-warning sub-screens).
-  const fillText = async (text) => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fillText = async (text, n = 0) => {
     if (!text) return;
-    const box = await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_0"][contenteditable="true"]');
+    const box = await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_' + n + '"][contenteditable="true"]');
     box.focus();
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
     box.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
     await new Promise((r) => setTimeout(r, 400));
     if (!box.innerText.trim()) document.execCommand('insertText', false, text);
+    if (!box.innerText.trim()) throw new Error((n + 1) + '번째 글을 넣지 못했습니다');
+  };
+
+  // "게시물 추가" needs the whole pointer sequence: a bare click() empties the composer instead of adding a post box (seen 2026-11-26)
+  const press = (el) => {
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, composed: true, view: window, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2,
+                button: 0, buttons: 1, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    el.dispatchEvent(new PointerEvent('pointerdown', o));
+    el.dispatchEvent(new MouseEvent('mousedown', o));
+    el.focus();
+    el.dispatchEvent(new PointerEvent('pointerup', { ...o, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('mouseup', { ...o, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('click', { ...o, buttons: 0 }));
+  };
+  // waits while X uploads the files (the button stays disabled meanwhile)
+  const enabled = async (sel, ms) => {
+    const until = Date.now() + ms;
+    for (;;) {
+      const el = document.querySelector(sel);
+      if (el && el.getAttribute('aria-disabled') !== 'true' && !el.disabled) return el;
+      if (Date.now() > until) throw new Error('버튼이 눌리지 않습니다 (파일 올리는 중일 수 있음)');
+      await sleep(400);
+    }
+  };
+  const addPost = async (n, text) => {
+    press(await enabled('div[role="dialog"] [data-testid="addButton"]', 180000));
+    await waitFor('div[role="dialog"] div[data-testid="tweetTextarea_' + n + '"][contenteditable="true"]', 8000);
+    await sleep(350);
+    await fillText(text, n);
+    await sleep(350);
   };
 
   // the composer's schedule screen: native selects (SELECTOR_1..6 = month, day, year, hour, minute, am/pm) driven by React
@@ -96,11 +130,18 @@
       input.files = dt.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
+    const parts = Array.isArray(job.parts) ? job.parts : [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i === 0) await sleep(700);
+      await addPost(i + 1, parts[i]);
+    }
+    let scheduled = false;
     if (job.at) {
       // X's own schedule screen: the date/time selects, then "확인"; the post itself stays for the user ("예약하기")
       await new Promise((r) => setTimeout(r, 1500));
       try {
         await setSchedule(job.at);
+        scheduled = true;
         job.note = '예약 시각을 ' + job.note.replace(/^예약 시각 /, '').replace(/로 지정하고 예약하세요.*$/, '') + '로 맞춰 두었습니다. 확인 후 "예약하기"를 누르세요.';
       } catch (e) {
         toast('예약 시각을 자동으로 넣지 못했습니다: ' + e.message, true);
@@ -120,7 +161,24 @@
       }, 1000);
       document.body.appendChild(el);
     }
-    toast('본문' + (files.length ? '과 파일 ' + files.length + '개를' : '을') + ' 올렸습니다. ' + (job.note ? '예약 시각을 지정해 예약하세요.' : '확인 후 직접 게시하세요.'));
+    const what = '본문' + (parts.length ? ', 답글 ' + parts.length + '개' : '') + (files.length ? ', 파일 ' + files.length + '개' : '');
+    if (job.submit && scheduled) {
+      // the last step too: only with the schedule time set (the button then reads "예약하기", never "게시하기")
+      const sel = 'div[role="dialog"] [data-testid="tweetButton"]';
+      const btn = await enabled(sel, 300000);
+      if (!/예약|Schedule/i.test(btn.innerText)) throw new Error('예약 버튼이 아닙니다: 누르지 않았습니다');
+      await sleep(900 + Math.random() * 900);
+      btn.click();
+      const until = Date.now() + 30000;
+      while (document.querySelector('div[role="dialog"] [data-testid="tweetTextarea_0"]')) {
+        if (Date.now() > until) throw new Error('"예약하기"를 눌렀지만 작성창이 닫히지 않았습니다. 화면을 확인하세요.');
+        await sleep(400);
+      }
+      toast(what + '를 예약했습니다. 이 탭은 곧 닫힙니다.');
+      chrome.runtime.sendMessage({ type: 'x-done' }).catch(() => {});
+      return;
+    }
+    toast(what + '를 올렸습니다. ' + (job.note ? '예약 시각을 확인하고 예약하세요.' : '확인 후 직접 게시하세요.'));
   } catch (e) {
     toast('MV Cut: ' + e.message, true);
   }

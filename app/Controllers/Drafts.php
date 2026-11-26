@@ -79,7 +79,14 @@ class Drafts extends BaseController
         $body = '';
         if ($d['style'] === 'story') {
             $body = str_replace("\r", '', trim((string) $this->request->getPost('body')));
-            $data['thread'] = $body === '' ? null : json_encode([$body], JSON_UNESCAPED_UNICODE);
+            // the posts under the first one (a thread): the card's box, one post per "---" line; a card without the box keeps what is stored
+            $parts = D::parts($d);
+            if ($this->request->getPost('replies') !== null) {
+                $parts = array_values(array_filter(array_map('trim', preg_split('/\n\s*-{3,}\s*\n/', "\n" . str_replace("\r", '', (string) $this->request->getPost('replies')) . "\n")), static fn ($p) => $p !== ''));
+            }
+            if (count($parts) > 24) return '답글은 24개까지입니다 (X 타래 한도 25개).';
+            $data['thread'] = $body === '' && ! $parts ? null : json_encode(array_merge([$body], $parts), JSON_UNESCAPED_UNICODE);
+            $body .= implode('', $parts);
         }
         // X's long-post limit (Premium) is 25,000; nothing is cut silently (a 4,000 cut lost the end of a pasted original, 2026-11-21)
         $len = mb_strlen($text) + mb_strlen($body);
@@ -159,7 +166,7 @@ class Drafts extends BaseController
             return $this->response->setStatusCode(409)->setJSON(['ok' => false, 'error' => '승인된 초안이 아닙니다.']);
         }
         $at = \App\Libraries\XWatch::kst(strtotime($d['slot_at'] . ' UTC'), 'n/j H:i');
-        return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'files' => D::files($d), 'at' => $at, 'ts' => strtotime($d['slot_at'] . ' UTC'),
+        return $this->response->setJSON(['ok' => true, 'text' => D::fullText($d), 'parts' => D::parts($d), 'files' => D::files($d), 'at' => $at, 'ts' => strtotime($d['slot_at'] . ' UTC'),
             'note' => '예약 시각 ' . $at . '로 지정하고 예약하세요 (작성창 아래 달력 아이콘).']);
     }
 

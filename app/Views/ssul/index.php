@@ -195,15 +195,15 @@ main.wide.settings.ssul { max-width: 980px; }
       body = j.notes.map((n) => `<p class="ss-note">${esc(n)}</p>`).join('')
         + `<label class="lb">${j.isArticle ? '제목' : thread ? '타래 1 (훅)' : '첫 줄 (훅)'}</label><textarea data-f="title" rows="${rows(j.title, 2)}">${esc(j.title)}</textarea>`
         + `<label class="lb">${j.isArticle ? '기사' : thread ? '타래 2~ ("---" 줄로 나눔)' : '본문'}</label><textarea data-f="body" rows="${rows(j.body, 6)}">${esc(j.body)}</textarea>`
-        + (thread ? '' : `<label class="lb">${j.isArticle ? 'X 요약 글' : '결말 (본문 아래 답글로 올릴 부분)'}</label><textarea data-f="reply" rows="${rows(j.reply, 2)}">${esc(j.reply)}</textarea>`)
+        + (thread ? '' : `<label class="lb">${j.isArticle ? 'X 요약 글' : '답글 (타래로 보내면 본문 아래 답글로 이어질 나머지)'}</label><textarea data-f="reply" rows="${rows(j.reply, 2)}">${esc(j.reply)}</textarea>`)
         + (j.material && j.material.url ? `<p class="ss-src">소재 원문: <a href="${esc(j.material.url)}" target="_blank" rel="noopener noreferrer">${esc(j.material.title)}</a></p>` : '')
         + (j.sources.length ? `<details class="ss-src"><summary>출처 ${j.sources.length}건</summary><ol>` + j.sources.map((s) =>
             `<li class="${s.used === false ? 'unused' : ''}"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> · ${esc(s.site)}${s.at ? ' · ' + esc(s.at) : ''}${s.used ? ' · 근거로 씀' : ''}</li>`).join('') + '</ol></details>' : '');
     }
     const btns = `<div class="ss-btns">`
       + (done ? `<button class="btn sm" type="button" data-a="copy">복사</button><button class="btn sm secondary" type="button" data-a="save">저장</button>`
-              + (sent ? '' : `<button class="btn sm tinted" type="button" data-a="draft" data-with="0">초안으로${!j.isArticle && j.fmt !== 'thread' ? ' (결말 제외)' : ''}</button>`
-                           + (!j.isArticle && j.fmt !== 'thread' ? `<button class="btn sm tinted" type="button" data-a="draft" data-with="1">초안으로 (결말 포함)</button>` : '')) : '')
+              + (sent ? '' : `<button class="btn sm tinted" type="button" data-a="draft" data-with="0" title="전체를 한 게시물로">초안으로${!j.isArticle ? ' (한 글)' : ''}</button>`
+                           + (!j.isArticle ? `<button class="btn sm tinted" type="button" data-a="draft" data-with="1" title="본문은 게시물로, 나머지는 그 아래 답글로 함께 예약">초안으로 (타래)</button>` : '')) : '')
       + (done ? `<span class="ss-count" data-count></span>` : '') + `<span class="spacer"></span>`
       + ((done || j.status === 'failed') && !sent ? `<button class="btn sm ghost" type="button" data-a="redo">다시 쓰기</button>` : '')
       + (j.status !== 'running' ? `<button class="btn sm ghost" type="button" data-a="delete" style="color:var(--red)">삭제</button>` : '') + `</div>`;

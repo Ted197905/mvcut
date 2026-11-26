@@ -36,7 +36,9 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
     </div>
     <span class="muted small"><?= $mode === 'auto'
         ? '승인한 초안을 확장이 승인 순서대로 10분에 1건씩 X 예약에 등록합니다. 실패하면 다시 줄을 서고 ' . D::MAX_TRIES . '번까지 재시도합니다 (크롬이 켜져 있어야 함).'
-        : '승인하면 X 작성창에 본문, 사진, 예약 시각까지 넣어 엽니다. "예약하기"만 직접 누르면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
+        : '승인하면 X 작성창에 본문, 사진, 답글 타래, 예약 시각까지 넣어 엽니다. "예약하기"만 직접 누르면 카드가 "X 예약됨"으로 바뀝니다.' ?></span>
+    <?php if ($mode === 'semi'): ?><label class="small" title="작성창을 채운 뒤 확장이 예약하기 버튼까지 누르고 탭을 닫습니다 (이 브라우저에만 저장, 확장 1.12.0+)"><input type="checkbox" id="drSubmit"> 예약하기까지 자동으로 누름</label>
+    <script>(() => { const c = document.getElementById('drSubmit'); c.checked = localStorage.getItem('mvcut.drSubmit') === '1'; c.addEventListener('change', () => localStorage.setItem('mvcut.drSubmit', c.checked ? '1' : '0')); })();</script><?php endif ?>
   </form>
   <form class="dr-mode" method="post" action="<?= site_url('drafts/slots') ?>"><?= csrf_field() ?>
     <input type="hidden" name="back" value="<?= esc($back, 'attr') ?>">
@@ -153,6 +155,10 @@ $writing = (int) ($counts['gen'] ?? 0) + (int) ($counts['regen'] ?? 0);
           <textarea class="input dr-text" name="text" rows="<?= $d['style'] === 'story' ? 2 : 7 ?>" placeholder="<?= $d['style'] === 'story' ? '헤드라인' : '본문' ?>"<?= $editable ? '' : ' readonly' ?>><?= esc((string) $d['text']) ?></textarea>
           <?php if ($d['style'] === 'story'): ?>
             <textarea class="input dr-text" name="body" rows="6" placeholder="본문 (헤드라인 아래 빈 줄 뒤에 붙습니다)"<?= $editable ? '' : ' readonly' ?>><?= esc((string) ($thread[0] ?? '')) ?></textarea>
+            <?php $replies = D::parts($d); if ($replies): ?>
+              <div class="muted small" style="margin:6px 0 4px">답글 타래 <?= count($replies) ?>개: 게시물 아래 답글로 함께 예약됩니다 ("---" 줄로 나눔)</div>
+              <textarea class="input" name="replies" rows="<?= min(16, 4 + count($replies) * 3) ?>" style="width:100%"<?= $editable ? '' : ' readonly' ?>><?= esc(implode("\n\n---\n\n", $replies)) ?></textarea>
+            <?php endif ?>
           <?php endif ?>
           <div class="dr-count muted small"><span class="n"></span> / 280 <span class="fold"></span></div>
         <?php endif ?>
@@ -282,7 +288,12 @@ const drMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navig
       const r = await fetch('<?= site_url('drafts') ?>/' + id + '/xfill', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': c ? c.hash : '' } });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || MV.httpError(r.status));
-      await window.mvSendToX({ url: '', text: j.text, files: j.files, note: j.note, at: j.ts });
+      const parts = j.parts || [];
+      const v = (document.documentElement.dataset.mvcutXVersion || '0').split('.').map(Number);
+      if (parts.length && (v[0] || 0) * 10000 + (v[1] || 0) * 100 + (v[2] || 0) < 11200) {   // an older extension would schedule the first post alone
+        throw new Error('답글 타래는 확장 1.12.0부터 채웁니다 (지금 ' + (document.documentElement.dataset.mvcutXVersion || '없음') + '). chrome://extensions 에서 MV Cut 확장을 새로고침한 뒤 이 페이지도 새로고침하세요.');
+      }
+      await window.mvSendToX({ url: '', text: j.text, files: j.files, note: j.note, at: j.ts, parts, submit: localStorage.getItem('mvcut.drSubmit') === '1' });
     } catch (e) { alert('X 작성창 채우기 실패: ' + e.message); }
   };
   if (drMobile && document.documentElement.dataset.mvcutX !== '1') {
