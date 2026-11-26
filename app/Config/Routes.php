@@ -133,6 +133,17 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
         $routes->post('(:num)/delete', 'Collect::delete/$1');
     });
 
+    $routes->group('ssul', ['filter' => 'admin'], static function (RouteCollection $routes) {
+        $routes->get('', 'Ssul::index');
+        $routes->get('status', 'Ssul::status');
+        $routes->post('jobs', 'Ssul::create');
+        $routes->post('auto', 'Ssul::auto');
+        $routes->post('(:num)/save', 'Ssul::save/$1');
+        $routes->post('(:num)/draft', 'Ssul::draft/$1');
+        $routes->post('(:num)/redo', 'Ssul::redo/$1');
+        $routes->post('(:num)/delete', 'Ssul::delete/$1');
+    });
+
     $routes->group('ops', ['filter' => 'admin'], static function (RouteCollection $routes) {
         $routes->get('status', 'Ops::status');
         $routes->post('switch', 'Ops::switch');
