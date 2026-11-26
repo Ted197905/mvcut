@@ -27,7 +27,7 @@
   // the tab going away (closed, reloaded, navigated): the last thing logged, so a tab that "closes by itself" leaves a trace
   window.addEventListener('pagehide', (e) => {
     log('pagehide persisted=' + e.persisted + ' visibility=' + document.visibilityState + ' url=' + location.pathname + location.search.slice(0, 80));
-    report({ found, deleted, failed, done: false, force: true });
+    try { report({ found, deleted, failed, done: false, force: true }); } catch (err) {}   // extension reloaded: nothing to report to
   });
   window.addEventListener('beforeunload', () => { log('beforeunload'); });
   chrome.runtime.onMessage.addListener((m) => {
