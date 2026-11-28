@@ -99,7 +99,7 @@ $bad = count(array_filter($sources, static fn ($s) => $state($s)[1] !== 'ok'));
         count = document.getElementById('idCount'), info = document.getElementById('idRosterInfo');
   let all = [];
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const kind = { group: '그룹', member: '멤버', solo: '솔로', related: '관련', topic: '관심' };
+  const kind = { group: '그룹', member: '멤버', solo: '솔로', related: '관련', topic: '관심', news: '뉴스' };
   const link = (r) => r.platform === 'ig' ? 'https://www.instagram.com/' + r.handle + '/' : r.platform === 'fb' ? 'https://www.facebook.com/' + (/^\d+$/.test(r.handle) ? 'profile.php?id=' + r.handle + '&sk=reels_tab' : r.handle + '/reels/') : 'https://www.tiktok.com/@' + r.handle;
   const status = (r) => {
     if (!r.enabled) return '<span class="ck-badge">' + (r.last_status === 'notfound' ? '계정 없음' : '꺼짐') + '</span>';

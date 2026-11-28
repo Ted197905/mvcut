@@ -15,7 +15,8 @@ class Collect extends BaseController
 {
     private const PER_PAGE  = 30;
     private const SORTS     = ['new' => 'i.id', 'views' => 'i.views', 'comments' => 'i.comments', 'likes' => 'i.likes'];
-    public const COUNTRIES  = ['KR' => '한국', 'JP' => '일본', 'GLOBAL' => '글로벌', 'TH' => '태국', 'TW' => '대만', 'CN' => '중국'];
+    public const COUNTRIES  = ['KR' => '한국', 'JP' => '일본', 'GLOBAL' => '글로벌', 'TH' => '태국', 'TW' => '대만', 'CN' => '중국', 'ID' => '인도네시아', 'VN' => '베트남',
+        'PH' => '필리핀', 'IN' => '인도', 'ES' => '스페인어권', 'BR' => '브라질', 'FR' => '프랑스', 'DE' => '독일', 'TR' => '튀르키예', 'RU' => '러시아'];
     /** Daily X search sources (hallyuwire xsearch.py): posts past 1M views in the last 24 hours. */
     public const X_SOURCES  = ['x_viral_kr', 'x_viral_kpop'];
     /** Idol accounts on Instagram / TikTok (hallyuwire idols.py): their own posts, shown under the "아이돌" tab only. */
@@ -144,7 +145,7 @@ class Collect extends BaseController
             }
         }
 
-        $sources = $db->query("SELECT * FROM {$this->t('sources')} ORDER BY FIELD(country, 'KR','JP','GLOBAL','TH','TW','CN'), id")->getResultArray();
+        $sources = $db->query("SELECT * FROM {$this->t('sources')} ORDER BY FIELD(country, 'KR','JP','GLOBAL','TH','TW','CN') = 0, FIELD(country, 'KR','JP','GLOBAL','TH','TW','CN'), country, id")->getResultArray();
         $groups = $idolStat = [];
         if ($f['scope'] === 'idol') {
             // groups / solo names with posts in the last 14 days, most posts first
